@@ -23,3 +23,13 @@ impl fmt::Debug for Error {
 fn main() -> Result<Success, Error> {
     Err(Error::Unknown())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_main() {
+        assert!(main().is_ok());
+    }
+}
