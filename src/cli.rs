@@ -26,7 +26,7 @@ mod tests {
     use std::str;
 
     #[test]
-    fn test_render_valid_template() {
+    fn renders_valid_template() {
         let mut input = VALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
         let result = render(&mut input, &mut output);
@@ -39,7 +39,7 @@ mod tests {
     }
 
     #[test]
-    fn test_render_invalid_template() {
+    fn renders_invalid_template() {
         let mut input = INVALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
         let result = render(&mut input, &mut output);

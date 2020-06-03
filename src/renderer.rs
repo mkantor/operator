@@ -19,7 +19,7 @@ mod tests {
     use crate::test_lib::*;
 
     #[test]
-    fn test_render_valid_template() {
+    fn renders_valid_template() {
         match render(VALID_TEMPLATE) {
             Ok(rendered) => assert_eq!(rendered, VALID_TEMPLATE_RENDERED),
             Err(_) => panic!("Rendering failed when it should have succeeded."),
@@ -27,7 +27,7 @@ mod tests {
     }
 
     #[test]
-    fn test_render_invalid_template() {
+    fn renders_invalid_template() {
         assert!(render(INVALID_TEMPLATE).is_err());
     }
 }
