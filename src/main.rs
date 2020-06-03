@@ -5,7 +5,7 @@ mod cli;
 mod renderer;
 mod test_lib;
 
-const USAGE: &'static str = "Usage: gluon
+const USAGE: &str = "Usage: gluon
 
 Renders a handlebars template from STDIN.
 

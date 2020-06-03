@@ -7,7 +7,7 @@ pub enum Error {
     WriteError(),
 }
 
-pub fn render(input: &mut Read, output: &mut Write) -> Result<(), Error> {
+pub fn render(input: &mut dyn Read, output: &mut dyn Write) -> Result<(), Error> {
     let mut template = String::new();
     input
         .read_to_string(&mut template)
@@ -27,20 +27,20 @@ mod tests {
 
     #[test]
     fn test_render_valid_template() {
-        let mut input = valid_template.as_bytes();
+        let mut input = VALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
         let result = render(&mut input, &mut output);
 
         assert!(result.is_ok());
         assert_eq!(
             str::from_utf8(output.as_slice()),
-            Ok(valid_template_rendered)
+            Ok(VALID_TEMPLATE_RENDERED)
         );
     }
 
     #[test]
     fn test_render_invalid_template() {
-        let mut input = invalid_template.as_bytes();
+        let mut input = INVALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
         let result = render(&mut input, &mut output);
 

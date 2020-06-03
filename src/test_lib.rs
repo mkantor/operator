@@ -1,8 +1,8 @@
 #[cfg(test)]
-pub static valid_template: &str = "{{#if true}}hello world{{else}}goodbye world{{/if}}";
+pub static VALID_TEMPLATE: &str = "{{#if true}}hello world{{else}}goodbye world{{/if}}";
 
 #[cfg(test)]
-pub static valid_template_rendered: &str = "hello world";
+pub static VALID_TEMPLATE_RENDERED: &str = "hello world";
 
 #[cfg(test)]
-pub static invalid_template: &str = "{{this is not valid handlebars!}}";
+pub static INVALID_TEMPLATE: &str = "{{this is not valid handlebars!}}";
