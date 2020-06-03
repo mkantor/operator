@@ -2,12 +2,14 @@ use std::fmt;
 use std::io;
 
 mod cli;
+mod renderer;
+mod test_lib;
 
 const USAGE: &'static str = "Usage: gluon
 
-Renders a handlebars template from STDIN (eventually).
+Renders a handlebars template from STDIN.
 
-Try: echo \"hello world\" | gluon";
+Try: echo \"{{#if true}}hello world{{/if}}\" | gluon";
 
 type Success = ();
 
@@ -29,5 +31,5 @@ fn main() -> Result<Success, Error> {
     let mut input = stdin.lock();
     let mut output = stdout.lock();
 
-    cli::echo(&mut input, &mut output).map_err(|_| Error::Unknown())
+    cli::render(&mut input, &mut output).map_err(|_| Error::Unknown())
 }
