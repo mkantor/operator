@@ -1,4 +1,7 @@
 use std::fmt;
+use std::io;
+
+mod cli;
 
 const USAGE: &'static str = "Usage: gluon
 
@@ -21,15 +24,10 @@ impl fmt::Debug for Error {
 }
 
 fn main() -> Result<Success, Error> {
-    Err(Error::Unknown())
-}
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut input = stdin.lock();
+    let mut output = stdout.lock();
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_main() {
-        assert!(main().is_ok());
-    }
+    cli::echo(&mut input, &mut output).map_err(|_| Error::Unknown())
 }
