@@ -6,3 +6,5 @@ edition = "2018"
 
 [dependencies]
 handlebars = "^3.1.0"
+thiserror = "^1.0.19"
+anyhow = "^1.0.31"

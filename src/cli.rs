@@ -1,20 +1,31 @@
 use crate::renderer;
+use std::io;
 use std::io::{Read, Write};
+use thiserror::Error;
 
-pub enum Error {
-    ReadError(),
-    RenderError(),
-    WriteError(),
+#[derive(Error, Debug)]
+pub enum CliError {
+    #[error("Failed to read data.")]
+    ReadError { source: io::Error },
+
+    #[error("Unable to render template.")]
+    RenderError {
+        #[from]
+        source: renderer::RendererError,
+    },
+
+    #[error("Failed to write data.")]
+    WriteError { source: io::Error },
 }
 
-pub fn render(input: &mut dyn Read, output: &mut dyn Write) -> Result<(), Error> {
+pub fn render(input: &mut dyn Read, output: &mut dyn Write) -> Result<(), CliError> {
     let mut template = String::new();
     input
         .read_to_string(&mut template)
-        .map_err(|_| Error::ReadError())?;
+        .map_err(|source| CliError::ReadError { source })?;
 
-    let rendered_output = renderer::render(&template).map_err(|_| Error::RenderError())?;
-    write!(output, "{}", rendered_output).map_err(|_| Error::WriteError())?;
+    let rendered_output = renderer::render(&template)?;
+    write!(output, "{}", rendered_output).map_err(|source| CliError::WriteError { source })?;
 
     Ok(())
 }
