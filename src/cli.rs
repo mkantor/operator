@@ -1,3 +1,4 @@
+use crate::lib::*;
 use crate::renderer;
 use std::io;
 use std::io::{Read, Write};
@@ -18,13 +19,17 @@ pub enum CliError {
     WriteError { source: io::Error },
 }
 
-pub fn render(input: &mut dyn Read, output: &mut dyn Write) -> Result<(), CliError> {
+pub fn render(
+    gluon_version: GluonVersion,
+    input: &mut dyn Read,
+    output: &mut dyn Write,
+) -> Result<(), CliError> {
     let mut template = String::new();
     input
         .read_to_string(&mut template)
         .map_err(|source| CliError::ReadError { source })?;
 
-    let rendered_output = renderer::render(&template)?;
+    let rendered_output = renderer::render(gluon_version, &template)?;
     write!(output, "{}", rendered_output).map_err(|source| CliError::WriteError { source })?;
 
     Ok(())
@@ -40,7 +45,7 @@ mod tests {
     fn renders_valid_template() {
         let mut input = VALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
-        let result = render(&mut input, &mut output);
+        let result = render(GluonVersion("0.0.0"), &mut input, &mut output);
 
         assert!(result.is_ok());
         assert_eq!(
@@ -53,7 +58,7 @@ mod tests {
     fn renders_invalid_template() {
         let mut input = INVALID_TEMPLATE.as_bytes();
         let mut output = Vec::new();
-        let result = render(&mut input, &mut output);
+        let result = render(GluonVersion("0.0.0"), &mut input, &mut output);
 
         assert!(result.is_err());
     }
