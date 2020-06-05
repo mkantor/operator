@@ -1,11 +1,11 @@
-use std::io;
-
 mod cli;
 mod lib;
 mod renderer;
 mod test_lib;
 
 use crate::lib::*;
+use std::io;
+use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
