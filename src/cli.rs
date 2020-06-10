@@ -44,14 +44,14 @@ pub fn render(
     input: &mut dyn io::Read,
     output: &mut dyn io::Write,
 ) -> Result<(), CliError> {
+    let engine = ContentEngine::from_content_directory(content_directory_path)?;
+
     let mut template = String::new();
     input
         .read_to_string(&mut template)
         .map_err(|source| CliError::ReadError { source })?;
 
-    let engine = ContentEngine::from_content_directory(content_directory_path)?;
-    let template = engine.new_content(&template)?;
-    let rendered_output = template.render(gluon_version)?;
+    let rendered_output = engine.new_content(&template)?.render(gluon_version)?;
     write!(output, "{}", rendered_output).map_err(|source| CliError::WriteError { source })?;
 
     Ok(())
