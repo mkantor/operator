@@ -1,7 +1,8 @@
-extern crate handlebars;
+mod content_item;
+
 use crate::lib::*;
-use handlebars::{Context, Handlebars, RenderContext, Renderable};
-use serde::Serialize;
+use content_item::*;
+use handlebars::Handlebars;
 use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -97,68 +98,11 @@ impl<'a> ContentEngine<'a> {
         &self,
         handlebars_source: &str,
     ) -> Result<ContentItem, UnregisteredTemplateParseError> {
-        let template = handlebars::Template::compile2(handlebars_source, true)
-            .map_err(|source| UnregisteredTemplateParseError { source })?;
-        Ok(ContentItem::UnregisteredTemplate {
-            template_registry: &self.template_registry,
-            template,
-        })
+        ContentItem::new_template(&self.template_registry, handlebars_source)
     }
-}
 
-#[derive(Serialize)]
-struct GluonRenderData {
-    version: GluonVersion,
-}
-
-#[derive(Serialize)]
-struct RenderData {
-    gluon: GluonRenderData,
-}
-
-pub enum ContentItem<'a> {
-    /// A named template that exists in the registry. This variant must only be
-    /// constructed with names that have already been validated against the
-    /// registry.
-    RegisteredTemplate {
-        template_registry: &'a Handlebars<'a>,
-        name_in_registry: &'a str,
-    },
-
-    /// An anonymous template for on-the-fly rendering.
-    UnregisteredTemplate {
-        template_registry: &'a Handlebars<'a>,
-        template: handlebars::Template,
-    },
-}
-
-impl Render for ContentItem<'_> {
-    type RenderArgs = GluonVersion;
-    type Error = TemplateRenderError;
-
-    fn render(&self, gluon_version: GluonVersion) -> Result<String, Self::Error> {
-        let render_data = RenderData {
-            gluon: GluonRenderData {
-                version: gluon_version,
-            },
-        };
-
-        let rendered_content = match &self {
-            ContentItem::RegisteredTemplate {
-                template_registry,
-                name_in_registry,
-            } => template_registry.render(name_in_registry, &render_data)?,
-            ContentItem::UnregisteredTemplate {
-                template_registry,
-                template,
-            } => {
-                let context = Context::wraps(render_data)?;
-                let mut render_context = RenderContext::new(None);
-                template.renders(template_registry, &context, &mut render_context)?
-            }
-        };
-
-        Ok(rendered_content)
+    pub fn get(&self, address: &'a str) -> Option<ContentItem> {
+        ContentItem::from_registry(&self.template_registry, address)
     }
 }
 
@@ -246,7 +190,7 @@ mod tests {
             .expect("Template could not be parsed");
         let rendered = new_content
             .render(GluonVersion("0.0.0"))
-            .expect(&format!("Template rendering failed for `{}`", template,));
+            .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
             expected_output,
@@ -254,6 +198,45 @@ mod tests {
             template,
             expected_output,
             rendered,
+        );
+    }
+
+    #[test]
+    fn content_can_be_retrieved() {
+        let content_directory_path = example_path("valid/partials");
+        let engine = ContentEngine::from_content_directory(&content_directory_path)
+            .expect("Content engine could not be created");
+
+        let address = "ab";
+        let expected_output = "a\nb\n\n";
+
+        let content = engine.get(address).expect("Content could not be found");
+        let rendered = content.render(GluonVersion("0.0.0")).expect(&format!(
+            "Template rendering failed for content at '{}'",
+            address
+        ));
+        assert_eq!(
+            rendered,
+            expected_output,
+            "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address,
+            expected_output,
+            rendered,
+        );
+    }
+
+    #[test]
+    fn content_may_not_exist_at_address() {
+        let content_directory_path = example_path("valid/hello-world");
+        let engine = ContentEngine::from_content_directory(&content_directory_path)
+            .expect("Content engine could not be created");
+
+        let address = "this-address-does-not-refer-to-any-content";
+
+        assert!(
+            engine.get(address).is_none(),
+            "Content was found at '{}', but it was not expected to be",
+            address
         );
     }
 }
