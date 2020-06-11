@@ -8,6 +8,8 @@ use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+const VERSION: GluonVersion = GluonVersion(env!("CARGO_PKG_VERSION"));
+
 #[derive(StructOpt)]
 enum GluonCommand {
     /// Evaluates a handlebars template from STDIN.
@@ -20,22 +22,27 @@ enum GluonCommand {
     },
 }
 
-const VERSION: GluonVersion = GluonVersion(env!("CARGO_PKG_VERSION"));
+fn handle_command<I: io::Read, O: io::Write>(
+    command: &GluonCommand,
+    input: &mut I,
+    output: &mut O,
+) -> Result<(), anyhow::Error> {
+    match command {
+        GluonCommand::Render { content_directory } => {
+            cli::render(&content_directory, VERSION, input, output).map_err(anyhow::Error::from)
+        }
+    }
+}
 
 fn main() {
-    let result = match GluonCommand::from_args() {
-        GluonCommand::Render { content_directory } => {
-            let stdin = io::stdin();
-            let stdout = io::stdout();
-            let mut input = stdin.lock();
-            let mut output = stdout.lock();
+    let command = GluonCommand::from_args();
 
-            cli::render(&content_directory, VERSION, &mut input, &mut output)
-                .map_err(anyhow::Error::from)
-        }
-    };
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut input = stdin.lock();
+    let mut output = stdout.lock();
 
-    match result {
+    match handle_command(&command, &mut input, &mut output) {
         Err(error) => {
             eprintln!("Error: {:?}", error);
             std::process::exit(1);

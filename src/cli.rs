@@ -5,8 +5,8 @@ use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CliError {
-    #[error("Failed to read data.")]
+pub enum RenderCommandError {
+    #[error("Failed to read input.")]
     ReadError { source: io::Error },
 
     #[error("Unable to load content.")]
@@ -33,26 +33,27 @@ pub enum CliError {
         source: TemplateRenderError,
     },
 
-    #[error("Failed to write data.")]
+    #[error("Failed to write output.")]
     WriteError { source: io::Error },
 }
 
 /// Reads a template from `input`, renders it, and writes it to `output`.
-pub fn render(
+pub fn render<I: io::Read, O: io::Write>(
     content_directory_path: &Path,
     gluon_version: GluonVersion,
-    input: &mut dyn io::Read,
-    output: &mut dyn io::Write,
-) -> Result<(), CliError> {
+    input: &mut I,
+    output: &mut O,
+) -> Result<(), RenderCommandError> {
     let engine = ContentEngine::from_content_directory(content_directory_path)?;
 
     let mut template = String::new();
     input
         .read_to_string(&mut template)
-        .map_err(|source| CliError::ReadError { source })?;
+        .map_err(|source| RenderCommandError::ReadError { source })?;
 
     let rendered_output = engine.new_content(&template)?.render(gluon_version)?;
-    write!(output, "{}", rendered_output).map_err(|source| CliError::WriteError { source })?;
+    write!(output, "{}", rendered_output)
+        .map_err(|source| RenderCommandError::WriteError { source })?;
 
     Ok(())
 }
