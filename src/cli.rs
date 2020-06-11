@@ -179,7 +179,7 @@ mod tests {
             result.is_ok(),
             "Template rendering failed for content at '{}' in '{}': {}",
             address,
-            content_directory_path.to_string_lossy(),
+            content_directory_path.display(),
             result.unwrap_err(),
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
@@ -188,7 +188,7 @@ mod tests {
             expected_output,
             "Template rendering for content at '{}' in '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
             address,
-            content_directory_path.to_string_lossy(),
+            content_directory_path.display(),
             expected_output,
             output_as_str
         );

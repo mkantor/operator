@@ -19,10 +19,7 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
 pub const CONTENT_DIRECTORY_PATHS_WITH_VALID_CONTENTS: [&str; 3] = [
     concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/hello-world"),
     concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/partials"),
-    concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/examples/valid/examples/valid/empty"
-    ),
+    concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/empty"),
 ];
 
 pub const CONTENT_DIRECTORY_PATHS_WITH_INVALID_CONTENTS: [&str; 1] = [concat!(

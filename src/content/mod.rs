@@ -3,15 +3,19 @@ mod content_item;
 use crate::lib::*;
 use content_item::*;
 use handlebars::Handlebars;
+use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use walkdir::{DirEntry, WalkDir};
+
+const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
 #[derive(Error, Debug)]
 #[error(
   "Failed to parse template{} from content directory path '{}'.",
   .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
-  .content_directory_path.to_string_lossy()
+  .content_directory_path.display()
 )]
 pub struct RegisteredTemplateParseError {
     source: handlebars::TemplateError,
@@ -33,15 +37,18 @@ pub enum ContentLoadingError {
     TemplateParseError(#[from] RegisteredTemplateParseError),
 
     #[error(
-    "Input/output error when loading{} from content directory path '{}'.",
-    .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or(String::from(" content")),
-    .content_directory_path.to_string_lossy()
-  )]
+        "Input/output error when loading{} from content directory path '{}'.",
+        .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or(String::from(" content")),
+        .content_directory_path.display()
+    )]
     IOError {
         source: io::Error,
         content_directory_path: PathBuf,
         name: Option<String>,
     },
+
+    #[error("You've encountered a bug! This should never happen: {}", .message)]
+    Bug { message: String },
 }
 
 #[derive(Error, Debug)]
@@ -62,36 +69,12 @@ impl<'a> ContentEngine<'a> {
     pub fn from_content_directory(
         content_directory_path: &'a Path,
     ) -> Result<Self, ContentLoadingError> {
-        let template_registry = {
-            let mut template_registry = Handlebars::new();
-            template_registry
-                .register_templates_directory(".hbs", content_directory_path)
-                .map_err(|template_render_error| match template_render_error {
-                    handlebars::TemplateFileError::TemplateError(source) => {
-                        ContentLoadingError::TemplateParseError(RegisteredTemplateParseError {
-                            source,
-                            content_directory_path: PathBuf::from(content_directory_path),
-                        })
-                    }
-                    handlebars::TemplateFileError::IOError(source, original_name) => {
-                        // Handlebars-rust will use an empty string when the error does not
-                        // correspond to a specific path.
-                        let name = if original_name.is_empty() {
-                            None
-                        } else {
-                            Some(original_name)
-                        };
-                        ContentLoadingError::IOError {
-                            source,
-                            content_directory_path: PathBuf::from(content_directory_path),
-                            name,
-                        }
-                    }
-                })?;
-            template_registry
+        let mut engine = ContentEngine {
+            template_registry: Handlebars::new(),
         };
+        engine.register_content_directory(content_directory_path)?;
 
-        Ok(ContentEngine { template_registry })
+        Ok(engine)
     }
 
     pub fn new_content(
@@ -104,6 +87,83 @@ impl<'a> ContentEngine<'a> {
     pub fn get(&self, address: &'a str) -> Option<ContentItem> {
         ContentItem::from_registry(&self.template_registry, address)
     }
+
+    fn register_content_directory(
+        &mut self,
+        content_directory_path: &'a Path,
+    ) -> Result<(), ContentLoadingError> {
+        let entries = WalkDir::new(content_directory_path)
+            .min_depth(1)
+            .into_iter()
+            .collect::<Result<Vec<DirEntry>, walkdir::Error>>()
+            .map_err(|walkdir_error| {
+                let name = walkdir_error
+                    .path()
+                    .map(|path| String::from(path.to_string_lossy()));
+                ContentLoadingError::IOError {
+                    source: io::Error::from(walkdir_error),
+                    content_directory_path: content_directory_path.to_path_buf(),
+                    name,
+                }
+            })?
+            .into_iter()
+            .filter(|entry| entry.path().is_file())
+            .filter(|entry| {
+                let is_hidden = entry.file_name().to_string_lossy().starts_with('.');
+                !is_hidden
+            });
+
+        for entry in entries {
+            let path = entry.path();
+            match path.extension() {
+                Some(extension) if extension == OsStr::new(HANDLEBARS_FILE_EXTENSION) => {
+                    let name_in_registry = path
+                        .strip_prefix(content_directory_path)
+                        .map_err(|strip_prefix_error| ContentLoadingError::Bug {
+                            message: format!("Unable to determine template name for registry: {}", strip_prefix_error),
+                        })?
+                        .file_stem()
+                        .ok_or_else(|| ContentLoadingError::Bug {
+                            message: format!("Unable to determine template name for registry: no file name for '{}'", path.display()),
+                        })?;
+
+                    self.template_registry
+                        .register_template_file(&name_in_registry.to_string_lossy(), &path)
+                        .map_err(|template_render_error| match template_render_error {
+                            handlebars::TemplateFileError::TemplateError(source) => {
+                                ContentLoadingError::TemplateParseError(
+                                    RegisteredTemplateParseError {
+                                        source,
+                                        content_directory_path: PathBuf::from(
+                                            content_directory_path,
+                                        ),
+                                    },
+                                )
+                            }
+                            handlebars::TemplateFileError::IOError(source, original_name) => {
+                                // Handlebars-rust will use an empty string when the error does not
+                                // correspond to a specific path.
+                                let name = if original_name.is_empty() {
+                                    None
+                                } else {
+                                    Some(original_name)
+                                };
+                                ContentLoadingError::IOError {
+                                    source,
+                                    content_directory_path: PathBuf::from(content_directory_path),
+                                    name,
+                                }
+                            }
+                        })?;
+                }
+                _ => {
+                    // Ignore non-template files for now.
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -114,11 +174,12 @@ mod tests {
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for &path in &CONTENT_DIRECTORY_PATHS_WITH_VALID_CONTENTS {
-            assert!(
-                ContentEngine::from_content_directory(Path::new(path)).is_ok(),
-                "Content engine could not be created from {}",
-                path
-            );
+            if let Err(error) = ContentEngine::from_content_directory(Path::new(path)) {
+                panic!(
+                    "Content engine could not be created from {}: {}",
+                    path, error
+                );
+            }
         }
     }
 
@@ -237,6 +298,18 @@ mod tests {
             engine.get(address).is_none(),
             "Content was found at '{}', but it was not expected to be",
             address
+        );
+    }
+
+    #[test]
+    fn content_directory_path_must_exist() {
+        let content_directory_path = example_path("this/does/not/actually/exist");
+        let result = ContentEngine::from_content_directory(&content_directory_path);
+
+        assert!(
+            result.is_err(),
+            "Content engine was successfully created from {}, but this should have failed",
+            content_directory_path.display(),
         );
     }
 }
