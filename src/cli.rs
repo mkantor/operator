@@ -37,6 +37,33 @@ pub enum RenderCommandError {
     WriteError { source: io::Error },
 }
 
+#[derive(Error, Debug)]
+pub enum GetCommandError {
+    #[error("Unable to load content.")]
+    ContentLoadingError {
+        #[from]
+        source: ContentLoadingError,
+    },
+
+    #[error("Unable to parse template from content directory.")]
+    RegisteredTemplateParseError {
+        #[from]
+        source: RegisteredTemplateParseError,
+    },
+
+    #[error("Content not found at address '{}'.", .address)]
+    ContentNotFound { address: String },
+
+    #[error("Unable to render template.")]
+    TemplateRenderError {
+        #[from]
+        source: TemplateRenderError,
+    },
+
+    #[error("Failed to write output.")]
+    WriteError { source: io::Error },
+}
+
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory_path: &Path,
@@ -54,6 +81,26 @@ pub fn render<I: io::Read, O: io::Write>(
     let rendered_output = engine.new_content(&template)?.render(gluon_version)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
+
+    Ok(())
+}
+
+/// Renders an item from the content directory and write it to `output`.
+pub fn get<O: io::Write>(
+    content_directory_path: &Path,
+    address: &str,
+    gluon_version: GluonVersion,
+    output: &mut O,
+) -> Result<(), GetCommandError> {
+    let engine = ContentEngine::from_content_directory(content_directory_path)?;
+    let content_item = engine
+        .get(address)
+        .ok_or(GetCommandError::ContentNotFound {
+            address: String::from(address),
+        })?;
+    let rendered_output = content_item.render(gluon_version)?;
+    write!(output, "{}", rendered_output)
+        .map_err(|source| GetCommandError::WriteError { source })?;
 
     Ok(())
 }
@@ -112,5 +159,66 @@ mod tests {
                 template,
             );
         }
+    }
+
+    #[test]
+    fn cli_can_get_content() {
+        let mut output = Vec::new();
+        let content_directory_path = &example_path("valid/hello-world");
+        let address = "hello";
+        let expected_output = "hello world\n";
+
+        let result = get(
+            content_directory_path,
+            address,
+            GluonVersion("0.0.0"),
+            &mut output,
+        );
+
+        assert!(
+            result.is_ok(),
+            "Template rendering failed for content at '{}' in '{}': {}",
+            address,
+            content_directory_path.to_string_lossy(),
+            result.unwrap_err(),
+        );
+        let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
+        assert_eq!(
+            output_as_str,
+            expected_output,
+            "Template rendering for content at '{}' in '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address,
+            content_directory_path.to_string_lossy(),
+            expected_output,
+            output_as_str
+        );
+    }
+
+    #[test]
+    fn cli_can_fail_to_get_content_which_does_not_exist() {
+        let mut output = Vec::new();
+        let content_directory_path = &example_path("valid/hello-world");
+        let address = "this-address-does-not-refer-to-any-content";
+
+        let result = get(
+            content_directory_path,
+            address,
+            GluonVersion("0.0.0"),
+            &mut output,
+        );
+
+        match result {
+            Ok(_) => panic!(
+                "Getting content from '{}' succeeded, but it should have failed",
+                address
+            ),
+            Err(GetCommandError::ContentNotFound {
+                address: address_from_error,
+            }) => assert_eq!(
+                address_from_error, address,
+                "Address from error did not match address used"
+            ),
+            Err(_) => panic!("Wrong type of error was produced, expected ContentNotFound"),
+        };
     }
 }

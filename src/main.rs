@@ -20,6 +20,18 @@ enum GluonCommand {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
     },
+
+    /// Gets content from the content directory.
+    #[structopt(
+        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.hbs && gluon get --content-directory=content --address=hello"
+    )]
+    Get {
+        #[structopt(long, parse(from_os_str))]
+        content_directory: PathBuf,
+
+        #[structopt(long)]
+        address: String,
+    },
 }
 
 fn handle_command<I: io::Read, O: io::Write>(
@@ -31,6 +43,11 @@ fn handle_command<I: io::Read, O: io::Write>(
         GluonCommand::Render { content_directory } => {
             cli::render(&content_directory, VERSION, input, output).map_err(anyhow::Error::from)
         }
+
+        GluonCommand::Get {
+            content_directory,
+            address,
+        } => cli::get(&content_directory, &address, VERSION, output).map_err(anyhow::Error::from),
     }
 }
 
