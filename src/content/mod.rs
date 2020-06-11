@@ -117,18 +117,20 @@ impl<'a> ContentEngine<'a> {
             let path = entry.path();
             match path.extension() {
                 Some(extension) if extension == OsStr::new(HANDLEBARS_FILE_EXTENSION) => {
-                    let name_in_registry = path
+                    let relative_path_no_extension = path
                         .strip_prefix(content_directory_path)
                         .map_err(|strip_prefix_error| ContentLoadingError::Bug {
-                            message: format!("Unable to determine template name for registry: {}", strip_prefix_error),
+                            message: format!(
+                                "Unable to determine template name for registry: {}",
+                                strip_prefix_error
+                            ),
                         })?
-                        .file_stem()
-                        .ok_or_else(|| ContentLoadingError::Bug {
-                            message: format!("Unable to determine template name for registry: no file name for '{}'", path.display()),
-                        })?;
+                        .with_extension("");
+
+                    let name_in_registry = relative_path_no_extension.to_string_lossy();
 
                     self.template_registry
-                        .register_template_file(&name_in_registry.to_string_lossy(), &path)
+                        .register_template_file(&name_in_registry, &path)
                         .map_err(|template_render_error| match template_render_error {
                             handlebars::TemplateFileError::TemplateError(source) => {
                                 ContentLoadingError::TemplateParseError(
@@ -243,8 +245,8 @@ mod tests {
         let engine = ContentEngine::from_content_directory(&content_directory_path)
             .expect("Content engine could not be created");
 
-        let template = "this is partial: {{> ab}}";
-        let expected_output = "this is partial: a\nb\n\n";
+        let template = "this is partial: {{> abc}}";
+        let expected_output = "this is partial: a\nb\n\nc\n\n";
 
         let new_content = engine
             .new_content(template)
@@ -268,8 +270,8 @@ mod tests {
         let engine = ContentEngine::from_content_directory(&content_directory_path)
             .expect("Content engine could not be created");
 
-        let address = "ab";
-        let expected_output = "a\nb\n\n";
+        let address = "abc";
+        let expected_output = "a\nb\n\nc\n\n";
 
         let content = engine.get(address).expect("Content could not be found");
         let rendered = content.render(GluonVersion("0.0.0")).expect(&format!(
