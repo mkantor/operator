@@ -38,7 +38,7 @@ pub enum ContentLoadingError {
 
     #[error(
         "Input/output error when loading{} from content directory path '{}'.",
-        .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or(String::from(" content")),
+        .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_else(|| String::from(" content")),
         .content_directory_root.display()
     )]
     IOError {
