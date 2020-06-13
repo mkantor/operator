@@ -1,13 +1,13 @@
 mod content_item;
 
-use crate::lib::*;
+use crate::directory::Directory;
 use content_item::*;
 use handlebars::Handlebars;
 use std::ffi::OsStr;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use thiserror::Error;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::DirEntry;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
@@ -15,11 +15,11 @@ const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 #[error(
   "Failed to parse template{} from content directory path '{}'.",
   .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
-  .content_directory_path.display()
+  .content_directory_root.display()
 )]
 pub struct RegisteredTemplateParseError {
     source: handlebars::TemplateError,
-    content_directory_path: PathBuf,
+    content_directory_root: PathBuf,
 }
 
 #[derive(Error, Debug)]
@@ -39,11 +39,11 @@ pub enum ContentLoadingError {
     #[error(
         "Input/output error when loading{} from content directory path '{}'.",
         .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or(String::from(" content")),
-        .content_directory_path.display()
+        .content_directory_root.display()
     )]
     IOError {
         source: io::Error,
-        content_directory_path: PathBuf,
+        content_directory_root: PathBuf,
         name: Option<String>,
     },
 
@@ -62,17 +62,28 @@ pub struct TemplateRenderError {
 }
 
 pub struct ContentEngine<'a> {
+    content_directory_root: PathBuf,
     template_registry: Handlebars<'a>,
 }
 
 impl<'a> ContentEngine<'a> {
     pub fn from_content_directory(
-        content_directory_path: &'a Path,
+        content_directory: Directory,
     ) -> Result<Self, ContentLoadingError> {
+        let content_directory_root = content_directory.root().clone();
+        let content_item_entries = content_directory
+            .into_iter()
+            .filter(|entry| entry.path().is_file())
+            .filter(|entry| {
+                let is_hidden = entry.file_name().to_string_lossy().starts_with('.');
+                !is_hidden
+            });
+
         let mut engine = ContentEngine {
+            content_directory_root,
             template_registry: Handlebars::new(),
         };
-        engine.register_content_directory(content_directory_path)?;
+        engine.register_content_directory(content_item_entries)?;
 
         Ok(engine)
     }
@@ -88,37 +99,19 @@ impl<'a> ContentEngine<'a> {
         ContentItem::from_registry(&self.template_registry, address)
     }
 
-    fn register_content_directory(
+    fn register_content_directory<T>(
         &mut self,
-        content_directory_path: &'a Path,
-    ) -> Result<(), ContentLoadingError> {
-        let entries = WalkDir::new(content_directory_path)
-            .min_depth(1)
-            .into_iter()
-            .collect::<Result<Vec<DirEntry>, walkdir::Error>>()
-            .map_err(|walkdir_error| {
-                let name = walkdir_error
-                    .path()
-                    .map(|path| String::from(path.to_string_lossy()));
-                ContentLoadingError::IOError {
-                    source: io::Error::from(walkdir_error),
-                    content_directory_path: content_directory_path.to_path_buf(),
-                    name,
-                }
-            })?
-            .into_iter()
-            .filter(|entry| entry.path().is_file())
-            .filter(|entry| {
-                let is_hidden = entry.file_name().to_string_lossy().starts_with('.');
-                !is_hidden
-            });
-
-        for entry in entries {
+        content_item_entries: T,
+    ) -> Result<(), ContentLoadingError>
+    where
+        T: IntoIterator<Item = DirEntry>,
+    {
+        for entry in content_item_entries {
             let path = entry.path();
             match path.extension() {
                 Some(extension) if extension == OsStr::new(HANDLEBARS_FILE_EXTENSION) => {
                     let relative_path_no_extension = path
-                        .strip_prefix(content_directory_path)
+                        .strip_prefix(&self.content_directory_root)
                         .map_err(|strip_prefix_error| ContentLoadingError::Bug {
                             message: format!(
                                 "Unable to determine template name for registry: {}",
@@ -136,9 +129,7 @@ impl<'a> ContentEngine<'a> {
                                 ContentLoadingError::TemplateParseError(
                                     RegisteredTemplateParseError {
                                         source,
-                                        content_directory_path: PathBuf::from(
-                                            content_directory_path,
-                                        ),
+                                        content_directory_root: self.content_directory_root.clone(),
                                     },
                                 )
                             }
@@ -152,7 +143,7 @@ impl<'a> ContentEngine<'a> {
                                 };
                                 ContentLoadingError::IOError {
                                     source,
-                                    content_directory_path: PathBuf::from(content_directory_path),
+                                    content_directory_root: self.content_directory_root.clone(),
                                     name,
                                 }
                             }
@@ -175,11 +166,13 @@ mod tests {
 
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
-        for &path in &CONTENT_DIRECTORY_PATHS_WITH_VALID_CONTENTS {
-            if let Err(error) = ContentEngine::from_content_directory(Path::new(path)) {
+        for directory in content_directories_with_valid_contents() {
+            let root = directory.root().clone();
+            if let Err(error) = ContentEngine::from_content_directory(directory) {
                 panic!(
                     "Content engine could not be created from {}: {}",
-                    path, error
+                    root.display(),
+                    error,
                 );
             }
         }
@@ -187,21 +180,21 @@ mod tests {
 
     #[test]
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
-        for &path in &CONTENT_DIRECTORY_PATHS_WITH_INVALID_CONTENTS {
+        for directory in content_directories_with_invalid_contents() {
+            let root = directory.root().clone();
             assert!(
-                ContentEngine::from_content_directory(Path::new(path)).is_err(),
+                ContentEngine::from_content_directory(directory).is_err(),
                 "Content engine was successfully created from {}, but this should have failed",
-                path
+                root.display(),
             );
         }
     }
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let engine = ContentEngine::from_content_directory(
-            arbitrary_content_directory_path_with_valid_content(),
-        )
-        .expect("Content engine could not be created");
+        let engine =
+            ContentEngine::from_content_directory(arbitrary_content_directory_with_valid_content())
+                .expect("Content engine could not be created");
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let new_content = engine
@@ -223,10 +216,9 @@ mod tests {
 
     #[test]
     fn new_content_fails_for_invalid_templates() {
-        let engine = ContentEngine::from_content_directory(
-            arbitrary_content_directory_path_with_valid_content(),
-        )
-        .expect("Content engine could not be created");
+        let engine =
+            ContentEngine::from_content_directory(arbitrary_content_directory_with_valid_content())
+                .expect("Content engine could not be created");
 
         for &template in &INVALID_TEMPLATES {
             let result = engine.new_content(template);
@@ -241,8 +233,8 @@ mod tests {
 
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
-        let content_directory_path = example_path("valid/partials");
-        let engine = ContentEngine::from_content_directory(&content_directory_path)
+        let directory = Directory::from_root(&example_path("valid/partials")).unwrap();
+        let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
         let template = "this is partial: {{> abc}}";
@@ -266,8 +258,8 @@ mod tests {
 
     #[test]
     fn content_can_be_retrieved() {
-        let content_directory_path = example_path("valid/partials");
-        let engine = ContentEngine::from_content_directory(&content_directory_path)
+        let directory = Directory::from_root(&example_path("valid/partials")).unwrap();
+        let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
         let address = "abc";
@@ -290,8 +282,8 @@ mod tests {
 
     #[test]
     fn content_may_not_exist_at_address() {
-        let content_directory_path = example_path("valid/hello-world");
-        let engine = ContentEngine::from_content_directory(&content_directory_path)
+        let directory = Directory::from_root(&example_path("valid/hello-world")).unwrap();
+        let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
         let address = "this-address-does-not-refer-to-any-content";
@@ -300,18 +292,6 @@ mod tests {
             engine.get(address).is_none(),
             "Content was found at '{}', but it was not expected to be",
             address
-        );
-    }
-
-    #[test]
-    fn content_directory_path_must_exist() {
-        let content_directory_path = example_path("this/does/not/actually/exist");
-        let result = ContentEngine::from_content_directory(&content_directory_path);
-
-        assert!(
-            result.is_err(),
-            "Content engine was successfully created from {}, but this should have failed",
-            content_directory_path.display(),
         );
     }
 }

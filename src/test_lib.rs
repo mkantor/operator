@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use std::path::{Path, PathBuf};
+use crate::directory::Directory;
+use std::path::PathBuf;
+
+pub use crate::lib::*;
 
 pub const VALID_TEMPLATES: [(&str, &str); 2] = [
     ("hello world", "hello world"),
@@ -16,16 +19,21 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
     "{{#if this is not legit}}",
 ];
 
-pub const CONTENT_DIRECTORY_PATHS_WITH_VALID_CONTENTS: [&str; 3] = [
-    concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/hello-world"),
-    concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/partials"),
-    concat!(env!("CARGO_MANIFEST_DIR"), "/examples/valid/empty"),
-];
+pub fn content_directories_with_valid_contents() -> Vec<Directory> {
+    vec![
+        example_content_directory("valid/hello-world"),
+        example_content_directory("valid/partials"),
+        example_content_directory("valid/empty"),
+    ]
+}
 
-pub const CONTENT_DIRECTORY_PATHS_WITH_INVALID_CONTENTS: [&str; 1] = [concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/examples/invalid/invalid-templates"
-)];
+pub fn content_directories_with_invalid_contents() -> Vec<Directory> {
+    vec![example_content_directory("invalid/invalid-templates")]
+}
+
+pub fn arbitrary_content_directory_with_valid_content() -> Directory {
+    example_content_directory("valid/hello-world")
+}
 
 pub fn example_path(relative_path: &str) -> PathBuf {
     [env!("CARGO_MANIFEST_DIR"), "examples", relative_path]
@@ -33,6 +41,10 @@ pub fn example_path(relative_path: &str) -> PathBuf {
         .collect()
 }
 
-pub fn arbitrary_content_directory_path_with_valid_content() -> &'static Path {
-    Path::new(CONTENT_DIRECTORY_PATHS_WITH_VALID_CONTENTS[0])
+fn example_content_directory(relative_path: &str) -> Directory {
+    let root = example_path(relative_path);
+    Directory::from_root(&root).expect(&format!(
+        "Test fixture data is broken in path '{}'",
+        root.display()
+    ))
 }

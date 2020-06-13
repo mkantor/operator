@@ -1,8 +1,10 @@
 mod cli;
 mod content;
+mod directory;
 mod lib;
 mod test_lib;
 
+use crate::directory::Directory;
 use crate::lib::*;
 use std::io;
 use std::path::PathBuf;
@@ -34,23 +36,6 @@ enum GluonCommand {
     },
 }
 
-fn handle_command<I: io::Read, O: io::Write>(
-    command: &GluonCommand,
-    input: &mut I,
-    output: &mut O,
-) -> Result<(), anyhow::Error> {
-    match command {
-        GluonCommand::Render { content_directory } => {
-            cli::render(&content_directory, VERSION, input, output).map_err(anyhow::Error::from)
-        }
-
-        GluonCommand::Get {
-            content_directory,
-            address,
-        } => cli::get(&content_directory, &address, VERSION, output).map_err(anyhow::Error::from),
-    }
-}
-
 fn main() {
     let command = GluonCommand::from_args();
 
@@ -67,5 +52,32 @@ fn main() {
         Ok(_) => {
             std::process::exit(0);
         }
+    }
+}
+
+fn handle_command<I: io::Read, O: io::Write>(
+    command: &GluonCommand,
+    input: &mut I,
+    output: &mut O,
+) -> Result<(), anyhow::Error> {
+    match command {
+        GluonCommand::Render { content_directory } => cli::render(
+            Directory::from_root(content_directory)?,
+            VERSION,
+            input,
+            output,
+        )
+        .map_err(anyhow::Error::from),
+
+        GluonCommand::Get {
+            content_directory,
+            address,
+        } => cli::get(
+            Directory::from_root(content_directory)?,
+            &address,
+            VERSION,
+            output,
+        )
+        .map_err(anyhow::Error::from),
     }
 }

@@ -1,7 +1,7 @@
 use crate::content::*;
+use crate::directory::Directory;
 use crate::lib::*;
 use std::io;
-use std::path::Path;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -66,12 +66,12 @@ pub enum GetCommandError {
 
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
-    content_directory_path: &Path,
+    content_directory: Directory,
     gluon_version: GluonVersion,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory_path)?;
+    let engine = ContentEngine::from_content_directory(content_directory)?;
 
     let mut template = String::new();
     input
@@ -85,14 +85,14 @@ pub fn render<I: io::Read, O: io::Write>(
     Ok(())
 }
 
-/// Renders an item from the content directory and write it to `output`.
+/// Renders an item from the content directory and writes it to `output`.
 pub fn get<O: io::Write>(
-    content_directory_path: &Path,
+    content_directory: Directory,
     address: &str,
     gluon_version: GluonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory_path)?;
+    let engine = ContentEngine::from_content_directory(content_directory)?;
     let content_item = engine
         .get(address)
         .ok_or(GetCommandError::ContentNotFound {
@@ -116,12 +116,8 @@ mod tests {
         for &(template, expected_output) in &VALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
-            let result = render(
-                arbitrary_content_directory_path_with_valid_content(),
-                GluonVersion("0.0.0"),
-                &mut input,
-                &mut output,
-            );
+            let directory = arbitrary_content_directory_with_valid_content();
+            let result = render(directory, GluonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -146,12 +142,8 @@ mod tests {
         for &template in &INVALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
-            let result = render(
-                arbitrary_content_directory_path_with_valid_content(),
-                GluonVersion("0.0.0"),
-                &mut input,
-                &mut output,
-            );
+            let directory = arbitrary_content_directory_with_valid_content();
+            let result = render(directory, GluonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_err(),
@@ -168,12 +160,8 @@ mod tests {
         let address = "hello";
         let expected_output = "hello world\n";
 
-        let result = get(
-            content_directory_path,
-            address,
-            GluonVersion("0.0.0"),
-            &mut output,
-        );
+        let directory = arbitrary_content_directory_with_valid_content();
+        let result = get(directory, address, GluonVersion("0.0.0"), &mut output);
 
         assert!(
             result.is_ok(),
@@ -197,15 +185,10 @@ mod tests {
     #[test]
     fn cli_can_fail_to_get_content_which_does_not_exist() {
         let mut output = Vec::new();
-        let content_directory_path = &example_path("valid/hello-world");
         let address = "this-address-does-not-refer-to-any-content";
 
-        let result = get(
-            content_directory_path,
-            address,
-            GluonVersion("0.0.0"),
-            &mut output,
-        );
+        let directory = arbitrary_content_directory_with_valid_content();
+        let result = get(directory, address, GluonVersion("0.0.0"), &mut output);
 
         match result {
             Ok(_) => panic!(
