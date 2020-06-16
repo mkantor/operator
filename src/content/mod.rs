@@ -5,13 +5,11 @@ use crate::lib::*;
 use content_item::*;
 use handlebars::Handlebars;
 use serde::Serialize;
-use std::ffi::OsStr;
 use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
-use walkdir::DirEntry;
 
-const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
+const HANDLEBARS_FILE_EXTENSION: &str = ".hbs";
 
 #[derive(Serialize)]
 struct GluonRenderData {
@@ -74,7 +72,6 @@ pub struct TemplateRenderError {
 }
 
 pub struct ContentEngine<'a> {
-    content_directory_root: PathBuf,
     template_registry: Handlebars<'a>,
 }
 
@@ -85,19 +82,63 @@ impl<'a> ContentEngine<'a> {
         let content_directory_root = content_directory.root().clone();
         let content_item_entries = content_directory
             .into_iter()
-            .filter(|entry| entry.path().is_file())
+            .filter(|entry| entry.metadata().is_file())
             .filter(|entry| {
-                let is_hidden = entry.file_name().to_string_lossy().starts_with('.');
+                let is_hidden = match entry.relative_path_components().last() {
+                    Some(base_name) => base_name.starts_with('.'),
+                    None => true,
+                };
+
                 !is_hidden
             });
 
-        let mut engine = ContentEngine {
-            content_directory_root,
-            template_registry: Handlebars::new(),
-        };
-        engine.register_content_directory(content_item_entries)?;
+        let mut template_registry = Handlebars::new();
+        for entry in content_item_entries {
+            match entry
+                .relative_path()
+                .strip_suffix(HANDLEBARS_FILE_EXTENSION)
+            {
+                Some(relative_path_to_hbs_file_without_extension) => {
+                    let name_in_registry =
+                        String::from(relative_path_to_hbs_file_without_extension);
+                    let mut contents = entry.file_contents().ok_or(ContentLoadingError::Bug {
+                        message: String::from("Tried to use a directory as a template"),
+                    })?;
 
-        Ok(engine)
+                    template_registry
+                        .register_template_source(&name_in_registry, &mut contents)
+                        .map_err(|template_render_error| match template_render_error {
+                            handlebars::TemplateFileError::TemplateError(source) => {
+                                ContentLoadingError::TemplateParseError(
+                                    RegisteredTemplateParseError {
+                                        source,
+                                        content_directory_root: content_directory_root.clone(),
+                                    },
+                                )
+                            }
+                            handlebars::TemplateFileError::IOError(source, original_name) => {
+                                // Handlebars-rust will use an empty string when the error does not
+                                // correspond to a specific path.
+                                let name = if original_name.is_empty() {
+                                    None
+                                } else {
+                                    Some(original_name)
+                                };
+                                ContentLoadingError::IOError {
+                                    source,
+                                    content_directory_root: content_directory_root.clone(),
+                                    name,
+                                }
+                            }
+                        })?;
+                }
+                None => {
+                    // Ignore non-template files for now.
+                }
+            }
+        }
+
+        Ok(ContentEngine { template_registry })
     }
 
     pub fn get_render_data(&self, gluon_version: GluonVersion) -> RenderData {
@@ -117,65 +158,6 @@ impl<'a> ContentEngine<'a> {
 
     pub fn get(&self, address: &'a str) -> Option<ContentItem> {
         ContentItem::from_registry(&self.template_registry, address)
-    }
-
-    fn register_content_directory<T>(
-        &mut self,
-        content_item_entries: T,
-    ) -> Result<(), ContentLoadingError>
-    where
-        T: IntoIterator<Item = DirEntry>,
-    {
-        for entry in content_item_entries {
-            let path = entry.path();
-            match path.extension() {
-                Some(extension) if extension == OsStr::new(HANDLEBARS_FILE_EXTENSION) => {
-                    let relative_path_no_extension = path
-                        .strip_prefix(&self.content_directory_root)
-                        .map_err(|strip_prefix_error| ContentLoadingError::Bug {
-                            message: format!(
-                                "Unable to determine template name for registry: {}",
-                                strip_prefix_error
-                            ),
-                        })?
-                        .with_extension("");
-
-                    let name_in_registry = relative_path_no_extension.to_string_lossy();
-
-                    self.template_registry
-                        .register_template_file(&name_in_registry, &path)
-                        .map_err(|template_render_error| match template_render_error {
-                            handlebars::TemplateFileError::TemplateError(source) => {
-                                ContentLoadingError::TemplateParseError(
-                                    RegisteredTemplateParseError {
-                                        source,
-                                        content_directory_root: self.content_directory_root.clone(),
-                                    },
-                                )
-                            }
-                            handlebars::TemplateFileError::IOError(source, original_name) => {
-                                // Handlebars-rust will use an empty string when the error does not
-                                // correspond to a specific path.
-                                let name = if original_name.is_empty() {
-                                    None
-                                } else {
-                                    Some(original_name)
-                                };
-                                ContentLoadingError::IOError {
-                                    source,
-                                    content_directory_root: self.content_directory_root.clone(),
-                                    name,
-                                }
-                            }
-                        })?;
-                }
-                _ => {
-                    // Ignore non-template files for now.
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 
