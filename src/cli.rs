@@ -78,7 +78,9 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let rendered_output = engine.new_content(&template)?.render(gluon_version)?;
+    let content_item = engine.new_content(&template)?;
+    let render_data = engine.get_render_data(gluon_version);
+    let rendered_output = content_item.render(&render_data)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
@@ -98,7 +100,8 @@ pub fn get<O: io::Write>(
         .ok_or(GetCommandError::ContentNotFound {
             address: String::from(address),
         })?;
-    let rendered_output = content_item.render(gluon_version)?;
+    let render_data = engine.get_render_data(gluon_version);
+    let rendered_output = content_item.render(&render_data)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 

@@ -1,7 +1,6 @@
-use super::{TemplateRenderError, UnregisteredTemplateParseError};
+use super::{RenderData, TemplateRenderError, UnregisteredTemplateParseError};
 use crate::lib::*;
 use handlebars::{Context, Handlebars, RenderContext, Renderable};
-use serde::Serialize;
 
 // ContentItem data is stored in separate structs rather than inline in the
 // enum in order to keep internals private and make it impossible to
@@ -57,27 +56,11 @@ impl<'a> ContentItem<'a> {
     }
 }
 
-#[derive(Serialize)]
-struct GluonRenderData {
-    version: GluonVersion,
-}
-
-#[derive(Serialize)]
-struct RenderData {
-    gluon: GluonRenderData,
-}
-
-impl Render for ContentItem<'_> {
-    type RenderArgs = GluonVersion;
+impl<'a> Render<'a> for ContentItem<'_> {
+    type RenderArgs = RenderData;
     type Error = TemplateRenderError;
 
-    fn render(&self, gluon_version: GluonVersion) -> Result<String, Self::Error> {
-        let render_data = RenderData {
-            gluon: GluonRenderData {
-                version: gluon_version,
-            },
-        };
-
+    fn render(&self, render_data: &RenderData) -> Result<String, Self::Error> {
         let rendered_content = match &self {
             ContentItem::RegisteredTemplate(RegisteredTemplate {
                 template_registry,

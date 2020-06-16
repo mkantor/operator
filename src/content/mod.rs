@@ -1,8 +1,10 @@
 mod content_item;
 
 use crate::directory::Directory;
+use crate::lib::*;
 use content_item::*;
 use handlebars::Handlebars;
+use serde::Serialize;
 use std::ffi::OsStr;
 use std::io;
 use std::path::PathBuf;
@@ -10,6 +12,16 @@ use thiserror::Error;
 use walkdir::DirEntry;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
+
+#[derive(Serialize)]
+struct GluonRenderData {
+    version: GluonVersion,
+}
+
+#[derive(Serialize)]
+pub struct RenderData {
+    gluon: GluonRenderData,
+}
 
 #[derive(Error, Debug)]
 #[error(
@@ -88,6 +100,14 @@ impl<'a> ContentEngine<'a> {
         Ok(engine)
     }
 
+    pub fn get_render_data(&self, gluon_version: GluonVersion) -> RenderData {
+        RenderData {
+            gluon: GluonRenderData {
+                version: gluon_version,
+            },
+        }
+    }
+
     pub fn new_content(
         &self,
         handlebars_source: &str,
@@ -164,6 +184,14 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
 
+    fn dummy_render_data() -> RenderData {
+        RenderData {
+            gluon: GluonRenderData {
+                version: GluonVersion("0.0.0"),
+            },
+        }
+    }
+
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in content_directories_with_valid_contents() {
@@ -201,7 +229,7 @@ mod tests {
                 .new_content(template)
                 .expect("Template could not be parsed");
             let rendered = new_content
-                .render(GluonVersion("0.0.0"))
+                .render(&dummy_render_data())
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -244,7 +272,7 @@ mod tests {
             .new_content(template)
             .expect("Template could not be parsed");
         let rendered = new_content
-            .render(GluonVersion("0.0.0"))
+            .render(&dummy_render_data())
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -266,7 +294,7 @@ mod tests {
         let expected_output = "a\nb\n\nc\n\n";
 
         let content = engine.get(address).expect("Content could not be found");
-        let rendered = content.render(GluonVersion("0.0.0")).expect(&format!(
+        let rendered = content.render(&dummy_render_data()).expect(&format!(
             "Template rendering failed for content at '{}'",
             address
         ));
