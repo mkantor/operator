@@ -63,29 +63,29 @@ pub struct DirectoryEntry {
     file_contents: Option<fs::File>,
 }
 impl DirectoryEntry {
-    const PATH_SEPARATOR: char = '/';
+    pub const PATH_SEPARATOR: char = '/';
 
     fn from_root_and_walkdir_entry(
         root: &Path,
         walkdir_entry: DirEntry,
     ) -> Result<Self, DirectoryEntryError> {
         if path::MAIN_SEPARATOR != Self::PATH_SEPARATOR {
-            Err(DirectoryEntryError {
+            return Err(DirectoryEntryError {
                 message: format!(
                     "Platforms that use '{}' as a path separator are not supported",
                     path::MAIN_SEPARATOR
                 ),
-            })?;
+            })
         }
 
         let root = match root.to_str() {
             Some(unicode_root) => unicode_root,
-            None => Err(DirectoryEntryError {
+            None => return Err(DirectoryEntryError {
                 message: format!(
                     "Non-unicode directory root (path is similar to '{}')",
                     root.display(),
                 ),
-            })?,
+            }),
         };
 
         let relative_path =

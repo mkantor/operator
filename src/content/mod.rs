@@ -1,7 +1,9 @@
+mod content_index;
 mod content_item;
 
 use crate::directory::Directory;
 use crate::lib::*;
+use content_index::*;
 use content_item::*;
 use handlebars::Handlebars;
 use serde::Serialize;
@@ -19,6 +21,7 @@ struct GluonRenderData {
 #[derive(Serialize)]
 pub struct RenderData {
     gluon: GluonRenderData,
+    content: ContentIndex,
 }
 
 #[derive(Error, Debug)]
@@ -57,6 +60,15 @@ pub enum ContentLoadingError {
         name: Option<String>,
     },
 
+    #[error(
+        "Failed to create index while loading content directory '{}'.",
+        .content_directory_root.display()
+    )]
+    ContentIndexError {
+        source: ContentIndexUpdateError,
+        content_directory_root: PathBuf,
+    },
+
     #[error("You've encountered a bug! This should never happen: {}", .message)]
     Bug { message: String },
 }
@@ -72,6 +84,7 @@ pub struct TemplateRenderError {
 }
 
 pub struct ContentEngine<'a> {
+    index: ContentIndex,
     template_registry: Handlebars<'a>,
 }
 
@@ -92,17 +105,27 @@ impl<'a> ContentEngine<'a> {
                 !is_hidden
             });
 
+        let mut addresses = ContentIndexEntries::new();
         let mut template_registry = Handlebars::new();
         for entry in content_item_entries {
             match entry
                 .relative_path()
                 .strip_suffix(HANDLEBARS_FILE_EXTENSION)
             {
-                Some(relative_path_to_hbs_file_without_extension) => {
-                    let name_in_registry =
-                        String::from(relative_path_to_hbs_file_without_extension);
+                Some(relative_path_without_extension) => {
+                    addresses
+                        .try_add(relative_path_without_extension)
+                        .map_err(|source| ContentLoadingError::ContentIndexError {
+                            content_directory_root: content_directory_root.clone(),
+                            source,
+                        })?;
+
+                    let name_in_registry = String::from(relative_path_without_extension);
                     let mut contents = entry.file_contents().ok_or(ContentLoadingError::Bug {
-                        message: String::from("Tried to use a directory as a template"),
+                        message: format!(
+                            "Expected entry for '{}' to be a file, but file contents did not exist",
+                            name_in_registry
+                        ),
                     })?;
 
                     template_registry
@@ -134,11 +157,15 @@ impl<'a> ContentEngine<'a> {
                 }
                 None => {
                     // Ignore non-template files for now.
+                    panic!("Non-template files are not supported yet!")
                 }
             }
         }
 
-        Ok(ContentEngine { template_registry })
+        Ok(ContentEngine {
+            index: ContentIndex::Directory(addresses),
+            template_registry,
+        })
     }
 
     pub fn get_render_data(&self, gluon_version: GluonVersion) -> RenderData {
@@ -146,6 +173,7 @@ impl<'a> ContentEngine<'a> {
             gluon: GluonRenderData {
                 version: gluon_version,
             },
+            content: self.index.clone(),
         }
     }
 
@@ -166,12 +194,8 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
 
-    fn dummy_render_data() -> RenderData {
-        RenderData {
-            gluon: GluonRenderData {
-                version: GluonVersion("0.0.0"),
-            },
-        }
+    fn dummy_render_data(engine: &ContentEngine) -> RenderData {
+        engine.get_render_data(GluonVersion("0.0.0"))
     }
 
     #[test]
@@ -211,7 +235,7 @@ mod tests {
                 .new_content(template)
                 .expect("Template could not be parsed");
             let rendered = new_content
-                .render(&dummy_render_data())
+                .render(&dummy_render_data(&engine))
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -247,14 +271,14 @@ mod tests {
         let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
-        let template = "this is partial: {{> abc}}";
+        let template = "this is partial: {{> (content.abc)}}";
         let expected_output = "this is partial: a\nb\n\nc\n\n";
 
         let new_content = engine
             .new_content(template)
             .expect("Template could not be parsed");
         let rendered = new_content
-            .render(&dummy_render_data())
+            .render(&dummy_render_data(&engine))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -276,7 +300,7 @@ mod tests {
         let expected_output = "a\nb\n\nc\n\n";
 
         let content = engine.get(address).expect("Content could not be found");
-        let rendered = content.render(&dummy_render_data()).expect(&format!(
+        let rendered = content.render(&dummy_render_data(&engine)).expect(&format!(
             "Template rendering failed for content at '{}'",
             address
         ));
