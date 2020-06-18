@@ -33,8 +33,7 @@ impl<'a> ContentItem<'a> {
         template_registry: &'a Handlebars<'a>,
         handlebars_source: &str,
     ) -> Result<Self, UnregisteredTemplateParseError> {
-        let template = handlebars::Template::compile2(handlebars_source, true)
-            .map_err(|source| UnregisteredTemplateParseError { source })?;
+        let template = handlebars::Template::compile2(handlebars_source, true)?;
         Ok(ContentItem::UnregisteredTemplate(UnregisteredTemplate {
             template_registry,
             template,
