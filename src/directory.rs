@@ -75,17 +75,19 @@ impl DirectoryEntry {
                     "Platforms that use '{}' as a path separator are not supported",
                     path::MAIN_SEPARATOR
                 ),
-            })
+            });
         }
 
         let root = match root.to_str() {
             Some(unicode_root) => unicode_root,
-            None => return Err(DirectoryEntryError {
-                message: format!(
-                    "Non-unicode directory root (path is similar to '{}')",
-                    root.display(),
-                ),
-            }),
+            None => {
+                return Err(DirectoryEntryError {
+                    message: format!(
+                        "Non-unicode directory root (path is similar to '{}')",
+                        root.display(),
+                    ),
+                })
+            }
         };
 
         let relative_path =
