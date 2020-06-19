@@ -1,5 +1,5 @@
 [package]
-name = "gluon"
+name = "soliton"
 version = "0.0.1"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
 edition = "2018"

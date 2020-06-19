@@ -10,13 +10,13 @@ use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-const VERSION: GluonVersion = GluonVersion(env!("CARGO_PKG_VERSION"));
+const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 
 #[derive(StructOpt)]
-enum GluonCommand {
+enum SolitonCommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | gluon render --content-directory=."
+        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=."
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
@@ -25,7 +25,7 @@ enum GluonCommand {
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.hbs && gluon get --content-directory=content --address=hello"
+        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.hbs && soliton get --content-directory=content --address=hello"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
@@ -37,7 +37,7 @@ enum GluonCommand {
 }
 
 fn main() {
-    let command = GluonCommand::from_args();
+    let command = SolitonCommand::from_args();
 
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -56,12 +56,12 @@ fn main() {
 }
 
 fn handle_command<I: io::Read, O: io::Write>(
-    command: &GluonCommand,
+    command: &SolitonCommand,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match command {
-        GluonCommand::Render { content_directory } => cli::render(
+        SolitonCommand::Render { content_directory } => cli::render(
             Directory::from_root(content_directory)?,
             VERSION,
             input,
@@ -69,7 +69,7 @@ fn handle_command<I: io::Read, O: io::Write>(
         )
         .map_err(anyhow::Error::from),
 
-        GluonCommand::Get {
+        SolitonCommand::Get {
             content_directory,
             address,
         } => cli::get(

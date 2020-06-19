@@ -67,7 +67,7 @@ pub enum GetCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: Directory,
-    gluon_version: GluonVersion,
+    soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
@@ -79,7 +79,7 @@ pub fn render<I: io::Read, O: io::Write>(
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
     let content_item = engine.new_content(&template)?;
-    let render_data = engine.get_render_data(gluon_version);
+    let render_data = engine.get_render_data(soliton_version);
     let rendered_output = content_item.render(&render_data)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
@@ -91,7 +91,7 @@ pub fn render<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: Directory,
     address: &str,
-    gluon_version: GluonVersion,
+    soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
     let engine = ContentEngine::from_content_directory(content_directory)?;
@@ -100,7 +100,7 @@ pub fn get<O: io::Write>(
         .ok_or(GetCommandError::ContentNotFound {
             address: String::from(address),
         })?;
-    let render_data = engine.get_render_data(gluon_version);
+    let render_data = engine.get_render_data(soliton_version);
     let rendered_output = content_item.render(&render_data)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
@@ -120,7 +120,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, GluonVersion("0.0.0"), &mut input, &mut output);
+            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -146,7 +146,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, GluonVersion("0.0.0"), &mut input, &mut output);
+            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_err(),
@@ -164,7 +164,7 @@ mod tests {
         let expected_output = "hello world\n";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, address, GluonVersion("0.0.0"), &mut output);
+        let result = get(directory, address, SolitonVersion("0.0.0"), &mut output);
 
         assert!(
             result.is_ok(),
@@ -191,7 +191,7 @@ mod tests {
         let address = "this-address-does-not-refer-to-any-content";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, address, GluonVersion("0.0.0"), &mut output);
+        let result = get(directory, address, SolitonVersion("0.0.0"), &mut output);
 
         match result {
             Ok(_) => panic!(

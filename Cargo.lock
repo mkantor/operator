@@ -111,18 +111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gluon"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "handlebars",
- "serde",
- "structopt",
- "thiserror",
- "walkdir",
-]
-
-[[package]]
 name = "handlebars"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -342,6 +330,18 @@ dependencies = [
  "digest",
  "fake-simd",
  "opaque-debug",
+]
+
+[[package]]
+name = "soliton"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "handlebars",
+ "serde",
+ "structopt",
+ "thiserror",
+ "walkdir",
 ]
 
 [[package]]

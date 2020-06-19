@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 #[derive(Serialize)]
-pub struct GluonVersion(pub &'static str);
+pub struct SolitonVersion(pub &'static str);
 
 pub trait Render<'a> {
     type RenderArgs;

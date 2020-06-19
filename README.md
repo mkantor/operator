@@ -1,5 +1,5 @@
-# Gluon (WIP)
+# Soliton (WIP)
 
 A *content framework* for web sites.
 
-**Gluon is in early development.**
+**Soliton is in early development.**

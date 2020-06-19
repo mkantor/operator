@@ -14,12 +14,12 @@ pub use content_engine::{
 const HANDLEBARS_FILE_EXTENSION: &str = ".hbs";
 
 #[derive(Serialize)]
-struct GluonRenderData {
-    version: GluonVersion,
+struct SolitonRenderData {
+    version: SolitonVersion,
 }
 
 #[derive(Serialize)]
 pub struct RenderData {
-    gluon: GluonRenderData,
+    soliton: SolitonRenderData,
     content: ContentIndex,
 }

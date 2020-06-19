@@ -153,10 +153,10 @@ impl<'a> ContentEngine<'a> {
         })
     }
 
-    pub fn get_render_data(&self, gluon_version: GluonVersion) -> RenderData {
+    pub fn get_render_data(&self, soliton_version: SolitonVersion) -> RenderData {
         RenderData {
-            gluon: GluonRenderData {
-                version: gluon_version,
+            soliton: SolitonRenderData {
+                version: soliton_version,
             },
             content: self.index.clone(),
         }
@@ -180,7 +180,7 @@ mod tests {
     use crate::test_lib::*;
 
     fn dummy_render_data(engine: &ContentEngine) -> RenderData {
-        engine.get_render_data(GluonVersion("0.0.0"))
+        engine.get_render_data(SolitonVersion("0.0.0"))
     }
 
     #[test]
