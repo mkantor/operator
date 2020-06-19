@@ -68,12 +68,12 @@ pub struct TemplateRenderError {
     source: handlebars::RenderError,
 }
 
-pub struct ContentEngine<'a> {
+pub struct ContentEngine<'engine> {
     index: ContentIndex,
-    template_registry: Handlebars<'a>,
+    template_registry: Handlebars<'engine>,
 }
 
-impl<'a> ContentEngine<'a> {
+impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: Directory,
     ) -> Result<Self, ContentLoadingError> {
@@ -169,7 +169,7 @@ impl<'a> ContentEngine<'a> {
         ContentItem::new_template(&self.template_registry, handlebars_source)
     }
 
-    pub fn get(&self, address: &'a str) -> Option<ContentItem> {
+    pub fn get(&self, address: &'engine str) -> Option<ContentItem> {
         ContentItem::from_registry(&self.template_registry, address)
     }
 }
