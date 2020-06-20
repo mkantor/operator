@@ -24,7 +24,6 @@ pub struct DirectoryEntryError {
 }
 
 pub struct Directory {
-    root: PathBuf,
     entries: Vec<DirectoryEntry>,
 }
 
@@ -45,14 +44,7 @@ impl Directory {
             })
             .collect::<Result<Vec<DirectoryEntry>, DirectoryFromRootError>>()?;
 
-        Ok(Directory {
-            root: PathBuf::from(root_path),
-            entries,
-        })
-    }
-
-    pub fn root(&self) -> &PathBuf {
-        &self.root
+        Ok(Directory { entries })
     }
 }
 

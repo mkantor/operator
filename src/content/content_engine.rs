@@ -1,22 +1,19 @@
 use super::content_index::*;
 use super::content_item::*;
 use super::*;
-use crate::directory::Directory;
+use crate::directory::{Directory, DirectoryEntry};
 use crate::lib::*;
 use handlebars::Handlebars;
 use std::io;
-use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[error(
-  "Failed to parse template{} from content directory path '{}'.",
-  .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
-  .content_directory_root.display()
+  "Failed to parse template{} from content directory.",
+  .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default()
 )]
 pub struct RegisteredTemplateParseError {
     source: handlebars::TemplateError,
-    content_directory_root: PathBuf,
 }
 
 #[derive(Error, Debug)]
@@ -35,24 +32,16 @@ pub enum ContentLoadingError {
     TemplateParseError(#[from] RegisteredTemplateParseError),
 
     #[error(
-        "Input/output error when loading{} from content directory path '{}'.",
+        "Input/output error when loading{} from content directory.",
         .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_else(|| String::from(" content")),
-        .content_directory_root.display()
     )]
     IOError {
         source: io::Error,
-        content_directory_root: PathBuf,
         name: Option<String>,
     },
 
-    #[error(
-        "Failed to create index while loading content directory '{}'.",
-        .content_directory_root.display()
-    )]
-    ContentIndexError {
-        source: ContentIndexUpdateError,
-        content_directory_root: PathBuf,
-    },
+    #[error("Failed to create index while loading content directory.")]
+    ContentIndexError { source: ContentIndexUpdateError },
 
     #[error("You've encountered a bug! This should never happen: {}", .message)]
     Bug { message: String },
@@ -77,7 +66,6 @@ impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: Directory,
     ) -> Result<Self, ContentLoadingError> {
-        let content_directory_root = content_directory.root().clone();
         let content_item_entries = content_directory
             .into_iter()
             .filter(|entry| entry.metadata().is_file())
@@ -86,10 +74,19 @@ impl<'engine> ContentEngine<'engine> {
                     Some(base_name) => base_name.starts_with('.'),
                     None => true,
                 };
-
                 !is_hidden
             });
 
+        let (addresses, template_registry) = Self::create_registry(content_item_entries)?;
+        Ok(ContentEngine {
+            index: ContentIndex::Directory(addresses),
+            template_registry,
+        })
+    }
+
+    fn create_registry<'a, E: IntoIterator<Item = DirectoryEntry>>(
+        content_item_entries: E,
+    ) -> Result<(ContentIndexEntries, Handlebars<'a>), ContentLoadingError> {
         let mut addresses = ContentIndexEntries::new();
         let mut template_registry = Handlebars::new();
         for entry in content_item_entries {
@@ -100,10 +97,7 @@ impl<'engine> ContentEngine<'engine> {
                 Some(relative_path_without_extension) => {
                     addresses
                         .try_add(relative_path_without_extension)
-                        .map_err(|source| ContentLoadingError::ContentIndexError {
-                            content_directory_root: content_directory_root.clone(),
-                            source,
-                        })?;
+                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
                     let name_in_registry = String::from(relative_path_without_extension);
                     let mut contents = entry.file_contents().ok_or(ContentLoadingError::Bug {
@@ -118,10 +112,7 @@ impl<'engine> ContentEngine<'engine> {
                         .map_err(|template_render_error| match template_render_error {
                             handlebars::TemplateFileError::TemplateError(source) => {
                                 ContentLoadingError::TemplateParseError(
-                                    RegisteredTemplateParseError {
-                                        source,
-                                        content_directory_root: content_directory_root.clone(),
-                                    },
+                                    RegisteredTemplateParseError { source },
                                 )
                             }
                             handlebars::TemplateFileError::IOError(source, original_name) => {
@@ -132,11 +123,7 @@ impl<'engine> ContentEngine<'engine> {
                                 } else {
                                     Some(original_name)
                                 };
-                                ContentLoadingError::IOError {
-                                    source,
-                                    content_directory_root: content_directory_root.clone(),
-                                    name,
-                                }
+                                ContentLoadingError::IOError { source, name }
                             }
                         })?;
                 }
@@ -147,10 +134,7 @@ impl<'engine> ContentEngine<'engine> {
             }
         }
 
-        Ok(ContentEngine {
-            index: ContentIndex::Directory(addresses),
-            template_registry,
-        })
+        Ok((addresses, template_registry))
     }
 
     pub fn get_render_data(&self, soliton_version: SolitonVersion) -> RenderData {
@@ -186,13 +170,8 @@ mod tests {
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in content_directories_with_valid_contents() {
-            let root = directory.root().clone();
             if let Err(error) = ContentEngine::from_content_directory(directory) {
-                panic!(
-                    "Content engine could not be created from {}: {}",
-                    root.display(),
-                    error,
-                );
+                panic!("Content engine could not be created: {}", error);
             }
         }
     }
@@ -200,11 +179,9 @@ mod tests {
     #[test]
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
         for directory in content_directories_with_invalid_contents() {
-            let root = directory.root().clone();
             assert!(
                 ContentEngine::from_content_directory(directory).is_err(),
-                "Content engine was successfully created from {}, but this should have failed",
-                root.display(),
+                "Content engine was successfully created, but this should have failed",
             );
         }
     }
