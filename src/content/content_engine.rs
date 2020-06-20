@@ -4,7 +4,9 @@ use super::*;
 use crate::directory::{Directory, DirectoryEntry};
 use crate::lib::*;
 use handlebars::Handlebars;
+use std::collections::HashMap;
 use std::io;
+use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -57,9 +59,11 @@ pub struct TemplateRenderError {
     source: handlebars::RenderError,
 }
 
+type ContentRegistry<'a> = HashMap<CanonicalAddress, ContentItem<'a>>;
 pub struct ContentEngine<'engine> {
     index: ContentIndex,
-    template_registry: Handlebars<'engine>,
+    content_registry: ContentRegistry<'engine>,
+    handlebars_registry: Rc<Handlebars<'engine>>,
 }
 
 impl<'engine> ContentEngine<'engine> {
@@ -77,18 +81,21 @@ impl<'engine> ContentEngine<'engine> {
                 !is_hidden
             });
 
-        let (addresses, template_registry) = Self::create_registry(content_item_entries)?;
+        let (addresses, content_registry, handlebars_registry) =
+            Self::create_registry(content_item_entries)?;
         Ok(ContentEngine {
             index: ContentIndex::Directory(addresses),
-            template_registry,
+            content_registry,
+            handlebars_registry,
         })
     }
 
     fn create_registry<'a, E: IntoIterator<Item = DirectoryEntry>>(
         content_item_entries: E,
-    ) -> Result<(ContentIndexEntries, Handlebars<'a>), ContentLoadingError> {
+    ) -> Result<(ContentIndexEntries, ContentRegistry<'a>, Rc<Handlebars<'a>>), ContentLoadingError>
+    {
         let mut addresses = ContentIndexEntries::new();
-        let mut template_registry = Handlebars::new();
+        let mut handlebars_registry = Handlebars::new();
         for entry in content_item_entries {
             match entry
                 .relative_path()
@@ -99,16 +106,16 @@ impl<'engine> ContentEngine<'engine> {
                         .try_add(relative_path_without_extension)
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
-                    let name_in_registry = String::from(relative_path_without_extension);
+                    let canonical_address = String::from(relative_path_without_extension);
                     let mut contents = entry.file_contents().ok_or(ContentLoadingError::Bug {
                         message: format!(
                             "Expected entry for '{}' to be a file, but file contents did not exist",
-                            name_in_registry
+                            canonical_address
                         ),
                     })?;
 
-                    template_registry
-                        .register_template_source(&name_in_registry, &mut contents)
+                    handlebars_registry
+                        .register_template_source(&canonical_address, &mut contents)
                         .map_err(|template_render_error| match template_render_error {
                             handlebars::TemplateFileError::TemplateError(source) => {
                                 ContentLoadingError::TemplateParseError(
@@ -134,7 +141,32 @@ impl<'engine> ContentEngine<'engine> {
             }
         }
 
-        Ok((addresses, template_registry))
+        let reference_counted_handlebars_registry = Rc::new(handlebars_registry);
+        let content_registry = reference_counted_handlebars_registry
+            .get_templates()
+            .keys()
+            .map(|address| {
+                let registered_template = RegisteredTemplate::from_registry(
+                    Rc::clone(&reference_counted_handlebars_registry),
+                    address.clone(),
+                ).ok_or_else(|| ContentLoadingError::Bug {
+                    message: format!(
+                        "Handlebars registry lookup for '{}' failed, even though that template name came from the registry.",
+                        address,
+                    )
+                })?;
+                Ok((
+                    CanonicalAddress::new(address),
+                    ContentItem::RegisteredTemplate(registered_template),
+                ))
+            })
+            .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
+
+        Ok((
+            addresses,
+            content_registry,
+            reference_counted_handlebars_registry,
+        ))
     }
 
     pub fn get_render_data(&self, soliton_version: SolitonVersion) -> RenderData {
@@ -150,11 +182,12 @@ impl<'engine> ContentEngine<'engine> {
         &self,
         handlebars_source: &str,
     ) -> Result<ContentItem, UnregisteredTemplateParseError> {
-        ContentItem::new_template(&self.template_registry, handlebars_source)
+        UnregisteredTemplate::from_source(&self.handlebars_registry, handlebars_source)
+            .map(ContentItem::UnregisteredTemplate)
     }
 
-    pub fn get(&self, address: &'engine str) -> Option<ContentItem> {
-        ContentItem::from_registry(&self.template_registry, address)
+    pub fn get(&self, address: &'engine str) -> Option<&'engine ContentItem> {
+        self.content_registry.get(&CanonicalAddress::new(address))
     }
 }
 

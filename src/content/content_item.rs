@@ -1,6 +1,7 @@
 use super::{RenderData, TemplateRenderError, UnregisteredTemplateParseError};
 use crate::lib::*;
 use handlebars::{Context, Handlebars, RenderContext, Renderable};
+use std::rc::Rc;
 
 // ContentItem data is stored in separate structs rather than inline in the
 // enum in order to keep internals private and make it impossible to
@@ -11,13 +12,40 @@ use handlebars::{Context, Handlebars, RenderContext, Renderable};
 // This must only be constructed with template names that have already been
 // validated to exist in the registry.
 pub struct RegisteredTemplate<'a> {
-    template_registry: &'a Handlebars<'a>,
-    name_in_registry: &'a str,
+    handlebars_registry: Rc<Handlebars<'a>>,
+    name_in_registry: String,
+}
+impl<'a> RegisteredTemplate<'a> {
+    pub fn from_registry(
+        handlebars_registry: Rc<Handlebars<'a>>,
+        name_in_registry: String,
+    ) -> Option<Self> {
+        if handlebars_registry.has_template(&name_in_registry) {
+            Some(RegisteredTemplate {
+                handlebars_registry,
+                name_in_registry,
+            })
+        } else {
+            None
+        }
+    }
 }
 
 pub struct UnregisteredTemplate<'a> {
-    template_registry: &'a Handlebars<'a>,
+    handlebars_registry: &'a Handlebars<'a>,
     template: handlebars::Template,
+}
+impl<'a> UnregisteredTemplate<'a> {
+    pub fn from_source(
+        handlebars_registry: &'a Handlebars<'a>,
+        handlebars_source: &str,
+    ) -> Result<Self, UnregisteredTemplateParseError> {
+        let template = handlebars::Template::compile2(handlebars_source, true)?;
+        Ok(UnregisteredTemplate {
+            handlebars_registry,
+            template,
+        })
+    }
 }
 
 pub enum ContentItem<'a> {
@@ -28,33 +56,6 @@ pub enum ContentItem<'a> {
     UnregisteredTemplate(UnregisteredTemplate<'a>),
 }
 
-impl<'a> ContentItem<'a> {
-    pub fn new_template(
-        template_registry: &'a Handlebars<'a>,
-        handlebars_source: &str,
-    ) -> Result<Self, UnregisteredTemplateParseError> {
-        let template = handlebars::Template::compile2(handlebars_source, true)?;
-        Ok(ContentItem::UnregisteredTemplate(UnregisteredTemplate {
-            template_registry,
-            template,
-        }))
-    }
-
-    pub fn from_registry(
-        template_registry: &'a Handlebars<'a>,
-        name_in_registry: &'a str,
-    ) -> Option<ContentItem<'a>> {
-        if template_registry.has_template(name_in_registry) {
-            Some(ContentItem::RegisteredTemplate(RegisteredTemplate {
-                template_registry,
-                name_in_registry,
-            }))
-        } else {
-            None
-        }
-    }
-}
-
 impl<'a> Render<'a> for ContentItem<'_> {
     type RenderArgs = RenderData;
     type Error = TemplateRenderError;
@@ -62,16 +63,16 @@ impl<'a> Render<'a> for ContentItem<'_> {
     fn render(&self, render_data: &RenderData) -> Result<String, Self::Error> {
         let rendered_content = match &self {
             ContentItem::RegisteredTemplate(RegisteredTemplate {
-                template_registry,
+                handlebars_registry,
                 name_in_registry,
-            }) => template_registry.render(name_in_registry, &render_data)?,
+            }) => handlebars_registry.render(name_in_registry, &render_data)?,
             ContentItem::UnregisteredTemplate(UnregisteredTemplate {
-                template_registry,
+                handlebars_registry,
                 template,
             }) => {
                 let context = Context::wraps(render_data)?;
                 let mut render_context = RenderContext::new(None);
-                template.renders(template_registry, &context, &mut render_context)?
+                template.renders(handlebars_registry, &context, &mut render_context)?
             }
         };
 

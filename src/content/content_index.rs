@@ -16,10 +16,10 @@ pub enum ContentIndex {
     Directory(ContentIndexEntries),
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Hash, Eq, PartialEq, Serialize)]
 pub struct CanonicalAddress(String);
 impl CanonicalAddress {
-    fn new<C: AsRef<str>>(canonical_address: C) -> Self {
+    pub fn new<C: AsRef<str>>(canonical_address: C) -> Self {
         CanonicalAddress(String::from(canonical_address.as_ref()))
     }
 }
