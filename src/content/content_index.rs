@@ -1,4 +1,4 @@
-use crate::directory::DirectoryEntry;
+use crate::content_directory::ContentFile;
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -38,7 +38,7 @@ impl ContentIndexEntries {
         let (dirname_components, basename) = {
             let mut path_components = canonical_address
                 .as_ref()
-                .split(DirectoryEntry::PATH_SEPARATOR);
+                .split(ContentFile::PATH_SEPARATOR);
             let basename = path_components.next_back();
             (path_components, basename)
         };

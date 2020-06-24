@@ -6,7 +6,7 @@ use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
 
 #[derive(Error, Debug)]
-pub enum DirectoryFromRootError {
+pub enum ContentDirectoryFromRootError {
     #[error("Unable to use directory root '{}': {}", .root.display(), .source)]
     WalkDirError {
         root: PathBuf,
@@ -14,55 +14,57 @@ pub enum DirectoryFromRootError {
     },
 
     #[error(transparent)]
-    DirectoryEntryError(#[from] DirectoryEntryError),
+    DirectoryEntryError(#[from] ContentFileError),
 }
 
 #[derive(Error, Debug)]
-#[error("Directory entry error: {}", .message)]
-pub struct DirectoryEntryError {
+#[error("Content file error: {}", .message)]
+pub struct ContentFileError {
     message: String,
 }
 
-pub struct Directory {
-    entries: Vec<DirectoryEntry>,
+pub struct ContentDirectory {
+    files: Vec<ContentFile>,
 }
 
-impl Directory {
-    pub fn from_root<P: AsRef<Path>>(root: &P) -> Result<Self, DirectoryFromRootError> {
+impl ContentDirectory {
+    pub fn from_root<P: AsRef<Path>>(root: &P) -> Result<Self, ContentDirectoryFromRootError> {
         let root_path = root.as_ref();
         let entries = WalkDir::new(root_path)
+            .follow_links(true)
+            .min_depth(1)
             .into_iter()
-            .map(|dir_entry_result| match dir_entry_result {
-                Err(walkdir_error) => Err(DirectoryFromRootError::WalkDirError {
+            .filter_map(|dir_entry_result| match dir_entry_result {
+                Err(walkdir_error) => Some(Err(ContentDirectoryFromRootError::WalkDirError {
                     source: walkdir_error,
                     root: PathBuf::from(root_path),
-                }),
-                Ok(walkdir_entry) => {
-                    DirectoryEntry::from_root_and_walkdir_entry(root_path, walkdir_entry)
-                        .map_err(DirectoryFromRootError::from)
-                }
+                })),
+                Ok(entry) if entry.file_type().is_file() => Some(
+                    ContentFile::from_root_and_walkdir_entry(root_path, entry)
+                        .map_err(ContentDirectoryFromRootError::from),
+                ),
+                Ok(_non_file_entry) => None,
             })
-            .collect::<Result<Vec<DirectoryEntry>, DirectoryFromRootError>>()?;
+            .collect::<Result<Vec<ContentFile>, ContentDirectoryFromRootError>>()?;
 
-        Ok(Directory { entries })
+        Ok(ContentDirectory { files: entries })
     }
 }
 
-pub struct DirectoryEntry {
+pub struct ContentFile {
     relative_path: String,
     relative_path_components: Vec<String>,
-    metadata: fs::Metadata,
-    file_contents: Option<fs::File>,
+    file: fs::File,
 }
-impl DirectoryEntry {
+impl ContentFile {
     pub const PATH_SEPARATOR: char = '/';
 
     fn from_root_and_walkdir_entry(
         root: &Path,
         walkdir_entry: DirEntry,
-    ) -> Result<Self, DirectoryEntryError> {
+    ) -> Result<Self, ContentFileError> {
         if path::MAIN_SEPARATOR != Self::PATH_SEPARATOR {
-            return Err(DirectoryEntryError {
+            return Err(ContentFileError {
                 message: format!(
                     "Platforms that use '{}' as a path separator are not supported",
                     path::MAIN_SEPARATOR
@@ -73,7 +75,7 @@ impl DirectoryEntry {
         let root = match root.to_str() {
             Some(unicode_root) => unicode_root,
             None => {
-                return Err(DirectoryEntryError {
+                return Err(ContentFileError {
                     message: format!(
                         "Non-unicode directory root (path is similar to '{}')",
                         root.display(),
@@ -86,9 +88,9 @@ impl DirectoryEntry {
             walkdir_entry
                 .path()
                 .strip_prefix(root)
-                .map_err(|strip_prefix_error| DirectoryEntryError {
+                .map_err(|strip_prefix_error| ContentFileError {
                     message: format!(
-                        "Directory entry '{}' did not start with expected prefix '{}': {}",
+                        "Content file path '{}' did not start with expected prefix '{}': {}",
                         walkdir_entry.path().display(),
                         root,
                         strip_prefix_error
@@ -101,14 +103,14 @@ impl DirectoryEntry {
                 match component {
                     Component::Normal(normal_component) => {
                         match normal_component.to_str() {
-                            None => Err(DirectoryEntryError {
+                            None => Err(ContentFileError {
                                 message: format!(
                                     "Non-unicode file/directory name in '{}' (relative path is similar to '{}')",
                                     root,
                                     relative_path.display(),
                                 )
                             }),
-                            Some("") => Err(DirectoryEntryError {
+                            Some("") => Err(ContentFileError {
                                 message: format!(
                                     "The path '{}' in '{}' has an empty file/directory name component",
                                     relative_path.display(),
@@ -117,7 +119,7 @@ impl DirectoryEntry {
                             }),
                             Some(nonempty_str) => {
                                 if nonempty_str.contains(Self::PATH_SEPARATOR) {
-                                    Err(DirectoryEntryError {
+                                    Err(ContentFileError {
                                         message: format!(
                                             "Path '{}' in '{}' contains an unsupported character ('{}').",
                                             relative_path.display(),
@@ -132,9 +134,9 @@ impl DirectoryEntry {
                         }
                     },
                     unsupported_component => {
-                        Err(DirectoryEntryError {
+                        Err(ContentFileError {
                             message: format!(
-                                "Unable to create a directory entry from '{}' in '{}' due to an unsupported path component ({:?})",
+                                "Unable to create a content file from '{}' in '{}' due to an unsupported path component ({:?})",
                                 relative_path.display(),
                                 root,
                                 unsupported_component,
@@ -143,40 +145,32 @@ impl DirectoryEntry {
                     }
                 }
             })
-            .collect::<Result<Vec<String>, DirectoryEntryError>>()?;
+            .collect::<Result<Vec<String>, ContentFileError>>()?;
 
-        let metadata = walkdir_entry
-            .metadata()
-            .map_err(|io_error| DirectoryEntryError {
+        if !walkdir_entry.file_type().is_file() {
+            Err(ContentFileError {
                 message: format!(
-                    "Unable to retrieve metadata for '{}' in '{}': {}",
+                    "Path '{}' in '{}' does not refer to a file",
                     relative_path.display(),
-                    root,
-                    io_error
+                    root
                 ),
-            })?;
-
-        let file_contents = if metadata.is_file() {
-            Some(
-                fs::File::open(walkdir_entry.path()).map_err(|io_error| DirectoryEntryError {
+            })
+        } else {
+            let file =
+                fs::File::open(walkdir_entry.path()).map_err(|io_error| ContentFileError {
                     message: format!(
                         "Unable to open file '{}' in '{}' for reading: {}",
                         relative_path.display(),
                         root,
                         io_error
                     ),
-                })?,
-            )
-        } else {
-            None
-        };
-
-        Ok(DirectoryEntry {
-            relative_path: relative_path_components.join(&Self::PATH_SEPARATOR.to_string()),
-            relative_path_components,
-            metadata,
-            file_contents,
-        })
+                })?;
+            Ok(ContentFile {
+                relative_path: relative_path_components.join(&Self::PATH_SEPARATOR.to_string()),
+                relative_path_components,
+                file,
+            })
+        }
     }
 
     pub fn relative_path(&self) -> &str {
@@ -187,20 +181,16 @@ impl DirectoryEntry {
         &self.relative_path_components
     }
 
-    pub fn metadata(&self) -> &fs::Metadata {
-        &self.metadata
-    }
-
-    pub fn file_contents(self) -> Option<impl io::Read> {
-        self.file_contents
+    pub fn file_contents(self) -> impl io::Read {
+        self.file
     }
 }
 
-impl IntoIterator for Directory {
-    type Item = DirectoryEntry;
+impl IntoIterator for ContentDirectory {
+    type Item = ContentFile;
     type IntoIter = std::vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
-        self.entries.into_iter()
+        self.files.into_iter()
     }
 }
 
@@ -212,7 +202,7 @@ mod tests {
     #[test]
     fn directory_can_be_created_from_valid_root() {
         let path = "./src";
-        let result = Directory::from_root(&path);
+        let result = ContentDirectory::from_root(&path);
         assert!(
             result.is_ok(),
             "Unable to use directory at '{}': {}",
@@ -223,7 +213,7 @@ mod tests {
 
     #[test]
     fn directory_root_must_exist() {
-        let result = Directory::from_root(&example_path("this/does/not/actually/exist"));
+        let result = ContentDirectory::from_root(&example_path("this/does/not/actually/exist"));
         assert!(
             result.is_err(),
             "Directory was successfully created from non-existent path",

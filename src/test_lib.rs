@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::directory::Directory;
+use crate::content_directory::ContentDirectory;
 use std::path::PathBuf;
 
 pub use crate::lib::*;
@@ -19,7 +19,7 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
     "{{#if this is not legit}}",
 ];
 
-pub fn content_directories_with_valid_contents() -> Vec<Directory> {
+pub fn content_directories_with_valid_contents() -> Vec<ContentDirectory> {
     vec![
         example_content_directory("valid/hello-world"),
         example_content_directory("valid/partials"),
@@ -27,11 +27,11 @@ pub fn content_directories_with_valid_contents() -> Vec<Directory> {
     ]
 }
 
-pub fn content_directories_with_invalid_contents() -> Vec<Directory> {
+pub fn content_directories_with_invalid_contents() -> Vec<ContentDirectory> {
     vec![example_content_directory("invalid/invalid-templates")]
 }
 
-pub fn arbitrary_content_directory_with_valid_content() -> Directory {
+pub fn arbitrary_content_directory_with_valid_content() -> ContentDirectory {
     example_content_directory("valid/hello-world")
 }
 
@@ -41,9 +41,9 @@ pub fn example_path(relative_path: &str) -> PathBuf {
         .collect()
 }
 
-fn example_content_directory(relative_path: &str) -> Directory {
+fn example_content_directory(relative_path: &str) -> ContentDirectory {
     let root = example_path(relative_path);
-    Directory::from_root(&root).expect(&format!(
+    ContentDirectory::from_root(&root).expect(&format!(
         "Test fixture data is broken in path '{}'",
         root.display()
     ))

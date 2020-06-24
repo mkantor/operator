@@ -1,7 +1,7 @@
 use super::content_index::*;
 use super::content_item::*;
 use super::*;
-use crate::directory::{Directory, DirectoryEntry};
+use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::Handlebars;
 use std::collections::HashMap;
@@ -68,18 +68,15 @@ pub struct ContentEngine<'engine> {
 
 impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
-        content_directory: Directory,
+        content_directory: ContentDirectory,
     ) -> Result<Self, ContentLoadingError> {
-        let content_item_entries = content_directory
-            .into_iter()
-            .filter(|entry| entry.metadata().is_file())
-            .filter(|entry| {
-                let is_hidden = match entry.relative_path_components().last() {
-                    Some(base_name) => base_name.starts_with('.'),
-                    None => true,
-                };
-                !is_hidden
-            });
+        let content_item_entries = content_directory.into_iter().filter(|entry| {
+            let is_hidden = match entry.relative_path_components().last() {
+                Some(base_name) => base_name.starts_with('.'),
+                None => true,
+            };
+            !is_hidden
+        });
 
         let (addresses, content_registry, handlebars_registry) =
             Self::create_registry(content_item_entries)?;
@@ -90,7 +87,7 @@ impl<'engine> ContentEngine<'engine> {
         })
     }
 
-    fn create_registry<'a, E: IntoIterator<Item = DirectoryEntry>>(
+    fn create_registry<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
     ) -> Result<(ContentIndexEntries, ContentRegistry<'a>, Rc<Handlebars<'a>>), ContentLoadingError>
     {
@@ -107,12 +104,7 @@ impl<'engine> ContentEngine<'engine> {
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
                     let canonical_address = String::from(relative_path_without_extension);
-                    let mut contents = entry.file_contents().ok_or(ContentLoadingError::Bug {
-                        message: format!(
-                            "Expected entry for '{}' to be a file, but file contents did not exist",
-                            canonical_address
-                        ),
-                    })?;
+                    let mut contents = entry.file_contents();
 
                     handlebars_registry
                         .register_template_source(&canonical_address, &mut contents)
@@ -262,7 +254,7 @@ mod tests {
 
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
-        let directory = Directory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
         let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
@@ -287,7 +279,7 @@ mod tests {
 
     #[test]
     fn content_can_be_retrieved() {
-        let directory = Directory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
         let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 
@@ -311,7 +303,7 @@ mod tests {
 
     #[test]
     fn content_may_not_exist_at_address() {
-        let directory = Directory::from_root(&example_path("valid/hello-world")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("valid/hello-world")).unwrap();
         let engine = ContentEngine::from_content_directory(directory)
             .expect("Content engine could not be created");
 

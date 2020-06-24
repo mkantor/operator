@@ -1,5 +1,5 @@
 use crate::content::*;
-use crate::directory::Directory;
+use crate::content_directory::ContentDirectory;
 use crate::lib::*;
 use std::io;
 use thiserror::Error;
@@ -66,7 +66,7 @@ pub enum GetCommandError {
 
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
-    content_directory: Directory,
+    content_directory: ContentDirectory,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -89,7 +89,7 @@ pub fn render<I: io::Read, O: io::Write>(
 
 /// Renders an item from the content directory and writes it to `output`.
 pub fn get<O: io::Write>(
-    content_directory: Directory,
+    content_directory: ContentDirectory,
     address: &str,
     soliton_version: SolitonVersion,
     output: &mut O,

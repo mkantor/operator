@@ -1,10 +1,10 @@
 mod cli;
 mod content;
-mod directory;
+mod content_directory;
 mod lib;
 mod test_lib;
 
-use crate::directory::Directory;
+use crate::content_directory::ContentDirectory;
 use crate::lib::*;
 use std::io;
 use std::path::PathBuf;
@@ -62,7 +62,7 @@ fn handle_command<I: io::Read, O: io::Write>(
 ) -> Result<(), anyhow::Error> {
     match command {
         SolitonCommand::Render { content_directory } => cli::render(
-            Directory::from_root(content_directory)?,
+            ContentDirectory::from_root(content_directory)?,
             VERSION,
             input,
             output,
@@ -73,7 +73,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             content_directory,
             address,
         } => cli::get(
-            Directory::from_root(content_directory)?,
+            ContentDirectory::from_root(content_directory)?,
             &address,
             VERSION,
             output,
