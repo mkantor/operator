@@ -184,6 +184,13 @@ impl ContentFile {
     pub fn file_contents(self) -> impl io::Read {
         self.file
     }
+
+    pub fn split_relative_path_extension(&self) -> Option<(&str, &str)> {
+        let mut parts = self.relative_path.rsplitn(2, '.');
+        let extension = parts.next();
+        let prefix = parts.next();
+        prefix.zip(extension)
+    }
 }
 
 impl IntoIterator for ContentDirectory {

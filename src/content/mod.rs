@@ -11,7 +11,7 @@ pub use content_engine::{
     UnregisteredTemplateParseError,
 };
 
-const HANDLEBARS_FILE_EXTENSION: &str = ".hbs";
+const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
 #[derive(Serialize)]
 struct SolitonRenderData {

@@ -42,6 +42,9 @@ pub enum ContentLoadingError {
         name: Option<String>,
     },
 
+    #[error("Content file name is not supported: {}", .message)]
+    ContentFileNameError { message: String },
+
     #[error("Failed to create index while loading content directory.")]
     ContentIndexError { source: ContentIndexUpdateError },
 
@@ -94,11 +97,8 @@ impl<'engine> ContentEngine<'engine> {
         let mut addresses = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         for entry in content_item_entries {
-            match entry
-                .relative_path()
-                .strip_suffix(HANDLEBARS_FILE_EXTENSION)
-            {
-                Some(relative_path_without_extension) => {
+            match entry.split_relative_path_extension() {
+                Some((relative_path_without_extension, HANDLEBARS_FILE_EXTENSION)) => {
                     addresses
                         .try_add(relative_path_without_extension)
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
@@ -126,9 +126,23 @@ impl<'engine> ContentEngine<'engine> {
                             }
                         })?;
                 }
+                Some((_, extension)) => {
+                    // Fail on non-template files for now.
+                    return Err(ContentLoadingError::ContentFileNameError {
+                        message: format!(
+                            "The content file '{}' has an unsupported extension ('{}').",
+                            entry.relative_path(),
+                            extension
+                        ),
+                    });
+                }
                 None => {
-                    // Ignore non-template files for now.
-                    panic!("Non-template files are not supported yet!")
+                    return Err(ContentLoadingError::ContentFileNameError {
+                        message: format!(
+                            "Content file names must have an extension, but '{}' does not.",
+                            entry.relative_path()
+                        ),
+                    })
                 }
             }
         }
