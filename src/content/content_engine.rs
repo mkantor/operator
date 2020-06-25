@@ -89,13 +89,13 @@ impl<'engine> ContentEngine<'engine> {
         let mut handlebars_registry = Handlebars::new();
         let mut static_files = ContentRegistry::new();
         for entry in content_item_entries {
-            match entry.split_relative_path_extension() {
-                Some((path_without_extension, HANDLEBARS_FILE_EXTENSION)) => {
+            match entry.extension() {
+                Some(HANDLEBARS_FILE_EXTENSION) => {
                     addresses
-                        .try_add(path_without_extension)
+                        .try_add(entry.relative_path_without_extension())
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
-                    let canonical_address = String::from(path_without_extension);
+                    let canonical_address = String::from(entry.relative_path_without_extension());
                     let mut contents = entry.file_contents();
 
                     handlebars_registry
@@ -118,12 +118,13 @@ impl<'engine> ContentEngine<'engine> {
                             }
                         })?;
                 }
-                Some((path_without_extension, HTML_FILE_EXTENSION)) => {
+                Some(HTML_FILE_EXTENSION) => {
                     addresses
-                        .try_add(path_without_extension)
+                        .try_add(entry.relative_path_without_extension())
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
-                    let canonical_address = CanonicalAddress::new(path_without_extension);
+                    let canonical_address =
+                        CanonicalAddress::new(entry.relative_path_without_extension());
                     let static_content_item = ContentItem::StaticContentItem(
                         StaticContentItem::new(entry.file_contents()),
                     );
@@ -138,7 +139,7 @@ impl<'engine> ContentEngine<'engine> {
                         });
                     }
                 }
-                Some((_, unsupported_extension)) => {
+                Some(unsupported_extension) => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
                             "The content file '{}' has an unsupported extension ('{}').",

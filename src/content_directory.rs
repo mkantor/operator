@@ -53,6 +53,8 @@ impl ContentDirectory {
 pub struct ContentFile {
     relative_path: String,
     relative_path_components: Vec<String>,
+    relative_path_without_extension: String,
+    extension: Option<String>,
     file: fs::File,
 }
 impl ContentFile {
@@ -146,12 +148,14 @@ impl ContentFile {
             })
             .collect::<Result<Vec<String>, ContentFileError>>()?;
 
+        // Normalize and stringify path.
+        let relative_path = relative_path_components.join(&Self::PATH_SEPARATOR.to_string());
+
         if !walkdir_entry.file_type().is_file() {
             Err(ContentFileError {
                 message: format!(
                     "Path '{}' in '{}' does not refer to a file",
-                    relative_path.display(),
-                    root
+                    relative_path, root
                 ),
             })
         } else {
@@ -159,14 +163,20 @@ impl ContentFile {
                 fs::File::open(walkdir_entry.path()).map_err(|io_error| ContentFileError {
                     message: format!(
                         "Unable to open file '{}' in '{}' for reading: {}",
-                        relative_path.display(),
-                        root,
-                        io_error
+                        relative_path, root, io_error
                     ),
                 })?;
+
+            let mut parts = relative_path.rsplitn(2, '.');
+            let extension = parts.next().map(String::from);
+            let prefix = parts.next().map(String::from);
+            let relative_path_without_extension = prefix.unwrap_or(relative_path.clone());
+
             Ok(ContentFile {
-                relative_path: relative_path_components.join(&Self::PATH_SEPARATOR.to_string()),
+                relative_path,
                 relative_path_components,
+                relative_path_without_extension,
+                extension,
                 file,
             })
         }
@@ -184,11 +194,12 @@ impl ContentFile {
         self.file
     }
 
-    pub fn split_relative_path_extension(&self) -> Option<(&str, &str)> {
-        let mut parts = self.relative_path.rsplitn(2, '.');
-        let extension = parts.next();
-        let prefix = parts.next();
-        prefix.zip(extension)
+    pub fn relative_path_without_extension(&self) -> &str {
+        &self.relative_path_without_extension
+    }
+
+    pub fn extension(&self) -> Option<&str> {
+        self.extension.as_deref()
     }
 }
 
