@@ -1,5 +1,4 @@
 use std::fs;
-use std::io;
 use std::path;
 use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
@@ -181,7 +180,7 @@ impl ContentFile {
         &self.relative_path_components
     }
 
-    pub fn file_contents(self) -> impl io::Read {
+    pub fn file_contents(self) -> fs::File {
         self.file
     }
 

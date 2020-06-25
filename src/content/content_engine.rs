@@ -52,16 +52,6 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
-#[derive(Error, Debug)]
-#[error(
-  "Rendering failed for template{}.",
-  .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
-)]
-pub struct TemplateRenderError {
-    #[from]
-    source: handlebars::RenderError,
-}
-
 type ContentRegistry<'a> = HashMap<CanonicalAddress, ContentItem<'a>>;
 pub struct ContentEngine<'engine> {
     index: ContentIndex,
@@ -82,7 +72,8 @@ impl<'engine> ContentEngine<'engine> {
         });
 
         let (addresses, content_registry, handlebars_registry) =
-            Self::create_registry(content_item_entries)?;
+            Self::create_registries(content_item_entries)?;
+
         Ok(ContentEngine {
             index: ContentIndex::Directory(addresses),
             content_registry,
@@ -90,20 +81,21 @@ impl<'engine> ContentEngine<'engine> {
         })
     }
 
-    fn create_registry<'a, E: IntoIterator<Item = ContentFile>>(
+    fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
     ) -> Result<(ContentIndexEntries, ContentRegistry<'a>, Rc<Handlebars<'a>>), ContentLoadingError>
     {
         let mut addresses = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
+        let mut static_files = ContentRegistry::new();
         for entry in content_item_entries {
             match entry.split_relative_path_extension() {
-                Some((relative_path_without_extension, HANDLEBARS_FILE_EXTENSION)) => {
+                Some((path_without_extension, HANDLEBARS_FILE_EXTENSION)) => {
                     addresses
-                        .try_add(relative_path_without_extension)
+                        .try_add(path_without_extension)
                         .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
-                    let canonical_address = String::from(relative_path_without_extension);
+                    let canonical_address = String::from(path_without_extension);
                     let mut contents = entry.file_contents();
 
                     handlebars_registry
@@ -126,13 +118,32 @@ impl<'engine> ContentEngine<'engine> {
                             }
                         })?;
                 }
-                Some((_, extension)) => {
-                    // Fail on non-template files for now.
+                Some((path_without_extension, HTML_FILE_EXTENSION)) => {
+                    addresses
+                        .try_add(path_without_extension)
+                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+
+                    let canonical_address = CanonicalAddress::new(path_without_extension);
+                    let static_content_item = ContentItem::StaticContentItem(
+                        StaticContentItem::new(entry.file_contents()),
+                    );
+                    let was_duplicate = static_files
+                        .insert(canonical_address, static_content_item)
+                        .is_some();
+                    if was_duplicate {
+                        return Err(ContentLoadingError::Bug {
+                            message: String::from(
+                                "There were two or more static files with the same address.",
+                            ),
+                        });
+                    }
+                }
+                Some((_, unsupported_extension)) => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
                             "The content file '{}' has an unsupported extension ('{}').",
                             entry.relative_path(),
-                            extension
+                            unsupported_extension
                         ),
                     });
                 }
@@ -147,8 +158,9 @@ impl<'engine> ContentEngine<'engine> {
             }
         }
 
+        // Create the complete registry from both templates and static files.
         let reference_counted_handlebars_registry = Rc::new(handlebars_registry);
-        let content_registry = reference_counted_handlebars_registry
+        let mut content_registry = reference_counted_handlebars_registry
             .get_templates()
             .keys()
             .map(|address| {
@@ -167,6 +179,7 @@ impl<'engine> ContentEngine<'engine> {
                 ))
             })
             .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
+        content_registry.extend(static_files);
 
         Ok((
             addresses,

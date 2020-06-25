@@ -27,10 +27,10 @@ pub enum RenderCommandError {
         source: UnregisteredTemplateParseError,
     },
 
-    #[error("Unable to render template.")]
-    TemplateRenderError {
+    #[error("Unable to render content.")]
+    ContentRenderingError {
         #[from]
-        source: TemplateRenderError,
+        source: ContentRenderingError,
     },
 
     #[error("Failed to write output.")]
@@ -54,10 +54,10 @@ pub enum GetCommandError {
     #[error("Content not found at address '{}'.", .address)]
     ContentNotFound { address: String },
 
-    #[error("Unable to render template.")]
-    TemplateRenderError {
+    #[error("Unable to render content.")]
+    ContentRenderingError {
         #[from]
-        source: TemplateRenderError,
+        source: ContentRenderingError,
     },
 
     #[error("Failed to write output.")]

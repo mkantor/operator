@@ -24,11 +24,15 @@ pub fn content_directories_with_valid_contents() -> Vec<ContentDirectory> {
         example_content_directory("valid/hello-world"),
         example_content_directory("valid/partials"),
         example_content_directory("valid/empty"),
+        example_content_directory("valid/static-content"),
     ]
 }
 
 pub fn content_directories_with_invalid_contents() -> Vec<ContentDirectory> {
-    vec![example_content_directory("invalid/invalid-templates")]
+    vec![
+        example_content_directory("invalid/invalid-templates"),
+        example_content_directory("invalid/unsupported-static-file"),
+    ]
 }
 
 pub fn arbitrary_content_directory_with_valid_content() -> ContentDirectory {
