@@ -77,14 +77,13 @@ impl ContentIndexEntries {
                             ContentIndex::Directory(..) => "directory",
                             ContentIndex::File(..) => "file",
                         };
-                        Err(
-                      ContentIndexUpdateError {
-                        message: format!(
-                          "Unable to add address '{}' because there is already a {} at that address.",
-                          canonical_address.as_ref(),
-                          entry_description,
-                        )
-                      })
+                        Err(ContentIndexUpdateError {
+                            message: format!(
+                                "Unable to add address '{}' because there is already a {} at that address.",
+                                canonical_address.as_ref(),
+                                entry_description,
+                            ),
+                        })
                     }
                     None => {
                         node.0.entry(String::from(basename)).or_insert_with(|| {
