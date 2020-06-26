@@ -1,8 +1,8 @@
-use std::fs;
+use std::fs::File;
 use std::path;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 #[derive(Error, Debug)]
 pub enum ContentDirectoryFromRootError {
@@ -29,40 +29,42 @@ pub struct ContentDirectory {
 impl ContentDirectory {
     pub fn from_root<P: AsRef<Path>>(root: &P) -> Result<Self, ContentDirectoryFromRootError> {
         let root_path = root.as_ref();
-        let entries = WalkDir::new(root_path)
-            .follow_links(true)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(|dir_entry_result| match dir_entry_result {
-                Err(walkdir_error) => Some(Err(ContentDirectoryFromRootError::WalkDirError {
+        let mut files = Vec::new();
+        let walker = WalkDir::new(root_path).follow_links(true).min_depth(1);
+        for dir_entry_result in walker {
+            let dir_entry = dir_entry_result.map_err(|walkdir_error| {
+                ContentDirectoryFromRootError::WalkDirError {
                     source: walkdir_error,
                     root: PathBuf::from(root_path),
-                })),
-                Ok(entry) if entry.file_type().is_file() => Some(
-                    ContentFile::from_root_and_walkdir_entry(root_path, entry)
-                        .map_err(ContentDirectoryFromRootError::from),
-                ),
-                Ok(_non_file_entry) => None,
-            })
-            .collect::<Result<Vec<ContentFile>, ContentDirectoryFromRootError>>()?;
+                }
+            })?;
+            {
+                let entry_path = dir_entry.path().to_path_buf();
+                if dir_entry.file_type().is_file() {
+                    let content_file = ContentFile::from_root_and_path(root_path, entry_path)
+                        .map_err(ContentDirectoryFromRootError::from)?;
+                    files.push(content_file);
+                }
+            }
+        }
 
-        Ok(ContentDirectory { files: entries })
+        Ok(ContentDirectory { files })
     }
 }
 
 pub struct ContentFile {
     relative_path: String,
-    relative_path_components: Vec<String>,
-    relative_path_without_extension: String,
-    extension: Option<String>,
-    file: fs::File,
+    is_hidden: bool,
+    relative_path_without_extensions: String,
+    extensions: Vec<String>,
+    file: File,
 }
 impl ContentFile {
     pub const PATH_SEPARATOR: char = '/';
 
-    fn from_root_and_walkdir_entry(
-        root: &Path,
-        walkdir_entry: DirEntry,
+    fn from_root_and_path(
+        content_directory_root: &Path,
+        content_file_path: PathBuf,
     ) -> Result<Self, ContentFileError> {
         if path::MAIN_SEPARATOR != Self::PATH_SEPARATOR {
             return Err(ContentFileError {
@@ -73,133 +75,105 @@ impl ContentFile {
             });
         }
 
-        let root = match root.to_str() {
+        let root = match content_directory_root.to_str() {
             Some(unicode_root) => unicode_root,
             None => {
                 return Err(ContentFileError {
                     message: format!(
                         "Non-unicode directory root (path is similar to '{}')",
-                        root.display(),
+                        content_directory_root.display(),
                     ),
                 })
             }
         };
 
-        let relative_path =
-            walkdir_entry
-                .path()
-                .strip_prefix(root)
-                .map_err(|strip_prefix_error| ContentFileError {
-                    message: format!(
-                        "Content file path '{}' did not start with expected prefix '{}': {}",
-                        walkdir_entry.path().display(),
-                        root,
-                        strip_prefix_error
-                    ),
-                })?;
-
-        let relative_path_components = relative_path
-            .components()
-            .map(|component| {
-                match component {
-                    Component::Normal(normal_component) => {
-                        match normal_component.to_str() {
-                            None => Err(ContentFileError {
-                                message: format!(
-                                    "Non-unicode file/directory name in '{}' (relative path is similar to '{}')",
-                                    root,
-                                    relative_path.display(),
-                                )
-                            }),
-                            Some("") => Err(ContentFileError {
-                                message: format!(
-                                    "The path '{}' in '{}' has an empty file/directory name component",
-                                    relative_path.display(),
-                                    root,
-                                )
-                            }),
-                            Some(nonempty_str) => {
-                                if nonempty_str.contains(Self::PATH_SEPARATOR) {
-                                    Err(ContentFileError {
-                                        message: format!(
-                                            "Path '{}' in '{}' contains an unsupported character ('{}').",
-                                            relative_path.display(),
-                                            root,
-                                            Self::PATH_SEPARATOR,
-                                        )
-                                    })
-                                } else {
-                                    Ok(String::from(nonempty_str))
-                                }
-                            }
-                        }
-                    },
-                    unsupported_component => {
-                        Err(ContentFileError {
-                            message: format!(
-                                "Unable to create a content file from '{}' in '{}' due to an unsupported path component ({:?})",
-                                relative_path.display(),
-                                root,
-                                unsupported_component,
-                            )
-                        })
-                    }
-                }
-            })
-            .collect::<Result<Vec<String>, ContentFileError>>()?;
-
-        // Normalize and stringify path.
-        let relative_path = relative_path_components.join(&Self::PATH_SEPARATOR.to_string());
-
-        if !walkdir_entry.file_type().is_file() {
-            Err(ContentFileError {
+        let relative_path = content_file_path
+            .strip_prefix(root)
+            .map_err(|strip_prefix_error| ContentFileError {
                 message: format!(
-                    "Path '{}' in '{}' does not refer to a file",
-                    relative_path, root
+                    "Content file path '{}' did not start with expected prefix '{}': {}",
+                    content_file_path.display(),
+                    root,
+                    strip_prefix_error
                 ),
-            })
+            })?
+            .to_str()
+            .map(String::from)
+            .ok_or_else(|| ContentFileError {
+                message: String::from("Path was not unicode."),
+            })?;
+
+        let file = File::open(&content_file_path).map_err(|io_error| ContentFileError {
+            message: format!(
+                "Unable to open file '{}' in '{}' for reading: {}",
+                relative_path, root, io_error
+            ),
+        })?;
+
+        let basename = content_file_path
+            .file_name()
+            .ok_or_else(|| ContentFileError {
+                message: format!(
+                    "Unable to get basename of '{}' in '{}'",
+                    relative_path, root,
+                ),
+            })?
+            .to_str()
+            .ok_or_else(|| ContentFileError {
+                message: String::from("File had a non-unicode basename."),
+            })?;
+
+        let (extensions, is_hidden) = if basename.starts_with('.') {
+            let extensions = basename
+                .split('.')
+                .skip(2)
+                .map(String::from)
+                .collect::<Vec<String>>();
+            (extensions, true)
         } else {
-            let file =
-                fs::File::open(walkdir_entry.path()).map_err(|io_error| ContentFileError {
-                    message: format!(
-                        "Unable to open file '{}' in '{}' for reading: {}",
-                        relative_path, root, io_error
-                    ),
-                })?;
+            let extensions = basename
+                .split('.')
+                .skip(1)
+                .map(String::from)
+                .collect::<Vec<String>>();
+            (extensions, false)
+        };
 
-            let mut parts = relative_path.rsplitn(2, '.');
-            let extension = parts.next().map(String::from);
-            let prefix = parts.next().map(String::from);
-            let relative_path_without_extension = prefix.unwrap_or(relative_path.clone());
+        let relative_path_without_extensions = String::from({
+            let extensions_len = extensions.iter().fold(0, |len, extension| {
+                // Extra 1 is to count . in the extensions.
+                len + extension.len() + 1
+            });
+            &relative_path[0..(relative_path.len() - extensions_len)]
+        });
 
-            Ok(ContentFile {
-                relative_path,
-                relative_path_components,
-                relative_path_without_extension,
-                extension,
-                file,
-            })
-        }
+        Ok(ContentFile {
+            relative_path,
+            relative_path_without_extensions,
+            extensions,
+            file,
+            is_hidden,
+        })
     }
 
     pub fn relative_path(&self) -> &str {
         &self.relative_path
     }
 
-    pub fn relative_path_components(&self) -> &[String] {
-        &self.relative_path_components
+    pub fn is_hidden(&self) -> bool {
+        self.is_hidden
     }
 
-    pub fn file_contents(self) -> fs::File {
+    pub fn file_contents(self) -> File {
         self.file
     }
 
-    pub fn relative_path_without_extension(&self) -> &str {
-        &self.relative_path_without_extension
+    pub fn relative_path_without_extensions(&self) -> &str {
+        &self.relative_path_without_extensions
     }
 
-    pub fn extension(&self) -> Option<&str> {
-        self.extension.as_deref()
+    pub fn extensions(&self) -> &[String] {
+        &self.extensions
     }
 }
 

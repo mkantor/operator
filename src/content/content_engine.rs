@@ -63,13 +63,9 @@ impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: ContentDirectory,
     ) -> Result<Self, ContentLoadingError> {
-        let content_item_entries = content_directory.into_iter().filter(|entry| {
-            let is_hidden = match entry.relative_path_components().last() {
-                Some(base_name) => base_name.starts_with('.'),
-                None => true,
-            };
-            !is_hidden
-        });
+        let content_item_entries = content_directory
+            .into_iter()
+            .filter(|entry| !entry.is_hidden());
 
         let (addresses, content_registry, handlebars_registry) =
             Self::create_registries(content_item_entries)?;
@@ -89,66 +85,89 @@ impl<'engine> ContentEngine<'engine> {
         let mut handlebars_registry = Handlebars::new();
         let mut static_files = ContentRegistry::new();
         for entry in content_item_entries {
-            match entry.extension() {
-                Some(HANDLEBARS_FILE_EXTENSION) => {
-                    addresses
-                        .try_add(entry.relative_path_without_extension())
-                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+            match entry.extensions() {
+                [single_extension] => {
+                    match single_extension.as_str() {
+                        HANDLEBARS_FILE_EXTENSION => {
+                            addresses
+                                .try_add(entry.relative_path_without_extensions())
+                                .map_err(|source| ContentLoadingError::ContentIndexError {
+                                    source,
+                                })?;
 
-                    let canonical_address = String::from(entry.relative_path_without_extension());
-                    let mut contents = entry.file_contents();
+                            let canonical_address =
+                                String::from(entry.relative_path_without_extensions());
+                            let mut contents = entry.file_contents();
 
-                    handlebars_registry
-                        .register_template_source(&canonical_address, &mut contents)
-                        .map_err(|template_render_error| match template_render_error {
-                            handlebars::TemplateFileError::TemplateError(source) => {
-                                ContentLoadingError::TemplateParseError(
-                                    RegisteredTemplateParseError { source },
-                                )
+                            handlebars_registry
+                                .register_template_source(&canonical_address, &mut contents)
+                                .map_err(|template_render_error| match template_render_error {
+                                    handlebars::TemplateFileError::TemplateError(source) => {
+                                        ContentLoadingError::TemplateParseError(
+                                            RegisteredTemplateParseError { source },
+                                        )
+                                    }
+                                    handlebars::TemplateFileError::IOError(
+                                        source,
+                                        original_name,
+                                    ) => {
+                                        // Handlebars-rust will use an empty string when the error does not
+                                        // correspond to a specific path.
+                                        let name = if original_name.is_empty() {
+                                            None
+                                        } else {
+                                            Some(original_name)
+                                        };
+                                        ContentLoadingError::IOError { source, name }
+                                    }
+                                })?;
+                        }
+
+                        HTML_FILE_EXTENSION => {
+                            addresses
+                                .try_add(entry.relative_path_without_extensions())
+                                .map_err(|source| ContentLoadingError::ContentIndexError {
+                                    source,
+                                })?;
+
+                            let canonical_address =
+                                CanonicalAddress::new(entry.relative_path_without_extensions());
+                            let static_content_item = ContentItem::StaticContentItem(
+                                StaticContentItem::new(entry.file_contents()),
+                            );
+                            let was_duplicate = static_files
+                                .insert(canonical_address, static_content_item)
+                                .is_some();
+                            if was_duplicate {
+                                return Err(ContentLoadingError::Bug {
+                                    message: String::from(
+                                        "There were two or more static files with the same address.",
+                                    ),
+                                });
                             }
-                            handlebars::TemplateFileError::IOError(source, original_name) => {
-                                // Handlebars-rust will use an empty string when the error does not
-                                // correspond to a specific path.
-                                let name = if original_name.is_empty() {
-                                    None
-                                } else {
-                                    Some(original_name)
-                                };
-                                ContentLoadingError::IOError { source, name }
-                            }
-                        })?;
-                }
-                Some(HTML_FILE_EXTENSION) => {
-                    addresses
-                        .try_add(entry.relative_path_without_extension())
-                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+                        }
 
-                    let canonical_address =
-                        CanonicalAddress::new(entry.relative_path_without_extension());
-                    let static_content_item = ContentItem::StaticContentItem(
-                        StaticContentItem::new(entry.file_contents()),
-                    );
-                    let was_duplicate = static_files
-                        .insert(canonical_address, static_content_item)
-                        .is_some();
-                    if was_duplicate {
-                        return Err(ContentLoadingError::Bug {
-                            message: String::from(
-                                "There were two or more static files with the same address.",
-                            ),
-                        });
+                        unsupported_extension => {
+                            return Err(ContentLoadingError::ContentFileNameError {
+                                message: format!(
+                                    "The content file '{}' has an unsupported extension ('{}').",
+                                    entry.relative_path(),
+                                    unsupported_extension
+                                ),
+                            });
+                        }
                     }
                 }
-                Some(unsupported_extension) => {
+
+                [_, _, ..] => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
-                            "The content file '{}' has an unsupported extension ('{}').",
-                            entry.relative_path(),
-                            unsupported_extension
+                            "Content file name '{}' has too many extensions.",
+                            entry.relative_path()
                         ),
-                    });
+                    })
                 }
-                None => {
+                [] => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
                             "Content file names must have an extension, but '{}' does not.",
