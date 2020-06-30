@@ -86,9 +86,43 @@ impl<'engine> ContentEngine<'engine> {
         let mut static_files = ContentRegistry::new();
         for entry in content_item_entries {
             match entry.extensions() {
-                [single_extension] => {
-                    match single_extension.as_str() {
-                        HANDLEBARS_FILE_EXTENSION => {
+                [single_extension] => match single_extension.as_str() {
+                    HTML_FILE_EXTENSION => {
+                        addresses
+                            .try_add(entry.relative_path_without_extensions())
+                            .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+
+                        let canonical_address =
+                            CanonicalAddress::new(entry.relative_path_without_extensions());
+                        let static_content_item = ContentItem::StaticContentItem(
+                            StaticContentItem::new(entry.file_contents()),
+                        );
+                        let was_duplicate = static_files
+                            .insert(canonical_address, static_content_item)
+                            .is_some();
+                        if was_duplicate {
+                            return Err(ContentLoadingError::Bug {
+                                message: String::from(
+                                    "There were two or more static files with the same address.",
+                                ),
+                            });
+                        }
+                    }
+
+                    unsupported_extension => {
+                        return Err(ContentLoadingError::ContentFileNameError {
+                            message: format!(
+                                "The content file '{}' has an unsupported extension ('{}').",
+                                entry.relative_path(),
+                                unsupported_extension
+                            ),
+                        });
+                    }
+                },
+
+                [first_extension, second_extension] => {
+                    match [first_extension.as_str(), second_extension.as_str()] {
+                        [HTML_FILE_EXTENSION, HANDLEBARS_FILE_EXTENSION] => {
                             addresses
                                 .try_add(entry.relative_path_without_extensions())
                                 .map_err(|source| ContentLoadingError::ContentIndexError {
@@ -123,43 +157,20 @@ impl<'engine> ContentEngine<'engine> {
                                 })?;
                         }
 
-                        HTML_FILE_EXTENSION => {
-                            addresses
-                                .try_add(entry.relative_path_without_extensions())
-                                .map_err(|source| ContentLoadingError::ContentIndexError {
-                                    source,
-                                })?;
-
-                            let canonical_address =
-                                CanonicalAddress::new(entry.relative_path_without_extensions());
-                            let static_content_item = ContentItem::StaticContentItem(
-                                StaticContentItem::new(entry.file_contents()),
-                            );
-                            let was_duplicate = static_files
-                                .insert(canonical_address, static_content_item)
-                                .is_some();
-                            if was_duplicate {
-                                return Err(ContentLoadingError::Bug {
-                                    message: String::from(
-                                        "There were two or more static files with the same address.",
-                                    ),
-                                });
-                            }
-                        }
-
-                        unsupported_extension => {
+                        [first_unsupported_extension, second_unsupported_extension] => {
                             return Err(ContentLoadingError::ContentFileNameError {
                                 message: format!(
-                                    "The content file '{}' has an unsupported extension ('{}').",
+                                    "The content file '{}' has a unsupported extensions ('{}.{}').",
                                     entry.relative_path(),
-                                    unsupported_extension
+                                    first_unsupported_extension,
+                                    second_unsupported_extension
                                 ),
                             });
                         }
                     }
                 }
 
-                [_, _, ..] => {
+                [_, _, _, ..] => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
                             "Content file name '{}' has too many extensions.",
