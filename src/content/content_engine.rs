@@ -52,7 +52,15 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
-type ContentRegistry<'a> = HashMap<CanonicalAddress, ContentItem<'a>>;
+enum RegisteredContent<'a> {
+    /// A static (non-template) file.
+    StaticContentItem(StaticContentItem),
+
+    /// A named template that exists in the registry.
+    RegisteredTemplate(RegisteredTemplate<'a>),
+}
+type ContentRegistry<'a> = HashMap<CanonicalAddress, RegisteredContent<'a>>;
+
 pub struct ContentEngine<'engine> {
     index: ContentIndex,
     content_registry: ContentRegistry<'engine>,
@@ -94,7 +102,7 @@ impl<'engine> ContentEngine<'engine> {
 
                         let canonical_address =
                             CanonicalAddress::new(entry.relative_path_without_extensions());
-                        let static_content_item = ContentItem::StaticContentItem(
+                        let static_content_item = RegisteredContent::StaticContentItem(
                             StaticContentItem::new(entry.file_contents()),
                         );
                         let was_duplicate = static_files
@@ -206,7 +214,7 @@ impl<'engine> ContentEngine<'engine> {
                 })?;
                 Ok((
                     CanonicalAddress::new(address),
-                    ContentItem::RegisteredTemplate(registered_template),
+                    RegisteredContent::RegisteredTemplate(registered_template),
                 ))
             })
             .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
@@ -228,16 +236,28 @@ impl<'engine> ContentEngine<'engine> {
         }
     }
 
-    pub fn new_content(
-        &self,
-        handlebars_source: &str,
-    ) -> Result<ContentItem, UnregisteredTemplateParseError> {
-        UnregisteredTemplate::from_source(&self.handlebars_registry, handlebars_source)
-            .map(ContentItem::UnregisteredTemplate)
+    pub fn new_content<'a>(
+        &'a self,
+        handlebars_source: &'a str,
+    ) -> Result<
+        Box<dyn Render<RenderArgs = RenderData, Error = ContentRenderingError> + 'a>,
+        UnregisteredTemplateParseError,
+    > {
+        match UnregisteredTemplate::from_source(&self.handlebars_registry, handlebars_source) {
+            Ok(content) => Ok(Box::new(content)),
+            Err(error) => Err(error),
+        }
     }
 
-    pub fn get(&self, address: &'engine str) -> Option<&'engine ContentItem> {
-        self.content_registry.get(&CanonicalAddress::new(address))
+    pub fn get(
+        &self,
+        address: &str,
+    ) -> Option<&dyn Render<RenderArgs = RenderData, Error = ContentRenderingError>> {
+        match self.content_registry.get(&CanonicalAddress::new(address)) {
+            Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
+            Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
+            None => None,
+        }
     }
 }
 
