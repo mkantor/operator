@@ -204,7 +204,7 @@ impl<'engine> ContentEngine<'engine> {
             .map(|address| {
                 Ok((
                     CanonicalAddress::new(address),
-                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(address.clone())),
+                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(address)),
                 ))
             })
             .collect::<Result<ContentRegistry, ContentLoadingError>>()?;

@@ -53,8 +53,10 @@ pub struct RegisteredTemplate {
     name_in_registry: String,
 }
 impl RegisteredTemplate {
-    pub fn new(name_in_registry: String) -> Self {
-        RegisteredTemplate { name_in_registry }
+    pub fn new<S: AsRef<str>>(name_in_registry: S) -> Self {
+        RegisteredTemplate {
+            name_in_registry: String::from(name_in_registry.as_ref()),
+        }
     }
 }
 impl Render for RegisteredTemplate {
