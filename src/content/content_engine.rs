@@ -6,7 +6,6 @@ use crate::lib::*;
 use handlebars::Handlebars;
 use std::collections::HashMap;
 use std::io;
-use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -66,7 +65,7 @@ pub struct ContentEngine<'engine> {
     content_registry: ContentRegistry,
 
     // This has module visibility; template content items need to reference it.
-    pub(super) handlebars_registry: Rc<Handlebars<'engine>>,
+    pub(super) handlebars_registry: Handlebars<'engine>,
 }
 
 impl<'engine> ContentEngine<'engine> {
@@ -89,8 +88,7 @@ impl<'engine> ContentEngine<'engine> {
 
     fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
-    ) -> Result<(ContentIndexEntries, ContentRegistry, Rc<Handlebars<'a>>), ContentLoadingError>
-    {
+    ) -> Result<(ContentIndexEntries, ContentRegistry, Handlebars<'a>), ContentLoadingError> {
         let mut addresses = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         let mut static_files = ContentRegistry::new();
@@ -200,8 +198,7 @@ impl<'engine> ContentEngine<'engine> {
         }
 
         // Create the complete registry from both templates and static files.
-        let reference_counted_handlebars_registry = Rc::new(handlebars_registry);
-        let mut content_registry = reference_counted_handlebars_registry
+        let mut content_registry = handlebars_registry
             .get_templates()
             .keys()
             .map(|address| {
@@ -213,11 +210,7 @@ impl<'engine> ContentEngine<'engine> {
             .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
         content_registry.extend(static_files);
 
-        Ok((
-            addresses,
-            content_registry,
-            reference_counted_handlebars_registry,
-        ))
+        Ok((addresses, content_registry, handlebars_registry))
     }
 
     pub fn get_render_context(&self, soliton_version: SolitonVersion) -> RenderContext {
