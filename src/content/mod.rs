@@ -25,3 +25,8 @@ pub struct RenderData {
     soliton: SolitonRenderData,
     content: ContentIndex,
 }
+
+pub struct RenderContext<'a> {
+    engine: &'a ContentEngine<'a>,
+    data: RenderData,
+}

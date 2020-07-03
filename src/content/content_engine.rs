@@ -52,19 +52,21 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
-enum RegisteredContent<'a> {
+enum RegisteredContent {
     /// A static (non-template) file.
     StaticContentItem(StaticContentItem),
 
     /// A named template that exists in the registry.
-    RegisteredTemplate(RegisteredTemplate<'a>),
+    RegisteredTemplate(RegisteredTemplate),
 }
-type ContentRegistry<'a> = HashMap<CanonicalAddress, RegisteredContent<'a>>;
+type ContentRegistry = HashMap<CanonicalAddress, RegisteredContent>;
 
 pub struct ContentEngine<'engine> {
     index: ContentIndex,
-    content_registry: ContentRegistry<'engine>,
-    handlebars_registry: Rc<Handlebars<'engine>>,
+    content_registry: ContentRegistry,
+
+    // This has module visibility; template content items need to reference it.
+    pub(super) handlebars_registry: Rc<Handlebars<'engine>>,
 }
 
 impl<'engine> ContentEngine<'engine> {
@@ -87,7 +89,7 @@ impl<'engine> ContentEngine<'engine> {
 
     fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
-    ) -> Result<(ContentIndexEntries, ContentRegistry<'a>, Rc<Handlebars<'a>>), ContentLoadingError>
+    ) -> Result<(ContentIndexEntries, ContentRegistry, Rc<Handlebars<'a>>), ContentLoadingError>
     {
         let mut addresses = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
@@ -203,18 +205,9 @@ impl<'engine> ContentEngine<'engine> {
             .get_templates()
             .keys()
             .map(|address| {
-                let registered_template = RegisteredTemplate::from_registry(
-                    Rc::clone(&reference_counted_handlebars_registry),
-                    address.clone(),
-                ).ok_or_else(|| ContentLoadingError::Bug {
-                    message: format!(
-                        "Handlebars registry lookup for '{}' failed, even though that template name came from the registry.",
-                        address,
-                    )
-                })?;
                 Ok((
                     CanonicalAddress::new(address),
-                    RegisteredContent::RegisteredTemplate(registered_template),
+                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(address.clone())),
                 ))
             })
             .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
@@ -227,23 +220,26 @@ impl<'engine> ContentEngine<'engine> {
         ))
     }
 
-    pub fn get_render_data(&self, soliton_version: SolitonVersion) -> RenderData {
-        RenderData {
-            soliton: SolitonRenderData {
-                version: soliton_version,
+    pub fn get_render_context(&self, soliton_version: SolitonVersion) -> RenderContext {
+        RenderContext {
+            engine: self,
+            data: RenderData {
+                soliton: SolitonRenderData {
+                    version: soliton_version,
+                },
+                content: self.index.clone(),
             },
-            content: self.index.clone(),
         }
     }
 
-    pub fn new_content<'a>(
-        &'a self,
-        handlebars_source: &'a str,
+    pub fn new_content(
+        &self,
+        handlebars_source: &str,
     ) -> Result<
-        Box<dyn Render<RenderArgs = RenderData, Error = ContentRenderingError> + 'a>,
+        Box<dyn Render<RenderArgs = RenderContext, Error = ContentRenderingError>>,
         UnregisteredTemplateParseError,
     > {
-        match UnregisteredTemplate::from_source(&self.handlebars_registry, handlebars_source) {
+        match UnregisteredTemplate::from_source(handlebars_source) {
             Ok(content) => Ok(Box::new(content)),
             Err(error) => Err(error),
         }
@@ -252,7 +248,7 @@ impl<'engine> ContentEngine<'engine> {
     pub fn get(
         &self,
         address: &str,
-    ) -> Option<&dyn Render<RenderArgs = RenderData, Error = ContentRenderingError>> {
+    ) -> Option<&dyn Render<RenderArgs = RenderContext, Error = ContentRenderingError>> {
         match self.content_registry.get(&CanonicalAddress::new(address)) {
             Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
             Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
@@ -266,8 +262,8 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
 
-    fn dummy_render_data(engine: &ContentEngine) -> RenderData {
-        engine.get_render_data(SolitonVersion("0.0.0"))
+    fn dummy_render_context<'a>(engine: &'a ContentEngine) -> RenderContext<'a> {
+        engine.get_render_context(SolitonVersion("0.0.0"))
     }
 
     #[test]
@@ -300,7 +296,7 @@ mod tests {
                 .new_content(template)
                 .expect("Template could not be parsed");
             let rendered = new_content
-                .render(&dummy_render_data(&engine))
+                .render(&dummy_render_context(&engine))
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -343,7 +339,7 @@ mod tests {
             .new_content(template)
             .expect("Template could not be parsed");
         let rendered = new_content
-            .render(&dummy_render_data(&engine))
+            .render(&dummy_render_context(&engine))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -365,10 +361,12 @@ mod tests {
         let expected_output = "a\nb\n\nc\n\n";
 
         let content = engine.get(address).expect("Content could not be found");
-        let rendered = content.render(&dummy_render_data(&engine)).expect(&format!(
-            "Template rendering failed for content at '{}'",
-            address
-        ));
+        let rendered = content
+            .render(&dummy_render_context(&engine))
+            .expect(&format!(
+                "Template rendering failed for content at '{}'",
+                address
+            ));
         assert_eq!(
             rendered,
             expected_output,

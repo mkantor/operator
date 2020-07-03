@@ -79,8 +79,8 @@ pub fn render<I: io::Read, O: io::Write>(
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
     let content_item = engine.new_content(&template)?;
-    let render_data = engine.get_render_data(soliton_version);
-    let rendered_output = content_item.render(&render_data)?;
+    let render_context = engine.get_render_context(soliton_version);
+    let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
@@ -100,8 +100,8 @@ pub fn get<O: io::Write>(
         .ok_or(GetCommandError::ContentNotFound {
             address: String::from(address),
         })?;
-    let render_data = engine.get_render_data(soliton_version);
-    let rendered_output = content_item.render(&render_data)?;
+    let render_context = engine.get_render_context(soliton_version);
+    let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 

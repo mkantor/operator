@@ -1,10 +1,9 @@
-use super::{RenderData, UnregisteredTemplateParseError};
+use super::{RenderContext, UnregisteredTemplateParseError};
 use crate::lib::*;
-use handlebars::{Context, Handlebars, RenderContext, Renderable};
+use handlebars::{self, Renderable as _};
 use std::fs;
 use std::io;
 use std::io::{Read, Seek, SeekFrom};
-use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -34,9 +33,10 @@ impl StaticContentItem {
     }
 }
 impl Render for StaticContentItem {
-    type RenderArgs = RenderData;
+    type RenderArgs = RenderContext<'static>;
     type Error = ContentRenderingError;
-    fn render(&self, _: &RenderData) -> Result<String, Self::Error> {
+
+    fn render(&self, _: &RenderContext) -> Result<String, Self::Error> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
@@ -49,62 +49,51 @@ impl Render for StaticContentItem {
     }
 }
 
-// This must only be constructed with template names that have already been
-// validated to exist in the registry.
-pub struct RegisteredTemplate<'registry> {
-    handlebars_registry: Rc<Handlebars<'registry>>,
+pub struct RegisteredTemplate {
     name_in_registry: String,
 }
-impl<'registry> RegisteredTemplate<'registry> {
-    pub fn from_registry(
-        handlebars_registry: Rc<Handlebars<'registry>>,
-        name_in_registry: String,
-    ) -> Option<Self> {
-        if handlebars_registry.has_template(&name_in_registry) {
-            Some(RegisteredTemplate {
-                handlebars_registry,
-                name_in_registry,
-            })
-        } else {
-            None
-        }
+impl RegisteredTemplate {
+    pub fn new(name_in_registry: String) -> Self {
+        RegisteredTemplate { name_in_registry }
     }
 }
-impl<'registry> Render for RegisteredTemplate<'registry> {
-    type RenderArgs = RenderData;
+impl Render for RegisteredTemplate {
+    type RenderArgs = RenderContext<'static>;
     type Error = ContentRenderingError;
-    fn render(&self, render_data: &RenderData) -> Result<String, Self::Error> {
-        self.handlebars_registry
-            .render(&self.name_in_registry, &render_data)
+
+    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+        context
+            .engine
+            .handlebars_registry
+            .render(&self.name_in_registry, &context.data)
             .map_err(ContentRenderingError::from)
     }
 }
 
-pub struct UnregisteredTemplate<'registry> {
-    handlebars_registry: &'registry Handlebars<'registry>,
+pub struct UnregisteredTemplate {
     template: handlebars::Template,
 }
-impl<'registry> UnregisteredTemplate<'registry> {
-    pub fn from_source<S: AsRef<str> + 'registry>(
-        handlebars_registry: &'registry Handlebars<'registry>,
+impl UnregisteredTemplate {
+    pub fn from_source<S: AsRef<str>>(
         handlebars_source: S,
     ) -> Result<Self, UnregisteredTemplateParseError> {
         let template = handlebars::Template::compile2(handlebars_source, true)?;
-        Ok(UnregisteredTemplate {
-            handlebars_registry,
-            template,
-        })
+        Ok(UnregisteredTemplate { template })
     }
 }
-impl<'registry> Render for UnregisteredTemplate<'registry> {
-    type RenderArgs = RenderData;
+impl Render for UnregisteredTemplate {
+    type RenderArgs = RenderContext<'static>;
     type Error = ContentRenderingError;
 
-    fn render(&self, render_data: &RenderData) -> Result<String, Self::Error> {
-        let context = Context::wraps(render_data)?;
-        let mut render_context = RenderContext::new(None);
+    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+        let handlebars_context = handlebars::Context::wraps(&context.data)?;
+        let mut handlebars_render_context = handlebars::RenderContext::new(None);
         self.template
-            .renders(self.handlebars_registry, &context, &mut render_context)
+            .renders(
+                &context.engine.handlebars_registry,
+                &handlebars_context,
+                &mut handlebars_render_context,
+            )
             .map_err(ContentRenderingError::from)
     }
 }
