@@ -71,7 +71,10 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let locked_engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let engine = locked_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
 
     let mut template = String::new();
     input
@@ -94,7 +97,11 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let locked_engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let engine = locked_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
+
     let content_item = engine
         .get(address)
         .ok_or(GetCommandError::ContentNotFound {

@@ -1,1 +1,6 @@
-{{> (content.a)}}{{> (content.b)}}
+{{!
+    `content.a` is a template, so handlebars partial syntax works as a shortcut.
+    `content.b` is static content, so the `get` helper MUST be used. Note that
+    `get` MAY be used for templates as well.
+}}
+{{~> (content.a)}}{{get content.b}}

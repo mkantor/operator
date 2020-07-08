@@ -1,11 +1,13 @@
 use super::content_index::*;
 use super::content_item::*;
+use super::handlebars_helpers::*;
 use super::*;
 use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
-use handlebars::Handlebars;
+use handlebars::{self, Handlebars};
 use std::collections::HashMap;
 use std::io;
+use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -73,7 +75,7 @@ impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: ContentDirectory,
         soliton_version: SolitonVersion,
-    ) -> Result<Self, ContentLoadingError> {
+    ) -> Result<Arc<RwLock<Self>>, ContentLoadingError> {
         let content_item_entries = content_directory
             .into_iter()
             .filter(|entry| !entry.is_hidden());
@@ -81,12 +83,23 @@ impl<'engine> ContentEngine<'engine> {
         let (addresses, content_registry, handlebars_registry) =
             Self::create_registries(content_item_entries)?;
 
-        Ok(ContentEngine {
+        let engine = ContentEngine {
             soliton_version,
             index: ContentIndex::Directory(addresses),
             content_registry,
             handlebars_registry,
-        })
+        };
+
+        let shared_engine = Arc::new(RwLock::new(engine));
+
+        let get_helper = GetHelper::new(shared_engine.clone());
+        shared_engine
+            .write()
+            .expect("RwLock for ContentEngine has been poisoned")
+            .handlebars_registry
+            .register_helper("get", Box::new(get_helper));
+
+        Ok(shared_engine)
     }
 
     fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
@@ -281,11 +294,12 @@ mod tests {
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let engine = ContentEngine::from_content_directory(
+        let locked_engine = ContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let new_content = engine
@@ -307,11 +321,12 @@ mod tests {
 
     #[test]
     fn new_content_fails_for_invalid_templates() {
-        let engine = ContentEngine::from_content_directory(
+        let locked_engine = ContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
 
         for &template in &INVALID_TEMPLATES {
             let result = engine.new_content(template);
@@ -327,8 +342,9 @@ mod tests {
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory, VERSION)
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
 
         let template = "this is partial: {{> (content.abc)}}";
         let expected_output = "this is partial: a\nb\n\nc\n\n";
@@ -352,8 +368,9 @@ mod tests {
     #[test]
     fn content_can_be_retrieved() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory, VERSION)
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
 
         let address = "abc";
         let expected_output = "a\nb\n\nc\n\n";
@@ -378,8 +395,9 @@ mod tests {
     #[test]
     fn content_may_not_exist_at_address() {
         let directory = ContentDirectory::from_root(&example_path("valid/hello-world")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory, VERSION)
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
 
         let address = "this-address-does-not-refer-to-any-content";
 

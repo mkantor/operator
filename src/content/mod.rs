@@ -1,6 +1,7 @@
 mod content_engine;
 mod content_index;
 mod content_item;
+mod handlebars_helpers;
 
 use crate::lib::*;
 use content_index::*;
