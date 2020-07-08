@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 pub struct SolitonVersion(pub &'static str);
 
 pub trait Render {

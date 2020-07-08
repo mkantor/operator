@@ -61,6 +61,7 @@ enum RegisteredContent {
 type ContentRegistry = HashMap<CanonicalAddress, RegisteredContent>;
 
 pub struct ContentEngine<'engine> {
+    soliton_version: SolitonVersion,
     index: ContentIndex,
     content_registry: ContentRegistry,
 
@@ -71,6 +72,7 @@ pub struct ContentEngine<'engine> {
 impl<'engine> ContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: ContentDirectory,
+        soliton_version: SolitonVersion,
     ) -> Result<Self, ContentLoadingError> {
         let content_item_entries = content_directory
             .into_iter()
@@ -80,6 +82,7 @@ impl<'engine> ContentEngine<'engine> {
             Self::create_registries(content_item_entries)?;
 
         Ok(ContentEngine {
+            soliton_version,
             index: ContentIndex::Directory(addresses),
             content_registry,
             handlebars_registry,
@@ -213,12 +216,12 @@ impl<'engine> ContentEngine<'engine> {
         Ok((addresses, content_registry, handlebars_registry))
     }
 
-    pub fn get_render_context(&self, soliton_version: SolitonVersion) -> RenderContext {
+    pub fn get_render_context(&self) -> RenderContext {
         RenderContext {
             engine: self,
             data: RenderData {
                 soliton: SolitonRenderData {
-                    version: soliton_version,
+                    version: self.soliton_version,
                 },
                 content: self.index.clone(),
             },
@@ -255,14 +258,12 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
 
-    fn dummy_render_context<'a>(engine: &'a ContentEngine) -> RenderContext<'a> {
-        engine.get_render_context(SolitonVersion("0.0.0"))
-    }
+    const VERSION: SolitonVersion = SolitonVersion("0.0.0");
 
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in content_directories_with_valid_contents() {
-            if let Err(error) = ContentEngine::from_content_directory(directory) {
+            if let Err(error) = ContentEngine::from_content_directory(directory, VERSION) {
                 panic!("Content engine could not be created: {}", error);
             }
         }
@@ -272,7 +273,7 @@ mod tests {
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
         for directory in content_directories_with_invalid_contents() {
             assert!(
-                ContentEngine::from_content_directory(directory).is_err(),
+                ContentEngine::from_content_directory(directory, VERSION).is_err(),
                 "Content engine was successfully created, but this should have failed",
             );
         }
@@ -280,16 +281,18 @@ mod tests {
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let engine =
-            ContentEngine::from_content_directory(arbitrary_content_directory_with_valid_content())
-                .expect("Content engine could not be created");
+        let engine = ContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            VERSION,
+        )
+        .expect("Content engine could not be created");
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let new_content = engine
                 .new_content(template)
                 .expect("Template could not be parsed");
             let rendered = new_content
-                .render(&dummy_render_context(&engine))
+                .render(&engine.get_render_context())
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -304,9 +307,11 @@ mod tests {
 
     #[test]
     fn new_content_fails_for_invalid_templates() {
-        let engine =
-            ContentEngine::from_content_directory(arbitrary_content_directory_with_valid_content())
-                .expect("Content engine could not be created");
+        let engine = ContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            VERSION,
+        )
+        .expect("Content engine could not be created");
 
         for &template in &INVALID_TEMPLATES {
             let result = engine.new_content(template);
@@ -322,7 +327,7 @@ mod tests {
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory)
+        let engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
 
         let template = "this is partial: {{> (content.abc)}}";
@@ -332,7 +337,7 @@ mod tests {
             .new_content(template)
             .expect("Template could not be parsed");
         let rendered = new_content
-            .render(&dummy_render_context(&engine))
+            .render(&engine.get_render_context())
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -347,7 +352,7 @@ mod tests {
     #[test]
     fn content_can_be_retrieved() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory)
+        let engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
 
         let address = "abc";
@@ -355,7 +360,7 @@ mod tests {
 
         let content = engine.get(address).expect("Content could not be found");
         let rendered = content
-            .render(&dummy_render_context(&engine))
+            .render(&engine.get_render_context())
             .expect(&format!(
                 "Template rendering failed for content at '{}'",
                 address
@@ -373,7 +378,7 @@ mod tests {
     #[test]
     fn content_may_not_exist_at_address() {
         let directory = ContentDirectory::from_root(&example_path("valid/hello-world")).unwrap();
-        let engine = ContentEngine::from_content_directory(directory)
+        let engine = ContentEngine::from_content_directory(directory, VERSION)
             .expect("Content engine could not be created");
 
         let address = "this-address-does-not-refer-to-any-content";

@@ -71,7 +71,7 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory)?;
+    let engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
 
     let mut template = String::new();
     input
@@ -79,7 +79,7 @@ pub fn render<I: io::Read, O: io::Write>(
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
     let content_item = engine.new_content(&template)?;
-    let render_context = engine.get_render_context(soliton_version);
+    let render_context = engine.get_render_context();
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
@@ -94,13 +94,13 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let engine = ContentEngine::from_content_directory(content_directory)?;
+    let engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
     let content_item = engine
         .get(address)
         .ok_or(GetCommandError::ContentNotFound {
             address: String::from(address),
         })?;
-    let render_context = engine.get_render_context(soliton_version);
+    let render_context = engine.get_render_context();
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
