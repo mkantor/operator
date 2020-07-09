@@ -256,7 +256,7 @@ impl<'engine> ContentEngine<'engine> {
         }
     }
 
-    pub fn new_content(
+    pub fn new_template(
         &self,
         handlebars_source: &str,
         media_type: Mime,
@@ -319,7 +319,7 @@ mod tests {
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let new_content = engine
-                .new_content(template, mime::TEXT_HTML)
+                .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
             let rendered = new_content
                 .render(&engine.get_render_context())
@@ -345,7 +345,7 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         for &template in &INVALID_TEMPLATES {
-            let result = engine.new_content(template, mime::TEXT_HTML);
+            let result = engine.new_template(template, mime::TEXT_HTML);
 
             assert!(
                 result.is_err(),
@@ -366,7 +366,7 @@ mod tests {
         let expected_output = "this is partial: a\nb\n\nc\n\n";
 
         let new_content = engine
-            .new_content(template, mime::TEXT_HTML)
+            .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = new_content
             .render(&engine.get_render_context())
@@ -435,7 +435,7 @@ mod tests {
         let expected_output = "i got stuff: b\n";
 
         let new_content = engine
-            .new_content(template, mime::TEXT_HTML)
+            .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = new_content
             .render(&engine.get_render_context())
@@ -467,7 +467,7 @@ mod tests {
 
         for template in templates.iter() {
             let new_content = engine
-                .new_content(template, mime::TEXT_HTML)
+                .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
             let result = new_content.render(&engine.get_render_context());
             assert!(
