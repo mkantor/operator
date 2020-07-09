@@ -166,7 +166,6 @@ mod tests {
     #[test]
     fn cli_can_get_content() {
         let mut output = Vec::new();
-        let content_directory_path = &example_path("valid/hello-world");
         let address = "hello";
         let expected_output = "hello world\n";
 
@@ -175,18 +174,16 @@ mod tests {
 
         assert!(
             result.is_ok(),
-            "Template rendering failed for content at '{}' in '{}': {}",
+            "Template rendering failed for content at '{}': {}",
             address,
-            content_directory_path.display(),
             result.unwrap_err(),
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
         assert_eq!(
             output_as_str,
             expected_output,
-            "Template rendering for content at '{}' in '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
             address,
-            content_directory_path.display(),
             expected_output,
             output_as_str
         );
