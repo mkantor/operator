@@ -25,6 +25,7 @@ pub fn content_directories_with_valid_contents() -> Vec<ContentDirectory> {
         example_content_directory("valid/partials"),
         example_content_directory("valid/empty"),
         example_content_directory("valid/static-content"),
+        example_content_directory("valid/media-types"),
     ]
 }
 

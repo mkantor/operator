@@ -14,7 +14,6 @@ pub use content_engine::{
 pub use content_item::ContentRenderingError;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
-const HTML_FILE_EXTENSION: &str = "html";
 
 #[derive(Serialize)]
 struct SolitonRenderData {

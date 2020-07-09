@@ -5,6 +5,7 @@ use super::*;
 use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::{self, Handlebars};
+use mime_guess::MimeGuess;
 use std::collections::HashMap;
 use std::io;
 use std::sync::{Arc, RwLock};
@@ -45,6 +46,9 @@ pub enum ContentLoadingError {
 
     #[error("Content file name is not supported: {}", .message)]
     ContentFileNameError { message: String },
+
+    #[error("Content file has an unknown media type: {}", .message)]
+    UnknownFileType { message: String },
 
     #[error("Failed to create index while loading content directory.")]
     ContentIndexError { source: ContentIndexUpdateError },
@@ -110,43 +114,40 @@ impl<'engine> ContentEngine<'engine> {
         let mut static_files = ContentRegistry::new();
         for entry in content_item_entries {
             match entry.extensions() {
-                [single_extension] => match single_extension.as_str() {
-                    HTML_FILE_EXTENSION => {
-                        addresses
-                            .try_add(entry.relative_path_without_extensions())
-                            .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+                [single_extension] => {
+                    addresses
+                        .try_add(entry.relative_path_without_extensions())
+                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
 
-                        let canonical_address =
-                            CanonicalAddress::new(entry.relative_path_without_extensions());
-                        let static_content_item = RegisteredContent::StaticContentItem(
-                            StaticContentItem::new(entry.file_contents()),
-                        );
-                        let was_duplicate = static_files
-                            .insert(canonical_address, static_content_item)
-                            .is_some();
-                        if was_duplicate {
-                            return Err(ContentLoadingError::Bug {
-                                message: String::from(
-                                    "There were two or more static files with the same address.",
-                                ),
-                            });
-                        }
-                    }
-
-                    unsupported_extension => {
-                        return Err(ContentLoadingError::ContentFileNameError {
-                            message: format!(
-                                "The content file '{}' has an unsupported extension ('{}').",
-                                entry.relative_path(),
-                                unsupported_extension
+                    let canonical_address =
+                        CanonicalAddress::new(entry.relative_path_without_extensions());
+                    let media_type =
+                        MimeGuess::from_ext(single_extension)
+                            .first()
+                            .ok_or_else(|| ContentLoadingError::UnknownFileType {
+                                message: format!(
+                                "The filename extension '{}' does not map to any known media type.",
+                                single_extension,
+                            ),
+                            })?;
+                    let static_content_item = RegisteredContent::StaticContentItem(
+                        StaticContentItem::new(entry.file_contents(), media_type),
+                    );
+                    let was_duplicate = static_files
+                        .insert(canonical_address, static_content_item)
+                        .is_some();
+                    if was_duplicate {
+                        return Err(ContentLoadingError::Bug {
+                            message: String::from(
+                                "There were two or more static files with the same address.",
                             ),
                         });
                     }
-                },
+                }
 
                 [first_extension, second_extension] => {
                     match [first_extension.as_str(), second_extension.as_str()] {
-                        [HTML_FILE_EXTENSION, HANDLEBARS_FILE_EXTENSION] => {
+                        [first_extension, HANDLEBARS_FILE_EXTENSION] => {
                             addresses
                                 .try_add(entry.relative_path_without_extensions())
                                 .map_err(|source| ContentLoadingError::ContentIndexError {
@@ -155,6 +156,17 @@ impl<'engine> ContentEngine<'engine> {
 
                             let canonical_address =
                                 String::from(entry.relative_path_without_extensions());
+
+                            // TODO: Make template ContentItems know their own media type.
+                            let _media_type = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
+                                ContentLoadingError::UnknownFileType {
+                                    message: format!(
+                                        "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
+                                        entry.relative_path(),
+                                        first_extension,
+                                    ),
+                                }
+                            })?;
                             let mut contents = entry.file_contents();
 
                             handlebars_registry
@@ -184,7 +196,7 @@ impl<'engine> ContentEngine<'engine> {
                         [first_unsupported_extension, second_unsupported_extension] => {
                             return Err(ContentLoadingError::ContentFileNameError {
                                 message: format!(
-                                    "The content file '{}' has a unsupported extensions ('{}.{}').",
+                                    "The content file '{}' has unsupported extensions ('{}.{}').",
                                     entry.relative_path(),
                                     first_unsupported_extension,
                                     second_unsupported_extension
@@ -459,6 +471,28 @@ mod tests {
                 "Content was successfully rendered for invalid template `{}`, but it should have failed",
                 template,
             );
+        }
+    }
+
+    #[test]
+    fn content_which_cannot_become_html_cannot_be_rendered() {
+        let content_directory_path = &example_path("valid/media-types");
+        let directory = ContentDirectory::from_root(content_directory_path).unwrap();
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
+            .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let address = "cannot-become-html";
+        match engine.get(address) {
+            None => panic!("No content was found at '{}'", address),
+            Some(renderable) => {
+                let result = renderable.render(&engine.get_render_context());
+                assert!(
+                    result.is_err(),
+                    "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
+                    address,
+                );
+            }
         }
     }
 }

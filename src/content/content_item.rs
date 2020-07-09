@@ -1,6 +1,7 @@
 use super::{RenderContext, UnregisteredTemplateParseError};
 use crate::lib::*;
 use handlebars::{self, Renderable as _};
+use mime::{self, Mime};
 use std::fs;
 use std::io;
 use std::io::{Read, Seek, SeekFrom};
@@ -22,14 +23,28 @@ pub enum ContentRenderingError {
         #[from]
         source: io::Error,
     },
+
+    #[error(
+        "Unable to satisfy target media type '{}' from source media type '{}'.",
+        .target_media_type,
+        .source_media_type,
+    )]
+    MediaTypeError {
+        source_media_type: Mime,
+        target_media_type: Mime,
+    },
 }
 
 pub struct StaticContentItem {
     contents: fs::File,
+    media_type: Mime,
 }
 impl StaticContentItem {
-    pub fn new(contents: fs::File) -> Self {
-        StaticContentItem { contents }
+    pub fn new(contents: fs::File, media_type: Mime) -> Self {
+        StaticContentItem {
+            contents,
+            media_type,
+        }
     }
 }
 impl Render for StaticContentItem {
@@ -37,15 +52,25 @@ impl Render for StaticContentItem {
     type Error = ContentRenderingError;
 
     fn render(&self, _: &RenderContext) -> Result<String, Self::Error> {
-        // We clone the file handle and operate on that to avoid taking
-        // self as mut. Note that all clones share a cursor, so seeking
-        // back to the beginning is necessary to ensure we read the
-        // entire file.
-        let mut readable_contents = self.contents.try_clone()?;
-        let mut rendered_content = String::new();
-        readable_contents.seek(SeekFrom::Start(0))?;
-        readable_contents.read_to_string(&mut rendered_content)?;
-        Ok(rendered_content)
+        // TODO: Pass target media type as a parameter to this method.
+        let assumed_target_media_type = mime::TEXT_HTML;
+
+        if assumed_target_media_type != self.media_type {
+            Err(ContentRenderingError::MediaTypeError {
+                source_media_type: self.media_type.clone(),
+                target_media_type: assumed_target_media_type,
+            })
+        } else {
+            // We clone the file handle and operate on that to avoid taking
+            // self as mut. Note that all clones share a cursor, so seeking
+            // back to the beginning is necessary to ensure we read the
+            // entire file.
+            let mut readable_contents = self.contents.try_clone()?;
+            let mut rendered_content = String::new();
+            readable_contents.seek(SeekFrom::Start(0))?;
+            readable_contents.read_to_string(&mut rendered_content)?;
+            Ok(rendered_content)
+        }
     }
 }
 
