@@ -1,6 +1,7 @@
 use crate::content::*;
 use crate::content_directory::ContentDirectory;
 use crate::lib::*;
+use mime::Mime;
 use std::io;
 use thiserror::Error;
 
@@ -67,6 +68,7 @@ pub enum GetCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
+    media_type: Mime,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -81,8 +83,6 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    // FIXME: Should not hardcode this. Instead take it as a new CLI argument.
-    let media_type = mime::TEXT_HTML;
     let content_item = engine.new_template(&template, media_type)?;
     let render_context = engine.get_render_context();
     let rendered_output = content_item.render(&render_context)?;
@@ -129,7 +129,13 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = render(
+                directory,
+                mime::TEXT_HTML,
+                SolitonVersion("0.0.0"),
+                &mut input,
+                &mut output,
+            );
 
             assert!(
                 result.is_ok(),
@@ -155,7 +161,13 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = render(
+                directory,
+                mime::TEXT_HTML,
+                SolitonVersion("0.0.0"),
+                &mut input,
+                &mut output,
+            );
 
             assert!(
                 result.is_err(),

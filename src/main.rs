@@ -6,6 +6,7 @@ mod test_lib;
 
 use crate::content_directory::ContentDirectory;
 use crate::lib::*;
+use mime::Mime;
 use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -16,16 +17,19 @@ const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 enum SolitonCommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=."
+        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=path/to/content --source-media-type=text/html"
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
+
+        #[structopt(long)]
+        source_media_type: Mime,
     },
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.hbs && soliton get --content-directory=content --address=hello"
+        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.hbs && soliton get --content-directory=path/to/content --address=hello"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
@@ -61,8 +65,12 @@ fn handle_command<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match command {
-        SolitonCommand::Render { content_directory } => cli::render(
+        SolitonCommand::Render {
+            content_directory,
+            source_media_type,
+        } => cli::render(
             ContentDirectory::from_root(content_directory)?,
+            source_media_type.clone(),
             VERSION,
             input,
             output,
