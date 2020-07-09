@@ -407,4 +407,58 @@ mod tests {
             address
         );
     }
+
+    #[test]
+    fn get_helper_is_available() {
+        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
+            .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let template = "i got stuff: {{get content.b}}";
+        let expected_output = "i got stuff: b\n";
+
+        let new_content = engine
+            .new_content(template)
+            .expect("Template could not be parsed");
+        let rendered = new_content
+            .render(&engine.get_render_context())
+            .expect(&format!("Template rendering failed for `{}`", template));
+        assert_eq!(
+            rendered,
+            expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template,
+            expected_output,
+            rendered,
+        );
+    }
+
+    #[test]
+    fn get_helper_requires_an_address_argument() {
+        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
+            .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let templates = [
+            "no argument: {{get}}",
+            "not a string: {{get 3}}",
+            "empty string: {{get \"\"}}",
+            "unknown address: {{get \"no/content/at/this/address\"}}",
+            "non-existent variables: {{get complete garbage}}",
+        ];
+
+        for template in templates.iter() {
+            let new_content = engine
+                .new_content(template)
+                .expect("Template could not be parsed");
+            let result = new_content.render(&engine.get_render_context());
+            assert!(
+                result.is_err(),
+                "Content was successfully rendered for invalid template `{}`, but it should have failed",
+                template,
+            );
+        }
+    }
 }
