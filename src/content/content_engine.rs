@@ -5,6 +5,7 @@ use super::*;
 use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::{self, Handlebars};
+use mime::{self, Mime};
 use mime_guess::MimeGuess;
 use std::collections::HashMap;
 use std::io;
@@ -111,7 +112,7 @@ impl<'engine> ContentEngine<'engine> {
     ) -> Result<(ContentIndexEntries, ContentRegistry, Handlebars<'a>), ContentLoadingError> {
         let mut addresses = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
-        let mut static_files = ContentRegistry::new();
+        let mut content_registry = ContentRegistry::new();
         for entry in content_item_entries {
             match entry.extensions() {
                 [single_extension] => {
@@ -130,16 +131,16 @@ impl<'engine> ContentEngine<'engine> {
                                 single_extension,
                             ),
                             })?;
-                    let static_content_item = RegisteredContent::StaticContentItem(
+                    let content_item = RegisteredContent::StaticContentItem(
                         StaticContentItem::new(entry.file_contents(), media_type),
                     );
-                    let was_duplicate = static_files
-                        .insert(canonical_address, static_content_item)
+                    let was_duplicate = content_registry
+                        .insert(canonical_address, content_item)
                         .is_some();
                     if was_duplicate {
                         return Err(ContentLoadingError::Bug {
                             message: String::from(
-                                "There were two or more static files with the same address.",
+                                "There were two or more content files with the same address.",
                             ),
                         });
                     }
@@ -154,11 +155,12 @@ impl<'engine> ContentEngine<'engine> {
                                     source,
                                 })?;
 
-                            let canonical_address =
+                            let address_string =
                                 String::from(entry.relative_path_without_extensions());
+                            let canonical_address =
+                                CanonicalAddress::new(entry.relative_path_without_extensions());
 
-                            // TODO: Make template ContentItems know their own media type.
-                            let _media_type = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
+                            let media_type = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
                                 ContentLoadingError::UnknownFileType {
                                     message: format!(
                                         "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
@@ -170,7 +172,7 @@ impl<'engine> ContentEngine<'engine> {
                             let mut contents = entry.file_contents();
 
                             handlebars_registry
-                                .register_template_source(&canonical_address, &mut contents)
+                                .register_template_source(&address_string, &mut contents)
                                 .map_err(|template_render_error| match template_render_error {
                                     handlebars::TemplateFileError::TemplateError(source) => {
                                         ContentLoadingError::TemplateParseError(
@@ -191,6 +193,20 @@ impl<'engine> ContentEngine<'engine> {
                                         ContentLoadingError::IOError { source, name }
                                     }
                                 })?;
+
+                            let content_item = RegisteredContent::RegisteredTemplate(
+                                RegisteredTemplate::new(address_string, media_type),
+                            );
+                            let was_duplicate = content_registry
+                                .insert(canonical_address, content_item)
+                                .is_some();
+                            if was_duplicate {
+                                return Err(ContentLoadingError::Bug {
+                                    message: String::from(
+                                        "There were two or more content files with the same address.",
+                                    ),
+                                });
+                            }
                         }
 
                         [first_unsupported_extension, second_unsupported_extension] => {
@@ -225,19 +241,6 @@ impl<'engine> ContentEngine<'engine> {
             }
         }
 
-        // Create the complete registry from both templates and static files.
-        let mut content_registry = handlebars_registry
-            .get_templates()
-            .keys()
-            .map(|address| {
-                Ok((
-                    CanonicalAddress::new(address),
-                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(address)),
-                ))
-            })
-            .collect::<Result<ContentRegistry, ContentLoadingError>>()?;
-        content_registry.extend(static_files);
-
         Ok((addresses, content_registry, handlebars_registry))
     }
 
@@ -256,11 +259,12 @@ impl<'engine> ContentEngine<'engine> {
     pub fn new_content(
         &self,
         handlebars_source: &str,
+        media_type: Mime,
     ) -> Result<
         Box<dyn Render<RenderArgs = RenderContext, Error = ContentRenderingError>>,
         UnregisteredTemplateParseError,
     > {
-        match UnregisteredTemplate::from_source(handlebars_source) {
+        match UnregisteredTemplate::from_source(handlebars_source, media_type) {
             Ok(content) => Ok(Box::new(content)),
             Err(error) => Err(error),
         }
@@ -315,7 +319,7 @@ mod tests {
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let new_content = engine
-                .new_content(template)
+                .new_content(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
             let rendered = new_content
                 .render(&engine.get_render_context())
@@ -341,7 +345,7 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         for &template in &INVALID_TEMPLATES {
-            let result = engine.new_content(template);
+            let result = engine.new_content(template, mime::TEXT_HTML);
 
             assert!(
                 result.is_err(),
@@ -362,7 +366,7 @@ mod tests {
         let expected_output = "this is partial: a\nb\n\nc\n\n";
 
         let new_content = engine
-            .new_content(template)
+            .new_content(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = new_content
             .render(&engine.get_render_context())
@@ -431,7 +435,7 @@ mod tests {
         let expected_output = "i got stuff: b\n";
 
         let new_content = engine
-            .new_content(template)
+            .new_content(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = new_content
             .render(&engine.get_render_context())
@@ -463,7 +467,7 @@ mod tests {
 
         for template in templates.iter() {
             let new_content = engine
-                .new_content(template)
+                .new_content(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
             let result = new_content.render(&engine.get_render_context());
             assert!(
@@ -482,16 +486,19 @@ mod tests {
             .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "cannot-become-html";
-        match engine.get(address) {
-            None => panic!("No content was found at '{}'", address),
-            Some(renderable) => {
-                let result = renderable.render(&engine.get_render_context());
-                assert!(
-                    result.is_err(),
-                    "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
-                    address,
-                );
+        let addresses = ["cannot-become-html", "template-cannot-become-html"];
+
+        for address in addresses.iter() {
+            match engine.get(address) {
+                None => panic!("No content was found at '{}'", address),
+                Some(renderable) => {
+                    let result = renderable.render(&engine.get_render_context());
+                    assert!(
+                        result.is_err(),
+                        "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
+                        address,
+                    );
+                }
             }
         }
     }

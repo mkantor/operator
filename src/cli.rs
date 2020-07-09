@@ -81,7 +81,9 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let content_item = engine.new_content(&template)?;
+    // FIXME: Should not hardcode this. Instead take it as a new CLI argument.
+    let media_type = mime::TEXT_HTML;
+    let content_item = engine.new_content(&template, media_type)?;
     let render_context = engine.get_render_context();
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)

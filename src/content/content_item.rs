@@ -52,8 +52,7 @@ impl Render for StaticContentItem {
     type Error = ContentRenderingError;
 
     fn render(&self, _: &RenderContext) -> Result<String, Self::Error> {
-        // TODO: Pass target media type as a parameter to this method.
-        let assumed_target_media_type = mime::TEXT_HTML;
+        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
 
         if assumed_target_media_type != self.media_type {
             Err(ContentRenderingError::MediaTypeError {
@@ -76,11 +75,13 @@ impl Render for StaticContentItem {
 
 pub struct RegisteredTemplate {
     name_in_registry: String,
+    media_type: Mime,
 }
 impl RegisteredTemplate {
-    pub fn new<S: AsRef<str>>(name_in_registry: S) -> Self {
+    pub fn new<S: AsRef<str>>(name_in_registry: S, media_type: Mime) -> Self {
         RegisteredTemplate {
             name_in_registry: String::from(name_in_registry.as_ref()),
+            media_type,
         }
     }
 }
@@ -89,23 +90,37 @@ impl Render for RegisteredTemplate {
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        context
-            .engine
-            .handlebars_registry
-            .render(&self.name_in_registry, &context.data)
-            .map_err(ContentRenderingError::from)
+        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
+
+        if assumed_target_media_type != self.media_type {
+            Err(ContentRenderingError::MediaTypeError {
+                source_media_type: self.media_type.clone(),
+                target_media_type: assumed_target_media_type,
+            })
+        } else {
+            context
+                .engine
+                .handlebars_registry
+                .render(&self.name_in_registry, &context.data)
+                .map_err(ContentRenderingError::from)
+        }
     }
 }
 
 pub struct UnregisteredTemplate {
     template: handlebars::Template,
+    media_type: Mime,
 }
 impl UnregisteredTemplate {
     pub fn from_source<S: AsRef<str>>(
         handlebars_source: S,
+        media_type: Mime,
     ) -> Result<Self, UnregisteredTemplateParseError> {
         let template = handlebars::Template::compile2(handlebars_source, true)?;
-        Ok(UnregisteredTemplate { template })
+        Ok(UnregisteredTemplate {
+            template,
+            media_type,
+        })
     }
 }
 impl Render for UnregisteredTemplate {
@@ -113,14 +128,23 @@ impl Render for UnregisteredTemplate {
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        let handlebars_context = handlebars::Context::wraps(&context.data)?;
-        let mut handlebars_render_context = handlebars::RenderContext::new(None);
-        self.template
-            .renders(
-                &context.engine.handlebars_registry,
-                &handlebars_context,
-                &mut handlebars_render_context,
-            )
-            .map_err(ContentRenderingError::from)
+        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
+
+        if assumed_target_media_type != self.media_type {
+            Err(ContentRenderingError::MediaTypeError {
+                source_media_type: self.media_type.clone(),
+                target_media_type: assumed_target_media_type,
+            })
+        } else {
+            let handlebars_context = handlebars::Context::wraps(&context.data)?;
+            let mut handlebars_render_context = handlebars::RenderContext::new(None);
+            self.template
+                .renders(
+                    &context.engine.handlebars_registry,
+                    &handlebars_context,
+                    &mut handlebars_render_context,
+                )
+                .map_err(ContentRenderingError::from)
+        }
     }
 }
