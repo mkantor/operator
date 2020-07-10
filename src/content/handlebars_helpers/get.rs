@@ -16,7 +16,7 @@ impl<'a> handlebars::HelperDef for GetHelper<'a> {
         &self,
         helper: &handlebars::Helper<'registry, 'context>,
         _: &'registry Handlebars<'registry>,
-        _: &'context handlebars::Context,
+        handlebars_context: &'context handlebars::Context,
         _: &mut handlebars::RenderContext<'registry, 'context>,
         output: &mut dyn handlebars::Output,
     ) -> handlebars::HelperResult {
@@ -42,9 +42,37 @@ impl<'a> handlebars::HelperDef for GetHelper<'a> {
                 address
             ))
         })?;
-        let context = engine.get_render_context();
 
-        output.write(content_item.render(&context).unwrap().as_ref())?;
+        // FIXME: This works for now, but only because of other assumptions. It
+        // should really be setting the target media type to the *source* media
+        // type of the calling template. This doesn't matter yet because they
+        // are guaranteed to be identical (otherwise rendering fails), but if
+        // soliton eventually supports transcoding between different media
+        // types it won't always be.
+        let target_media_type = handlebars_context.data().as_object()
+            .and_then(|object| object.get(TARGET_MEDIA_TYPE_PROPERTY_NAME))
+            .and_then(|value| value.as_str())
+            .and_then(|media_type_essence| media_type_essence.parse::<Mime>().ok())
+            .ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because a valid target media type could not be found in the handlebars context. The context JSON must contain a top-level property named \"{}\" whose value is a valid media type essence string. The current context is `{}`.",
+                    TARGET_MEDIA_TYPE_PROPERTY_NAME,
+                    handlebars_context.data()
+                ))
+            })?;
+
+        let context = engine.get_render_context(&target_media_type);
+
+        let rendered_content = content_item
+            .render(&context).map_err(|soliton_render_error| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the content item being retrieved (\"{}\") could not be rendered: {}",
+                    address,
+                    soliton_render_error
+                ))
+            })?;
+
+        output.write(rendered_content.as_ref())?;
         Ok(())
     }
 }

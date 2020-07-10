@@ -244,7 +244,10 @@ impl<'engine> ContentEngine<'engine> {
         Ok((addresses, content_registry, handlebars_registry))
     }
 
-    pub fn get_render_context(&self) -> RenderContext {
+    pub fn get_render_context<'a, 'b>(
+        &'a self,
+        target_media_type: &'b Mime,
+    ) -> RenderContext<'a, 'b> {
         RenderContext {
             engine: self,
             data: RenderData {
@@ -252,6 +255,9 @@ impl<'engine> ContentEngine<'engine> {
                     version: self.soliton_version,
                 },
                 content: self.index.clone(),
+                target_media_type: SerializableMediaType {
+                    media_type: target_media_type,
+                },
             },
         }
     }
@@ -318,11 +324,11 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         for &(template, expected_output) in &VALID_TEMPLATES {
-            let new_content = engine
+            let renderable = engine
                 .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
-            let rendered = new_content
-                .render(&engine.get_render_context())
+            let rendered = renderable
+                .render(&engine.get_render_context(&mime::TEXT_HTML))
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -336,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn new_content_fails_for_invalid_templates() {
+    fn new_template_fails_for_invalid_templates() {
         let locked_engine = ContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
@@ -365,11 +371,11 @@ mod tests {
         let template = "this is partial: {{> (content.abc)}}";
         let expected_output = "this is partial: a\nb\n\nc\n\n";
 
-        let new_content = engine
+        let renderable = engine
             .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
-        let rendered = new_content
-            .render(&engine.get_render_context())
+        let rendered = renderable
+            .render(&engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -393,7 +399,7 @@ mod tests {
 
         let content = engine.get(address).expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context())
+            .render(&engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!(
                 "Template rendering failed for content at '{}'",
                 address
@@ -434,11 +440,11 @@ mod tests {
         let template = "i got stuff: {{get content.b}}";
         let expected_output = "i got stuff: b\n";
 
-        let new_content = engine
+        let renderable = engine
             .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
-        let rendered = new_content
-            .render(&engine.get_render_context())
+        let rendered = renderable
+            .render(&engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -466,10 +472,10 @@ mod tests {
         ];
 
         for template in templates.iter() {
-            let new_content = engine
+            let renderable = engine
                 .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
-            let result = new_content.render(&engine.get_render_context());
+            let result = renderable.render(&engine.get_render_context(&mime::TEXT_HTML));
             assert!(
                 result.is_err(),
                 "Content was successfully rendered for invalid template `{}`, but it should have failed",
@@ -479,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn content_which_cannot_become_html_cannot_be_rendered() {
+    fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
         let content_directory_path = &example_path("valid/media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
         let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
@@ -492,7 +498,7 @@ mod tests {
             match engine.get(address) {
                 None => panic!("No content was found at '{}'", address),
                 Some(renderable) => {
-                    let result = renderable.render(&engine.get_render_context());
+                    let result = renderable.render(&engine.get_render_context(&mime::TEXT_HTML));
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
@@ -501,5 +507,82 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn anonymous_template_cannot_be_rendered_with_unacceptable_target_media_type() {
+        let locked_engine = ContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            VERSION,
+        )
+        .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let template = engine
+            .new_template("<p>hi</p>", mime::TEXT_HTML)
+            .expect("Template could not be created");
+        let result = template.render(&engine.get_render_context(&mime::TEXT_PLAIN));
+
+        assert!(
+            result.is_err(),
+            "Template was successfully rendered with unacceptable media type",
+        );
+    }
+
+    #[test]
+    fn nesting_incompatible_media_types_fails_at_render_time() {
+        let content_directory_path = &example_path("valid/media-types");
+        let directory = ContentDirectory::from_root(content_directory_path).unwrap();
+        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
+            .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let inputs = [
+            (mime::TEXT_PLAIN, "nesting/txt-that-includes-html"),
+            (mime::TEXT_HTML, "nesting/html-that-includes-txt"),
+        ];
+
+        for (target_media_type, address) in inputs.iter() {
+            match engine.get(address) {
+                None => panic!("No content was found at '{}'", address),
+                Some(renderable) => {
+                    let result = renderable.render(&engine.get_render_context(target_media_type));
+                    assert!(
+                        result.is_err(),
+                        "Content was successfully rendered for `{}`, but this should have failed",
+                        address,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn templates_are_told_what_target_media_type_they_are_being_rendered_to() {
+        let locked_engine = ContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            VERSION,
+        )
+        .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let target_media_type = mime::APPLICATION_WWW_FORM_URLENCODED;
+        let template = "{{target-media-type}}";
+        let expected_output = target_media_type.essence_str();
+
+        let renderable = engine
+            .new_template(template, target_media_type.clone())
+            .expect("Template could not be parsed");
+        let rendered = renderable
+            .render(&engine.get_render_context(&target_media_type))
+            .expect(&format!("Template rendering failed for `{}`", template));
+        assert_eq!(
+            rendered,
+            expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template,
+            expected_output,
+            rendered,
+        );
     }
 }

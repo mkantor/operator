@@ -10,8 +10,8 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ContentRenderingError {
     #[error(
-        "Rendering failed for template{}.",
-        .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
+        "Rendering failed for template: {}",
+        .source
     )]
     TemplateRenderError {
         #[from]
@@ -48,16 +48,14 @@ impl StaticContentItem {
     }
 }
 impl Render for StaticContentItem {
-    type RenderArgs = RenderContext<'static>;
+    type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
-    fn render(&self, _: &RenderContext) -> Result<String, Self::Error> {
-        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
-
-        if assumed_target_media_type != self.media_type {
+    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+        if context.data.target_media_type != self.media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.media_type.clone(),
-                target_media_type: assumed_target_media_type,
+                target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
             // We clone the file handle and operate on that to avoid taking
@@ -86,16 +84,14 @@ impl RegisteredTemplate {
     }
 }
 impl Render for RegisteredTemplate {
-    type RenderArgs = RenderContext<'static>;
+    type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
-
-        if assumed_target_media_type != self.media_type {
+        if context.data.target_media_type != self.media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.media_type.clone(),
-                target_media_type: assumed_target_media_type,
+                target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
             context
@@ -124,16 +120,14 @@ impl UnregisteredTemplate {
     }
 }
 impl Render for UnregisteredTemplate {
-    type RenderArgs = RenderContext<'static>;
+    type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        let assumed_target_media_type = mime::TEXT_HTML; // FIXME
-
-        if assumed_target_media_type != self.media_type {
+        if context.data.target_media_type != self.media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.media_type.clone(),
-                target_media_type: assumed_target_media_type,
+                target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
             let handlebars_context = handlebars::Context::wraps(&context.data)?;

@@ -1,0 +1,5 @@
+this with normal context: {{this}}
+{{#with variable-does-not-exist-so-context-will-be-empty}}
+this with empty context: {{this}}
+calling get for static content without full context: {{get "a"}}
+{{/with}}

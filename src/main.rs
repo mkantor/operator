@@ -17,7 +17,7 @@ const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 enum SolitonCommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=path/to/content --source-media-type=text/html"
+        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=path/to/content --source-media-type=text/html --target-media-type=text/html"
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
@@ -25,11 +25,14 @@ enum SolitonCommand {
 
         #[structopt(long)]
         source_media_type: Mime,
+
+        #[structopt(long)]
+        target_media_type: Mime,
     },
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.html.hbs && soliton get --content-directory=path/to/content --address=hello"
+        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.html.hbs && soliton get --content-directory=path/to/content --address=hello --target-media-type=text/html"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
@@ -37,6 +40,9 @@ enum SolitonCommand {
 
         #[structopt(long)]
         address: String,
+
+        #[structopt(long)]
+        target_media_type: Mime,
     },
 }
 
@@ -68,9 +74,11 @@ fn handle_command<I: io::Read, O: io::Write>(
         SolitonCommand::Render {
             content_directory,
             source_media_type,
+            target_media_type,
         } => cli::render(
             ContentDirectory::from_root(content_directory)?,
             source_media_type.clone(),
+            target_media_type,
             VERSION,
             input,
             output,
@@ -80,9 +88,11 @@ fn handle_command<I: io::Read, O: io::Write>(
         SolitonCommand::Get {
             content_directory,
             address,
+            target_media_type,
         } => cli::get(
             ContentDirectory::from_root(content_directory)?,
             &address,
+            target_media_type,
             VERSION,
             output,
         )

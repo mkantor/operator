@@ -68,7 +68,8 @@ pub enum GetCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
-    media_type: Mime,
+    source_media_type: Mime,
+    target_media_type: &Mime,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -83,8 +84,8 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let content_item = engine.new_template(&template, media_type)?;
-    let render_context = engine.get_render_context();
+    let content_item = engine.new_template(&template, source_media_type)?;
+    let render_context = engine.get_render_context(target_media_type);
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
@@ -96,6 +97,7 @@ pub fn render<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     address: &str,
+    target_media_type: &Mime,
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
@@ -109,7 +111,7 @@ pub fn get<O: io::Write>(
         .ok_or(GetCommandError::ContentNotFound {
             address: String::from(address),
         })?;
-    let render_context = engine.get_render_context();
+    let render_context = engine.get_render_context(target_media_type);
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
@@ -132,6 +134,7 @@ mod tests {
             let result = render(
                 directory,
                 mime::TEXT_HTML,
+                &mime::TEXT_HTML,
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,
@@ -164,6 +167,7 @@ mod tests {
             let result = render(
                 directory,
                 mime::TEXT_HTML,
+                &mime::TEXT_HTML,
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,
@@ -184,7 +188,13 @@ mod tests {
         let expected_output = "hello world\n";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, address, SolitonVersion("0.0.0"), &mut output);
+        let result = get(
+            directory,
+            address,
+            &mime::TEXT_HTML,
+            SolitonVersion("0.0.0"),
+            &mut output,
+        );
 
         assert!(
             result.is_ok(),
@@ -209,7 +219,13 @@ mod tests {
         let address = "this-address-does-not-refer-to-any-content";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, address, SolitonVersion("0.0.0"), &mut output);
+        let result = get(
+            directory,
+            address,
+            &mime::TEXT_HTML,
+            SolitonVersion("0.0.0"),
+            &mut output,
+        );
 
         match result {
             Ok(_) => panic!(
@@ -224,5 +240,38 @@ mod tests {
             ),
             Err(_) => panic!("Wrong type of error was produced, expected ContentNotFound"),
         };
+    }
+
+    #[test]
+    fn cli_provides_target_media_type() {
+        let mut output = Vec::new();
+        let directory = ContentDirectory::from_root(&example_path("valid/media-types")).unwrap();
+        let address = "echo-target-media-type";
+
+        let media_type = mime::TEXT_HTML;
+
+        let result = get(
+            directory,
+            address,
+            &media_type,
+            SolitonVersion("0.0.0"),
+            &mut output,
+        );
+        assert!(
+            result.is_ok(),
+            "Template rendering failed for content at '{}': {}",
+            address,
+            result.unwrap_err(),
+        );
+
+        let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
+        assert_eq!(
+            output_as_str,
+            media_type.essence_str(),
+            "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address,
+            media_type.essence_str(),
+            output_as_str
+        );
     }
 }
