@@ -295,6 +295,14 @@ mod tests {
 
     const VERSION: SolitonVersion = SolitonVersion("0.0.0");
 
+    // FIXME: It's not ideal to rely on the contents of specific example
+    // directories in these tests. It would be better to instantiate mock
+    // `ContentDirectory` instances directly in the tests as needed. This would
+    // probably require additional abstraction, e.g. defining traits (which can
+    // have specialized impls for tests) rather than using structs directly,
+    // replacing concrete types like `fs::File` with more abstract ones like
+    // `impl Read` in various places, and so on).
+
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in content_directories_with_valid_contents() {
