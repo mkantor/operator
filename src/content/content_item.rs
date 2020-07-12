@@ -37,13 +37,13 @@ pub enum ContentRenderingError {
 
 pub struct StaticContentItem {
     contents: fs::File,
-    media_type: Mime,
+    rendered_media_type: Mime,
 }
 impl StaticContentItem {
-    pub fn new(contents: fs::File, media_type: Mime) -> Self {
+    pub fn new(contents: fs::File, rendered_media_type: Mime) -> Self {
         StaticContentItem {
             contents,
-            media_type,
+            rendered_media_type,
         }
     }
 }
@@ -52,9 +52,9 @@ impl Render for StaticContentItem {
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        if context.data.target_media_type != self.media_type {
+        if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
-                source_media_type: self.media_type.clone(),
+                source_media_type: self.rendered_media_type.clone(),
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
@@ -73,13 +73,13 @@ impl Render for StaticContentItem {
 
 pub struct RegisteredTemplate {
     name_in_registry: String,
-    media_type: Mime,
+    rendered_media_type: Mime,
 }
 impl RegisteredTemplate {
-    pub fn new<S: AsRef<str>>(name_in_registry: S, media_type: Mime) -> Self {
+    pub fn new<S: AsRef<str>>(name_in_registry: S, rendered_media_type: Mime) -> Self {
         RegisteredTemplate {
             name_in_registry: String::from(name_in_registry.as_ref()),
-            media_type,
+            rendered_media_type,
         }
     }
 }
@@ -88,9 +88,9 @@ impl Render for RegisteredTemplate {
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        if context.data.target_media_type != self.media_type {
+        if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
-                source_media_type: self.media_type.clone(),
+                source_media_type: self.rendered_media_type.clone(),
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
@@ -105,17 +105,17 @@ impl Render for RegisteredTemplate {
 
 pub struct UnregisteredTemplate {
     template: handlebars::Template,
-    media_type: Mime,
+    rendered_media_type: Mime,
 }
 impl UnregisteredTemplate {
     pub fn from_source<S: AsRef<str>>(
         handlebars_source: S,
-        media_type: Mime,
+        rendered_media_type: Mime,
     ) -> Result<Self, UnregisteredTemplateParseError> {
         let template = handlebars::Template::compile2(handlebars_source, true)?;
         Ok(UnregisteredTemplate {
             template,
-            media_type,
+            rendered_media_type,
         })
     }
 }
@@ -124,9 +124,9 @@ impl Render for UnregisteredTemplate {
     type Error = ContentRenderingError;
 
     fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
-        if context.data.target_media_type != self.media_type {
+        if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
-                source_media_type: self.media_type.clone(),
+                source_media_type: self.rendered_media_type.clone(),
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
