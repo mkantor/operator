@@ -16,6 +16,12 @@ pub use content_item::ContentRenderingError;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
+pub trait Render {
+    type RenderArgs;
+    type Error;
+    fn render(&self, context: &Self::RenderArgs) -> Result<String, Self::Error>;
+}
+
 #[derive(Serialize)]
 struct SolitonRenderData {
     version: SolitonVersion,

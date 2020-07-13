@@ -1,5 +1,4 @@
-use super::{RenderContext, UnregisteredTemplateParseError};
-use crate::lib::*;
+use super::{Render, RenderContext, UnregisteredTemplateParseError};
 use handlebars::{self, Renderable as _};
 use mime::{self, Mime};
 use std::fs;
