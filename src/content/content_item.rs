@@ -51,7 +51,7 @@ impl Render for StaticContentItem {
     type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
-    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+    fn render(&self, context: &Self::RenderArgs) -> Result<String, Self::Error> {
         if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
@@ -87,7 +87,7 @@ impl Render for RegisteredTemplate {
     type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
-    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+    fn render(&self, context: &Self::RenderArgs) -> Result<String, Self::Error> {
         if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
@@ -123,7 +123,7 @@ impl Render for UnregisteredTemplate {
     type RenderArgs = RenderContext<'static, 'static>;
     type Error = ContentRenderingError;
 
-    fn render(&self, context: &RenderContext) -> Result<String, Self::Error> {
+    fn render(&self, context: &Self::RenderArgs) -> Result<String, Self::Error> {
         if context.data.target_media_type != self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
