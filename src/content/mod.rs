@@ -61,7 +61,7 @@ struct RenderData<'a> {
     target_media_type: SerializableMediaType<'a>, // Field name must align with TARGET_MEDIA_TYPE_PROPERTY_NAME.
 }
 
-pub struct RenderContext<'a, 'b> {
-    engine: &'a dyn ContentEngine,
-    data: RenderData<'b>,
+pub struct RenderContext<'engine, 'data> {
+    engine: &'engine dyn ContentEngine,
+    data: RenderData<'data>,
 }
