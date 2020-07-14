@@ -2,6 +2,7 @@ mod content_engine;
 mod content_index;
 mod content_item;
 mod handlebars_helpers;
+mod test_lib;
 
 use crate::lib::*;
 use content_index::*;

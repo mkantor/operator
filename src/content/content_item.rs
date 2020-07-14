@@ -132,3 +132,44 @@ impl Render for UnregisteredTemplate {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::test_lib::*;
+    use super::super::*;
+    use super::*;
+    use std::io::Write;
+    use tempfile::tempfile;
+
+    #[test]
+    fn static_content_is_stringified_when_rendered() {
+        let mut file = tempfile().expect("Failed to create temporary file");
+        write!(file, "hello world").expect("Failed to write to temporary file");
+        let static_content = StaticContentItem {
+            media_type: mime::TEXT_PLAIN,
+            contents: file,
+        };
+        let output = static_content
+            .render(&MOCK_CONTENT_ENGINE.get_render_context(&static_content.media_type))
+            .expect("Render failed");
+
+        assert_eq!(output, String::from("hello world"));
+    }
+
+    #[test]
+    fn static_content_must_match_media_type_to_render() {
+        let source_media_type = mime::TEXT_XML;
+        let target_media_type = mime::IMAGE_PNG;
+
+        let mut file = tempfile().expect("Failed to create temporary file");
+        write!(file, "hello world").expect("Failed to write to temporary file");
+        let static_content = StaticContentItem {
+            media_type: source_media_type,
+            contents: file,
+        };
+        let render_result =
+            static_content.render(&MOCK_CONTENT_ENGINE.get_render_context(&target_media_type));
+
+        assert!(render_result.is_err());
+    }
+}
