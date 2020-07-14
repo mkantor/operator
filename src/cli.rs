@@ -74,7 +74,8 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let locked_engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let locked_engine =
+        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
     let engine = locked_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -101,7 +102,8 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let locked_engine = ContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let locked_engine =
+        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
     let engine = locked_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");

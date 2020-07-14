@@ -58,6 +58,20 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
+pub trait ContentEngine {
+    fn get_render_context<'a, 'b>(&'a self, target_media_type: &'b Mime) -> RenderContext<'a, 'b>;
+
+    fn new_template(
+        &self,
+        template_source: &str,
+        media_type: Mime,
+    ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError>;
+
+    fn get(&self, address: &str) -> Option<&dyn Render>;
+
+    fn handlebars_registry(&self) -> &Handlebars;
+}
+
 enum RegisteredContent {
     /// A static (non-template) file.
     StaticContentItem(StaticContentItem),
@@ -67,16 +81,14 @@ enum RegisteredContent {
 }
 type ContentRegistry = HashMap<CanonicalAddress, RegisteredContent>;
 
-pub struct ContentEngine<'engine> {
+pub struct FilesystemBasedContentEngine<'engine> {
     soliton_version: SolitonVersion,
     index: ContentIndex,
     content_registry: ContentRegistry,
-
-    // This has module visibility; template content items need to reference it.
-    pub(super) handlebars_registry: Handlebars<'engine>,
+    handlebars_registry: Handlebars<'engine>,
 }
 
-impl<'engine> ContentEngine<'engine> {
+impl<'engine> FilesystemBasedContentEngine<'engine> {
     pub fn from_content_directory(
         content_directory: ContentDirectory,
         soliton_version: SolitonVersion,
@@ -88,7 +100,7 @@ impl<'engine> ContentEngine<'engine> {
         let (addresses, content_registry, handlebars_registry) =
             Self::create_registries(content_item_entries)?;
 
-        let engine = ContentEngine {
+        let engine = FilesystemBasedContentEngine {
             soliton_version,
             index: ContentIndex::Directory(addresses),
             content_registry,
@@ -243,11 +255,10 @@ impl<'engine> ContentEngine<'engine> {
 
         Ok((addresses, content_registry, handlebars_registry))
     }
+}
 
-    pub fn get_render_context<'a, 'b>(
-        &'a self,
-        target_media_type: &'b Mime,
-    ) -> RenderContext<'a, 'b> {
+impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
+    fn get_render_context<'a, 'b>(&'a self, target_media_type: &'b Mime) -> RenderContext<'a, 'b> {
         RenderContext {
             engine: self,
             data: RenderData {
@@ -262,7 +273,7 @@ impl<'engine> ContentEngine<'engine> {
         }
     }
 
-    pub fn new_template(
+    fn new_template(
         &self,
         handlebars_source: &str,
         media_type: Mime,
@@ -273,12 +284,16 @@ impl<'engine> ContentEngine<'engine> {
         }
     }
 
-    pub fn get(&self, address: &str) -> Option<&dyn Render> {
+    fn get(&self, address: &str) -> Option<&dyn Render> {
         match self.content_registry.get(&CanonicalAddress::new(address)) {
             Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
             Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
             None => None,
         }
+    }
+
+    fn handlebars_registry(&self) -> &Handlebars {
+        &self.handlebars_registry
     }
 }
 
@@ -289,18 +304,15 @@ mod tests {
 
     const VERSION: SolitonVersion = SolitonVersion("0.0.0");
 
-    // FIXME: It's not ideal to rely on the contents of specific example
-    // directories in these tests. It would be better to instantiate mock
-    // `ContentDirectory` instances directly in the tests as needed. This would
-    // probably require additional abstraction, e.g. defining traits (which can
-    // have specialized impls for tests) rather than using structs directly,
-    // replacing concrete types like `fs::File` with more abstract ones like
-    // `impl Read` in various places, and so on).
+    // FIXME: It's not ideal to rely on specific example directories in these
+    // tests. It would be better to mock out contents in each of the tests.
 
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in content_directories_with_valid_contents() {
-            if let Err(error) = ContentEngine::from_content_directory(directory, VERSION) {
+            if let Err(error) =
+                FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+            {
                 panic!("Content engine could not be created: {}", error);
             }
         }
@@ -310,7 +322,7 @@ mod tests {
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
         for directory in content_directories_with_invalid_contents() {
             assert!(
-                ContentEngine::from_content_directory(directory, VERSION).is_err(),
+                FilesystemBasedContentEngine::from_content_directory(directory, VERSION).is_err(),
                 "Content engine was successfully created, but this should have failed",
             );
         }
@@ -318,7 +330,7 @@ mod tests {
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let locked_engine = ContentEngine::from_content_directory(
+        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
@@ -345,7 +357,7 @@ mod tests {
 
     #[test]
     fn new_template_fails_for_invalid_templates() {
-        let locked_engine = ContentEngine::from_content_directory(
+        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
@@ -366,8 +378,9 @@ mod tests {
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let template = "this is partial: {{> (content.abc)}}";
@@ -392,8 +405,9 @@ mod tests {
     #[test]
     fn content_can_be_retrieved() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let address = "abc";
@@ -419,8 +433,9 @@ mod tests {
     #[test]
     fn content_may_not_exist_at_address() {
         let directory = ContentDirectory::from_root(&example_path("valid/hello-world")).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let address = "this-address-does-not-refer-to-any-content";
@@ -435,8 +450,9 @@ mod tests {
     #[test]
     fn get_helper_is_available() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let template = "i got stuff: {{get content.b}}";
@@ -461,8 +477,9 @@ mod tests {
     #[test]
     fn get_helper_requires_an_address_argument() {
         let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let templates = [
@@ -490,8 +507,9 @@ mod tests {
     fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
         let content_directory_path = &example_path("valid/media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let addresses = ["cannot-become-html", "template-cannot-become-html"];
@@ -513,7 +531,7 @@ mod tests {
 
     #[test]
     fn anonymous_template_cannot_be_rendered_with_unacceptable_target_media_type() {
-        let locked_engine = ContentEngine::from_content_directory(
+        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
@@ -535,8 +553,9 @@ mod tests {
     fn nesting_incompatible_media_types_fails_at_render_time() {
         let content_directory_path = &example_path("valid/media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let locked_engine = ContentEngine::from_content_directory(directory, VERSION)
-            .expect("Content engine could not be created");
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let inputs = [
@@ -561,7 +580,7 @@ mod tests {
 
     #[test]
     fn templates_are_told_what_target_media_type_they_are_being_rendered_to() {
-        let locked_engine = ContentEngine::from_content_directory(
+        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )

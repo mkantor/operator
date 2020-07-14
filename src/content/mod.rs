@@ -9,7 +9,7 @@ use mime::Mime;
 use serde::{Serialize, Serializer};
 
 pub use content_engine::{
-    ContentEngine, ContentLoadingError, RegisteredTemplateParseError,
+    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredTemplateParseError,
     UnregisteredTemplateParseError,
 };
 pub use content_item::ContentRenderingError;
@@ -62,6 +62,6 @@ struct RenderData<'a> {
 }
 
 pub struct RenderContext<'a, 'b> {
-    engine: &'a ContentEngine<'a>,
+    engine: &'a dyn ContentEngine,
     data: RenderData<'b>,
 }

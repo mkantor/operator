@@ -2,16 +2,16 @@ use crate::content::*;
 use handlebars::{self, Handlebars};
 use std::sync::{Arc, RwLock};
 
-pub struct GetHelper<'a> {
-    content_engine: Arc<RwLock<ContentEngine<'a>>>,
+pub struct GetHelper<E: ContentEngine> {
+    content_engine: Arc<RwLock<E>>,
 }
-impl<'a> GetHelper<'a> {
-    pub fn new(content_engine: Arc<RwLock<ContentEngine<'a>>>) -> Self {
+impl<E: ContentEngine> GetHelper<E> {
+    pub fn new(content_engine: Arc<RwLock<E>>) -> Self {
         Self { content_engine }
     }
 }
 
-impl<'a> handlebars::HelperDef for GetHelper<'a> {
+impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
     fn call<'registry: 'context, 'context>(
         &self,
         helper: &handlebars::Helper<'registry, 'context>,
