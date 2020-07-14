@@ -17,9 +17,10 @@ pub use content_item::ContentRenderingError;
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
 pub trait Render {
-    type RenderArgs;
-    type Error;
-    fn render(&self, context: &Self::RenderArgs) -> Result<String, Self::Error>;
+    fn render<'engine, 'data>(
+        &self,
+        context: &RenderContext<'engine, 'data>,
+    ) -> Result<String, ContentRenderingError>;
 }
 
 #[derive(Serialize)]

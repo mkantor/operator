@@ -266,20 +266,14 @@ impl<'engine> ContentEngine<'engine> {
         &self,
         handlebars_source: &str,
         media_type: Mime,
-    ) -> Result<
-        Box<dyn Render<RenderArgs = RenderContext, Error = ContentRenderingError>>,
-        UnregisteredTemplateParseError,
-    > {
+    ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError> {
         match UnregisteredTemplate::from_source(handlebars_source, media_type) {
             Ok(content) => Ok(Box::new(content)),
             Err(error) => Err(error),
         }
     }
 
-    pub fn get(
-        &self,
-        address: &str,
-    ) -> Option<&dyn Render<RenderArgs = RenderContext, Error = ContentRenderingError>> {
+    pub fn get(&self, address: &str) -> Option<&dyn Render> {
         match self.content_registry.get(&CanonicalAddress::new(address)) {
             Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
             Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
