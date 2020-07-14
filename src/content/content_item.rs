@@ -36,21 +36,21 @@ pub enum ContentRenderingError {
 
 pub struct StaticContentItem {
     contents: fs::File,
-    rendered_media_type: Mime,
+    media_type: Mime,
 }
 impl StaticContentItem {
-    pub fn new(contents: fs::File, rendered_media_type: Mime) -> Self {
+    pub fn new(contents: fs::File, media_type: Mime) -> Self {
         StaticContentItem {
             contents,
-            rendered_media_type,
+            media_type,
         }
     }
 }
 impl Render for StaticContentItem {
     fn render(&self, context: &RenderContext) -> Result<String, ContentRenderingError> {
-        if context.data.target_media_type != self.rendered_media_type {
+        if context.data.target_media_type != self.media_type {
             Err(ContentRenderingError::MediaTypeError {
-                source_media_type: self.rendered_media_type.clone(),
+                source_media_type: self.media_type.clone(),
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
