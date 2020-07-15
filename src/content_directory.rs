@@ -6,6 +6,9 @@ use walkdir::WalkDir;
 
 #[derive(Error, Debug)]
 pub enum ContentDirectoryFromRootError {
+    #[error("Unable to use directory root '{}': {}", .root.display(), .message)]
+    InvalidRootPath { root: PathBuf, message: String },
+
     #[error("Unable to use directory root '{}': {}", .root.display(), .source)]
     WalkDirError {
         root: PathBuf,
@@ -27,22 +30,34 @@ pub struct ContentDirectory {
 }
 
 impl ContentDirectory {
-    pub fn from_root<P: AsRef<Path>>(root: &P) -> Result<Self, ContentDirectoryFromRootError> {
-        let root_path = root.as_ref();
+    pub fn from_root<P: AsRef<Path>>(
+        absolute_root: &P,
+    ) -> Result<Self, ContentDirectoryFromRootError> {
+        let absolute_root_path = absolute_root.as_ref();
+        if !absolute_root_path.is_absolute() {
+            return Err(ContentDirectoryFromRootError::InvalidRootPath {
+                message: String::from("Root path must be absolute."),
+                root: PathBuf::from(absolute_root_path),
+            });
+        }
+
         let mut files = Vec::new();
-        let walker = WalkDir::new(root_path).follow_links(true).min_depth(1);
+        let walker = WalkDir::new(absolute_root_path)
+            .follow_links(true)
+            .min_depth(1);
         for dir_entry_result in walker {
             let dir_entry = dir_entry_result.map_err(|walkdir_error| {
                 ContentDirectoryFromRootError::WalkDirError {
                     source: walkdir_error,
-                    root: PathBuf::from(root_path),
+                    root: PathBuf::from(absolute_root_path),
                 }
             })?;
             {
                 let entry_path = dir_entry.path().to_path_buf();
                 if dir_entry.file_type().is_file() {
-                    let content_file = ContentFile::from_root_and_path(root_path, entry_path)
-                        .map_err(ContentDirectoryFromRootError::from)?;
+                    let content_file =
+                        ContentFile::from_root_and_path(absolute_root_path, entry_path)
+                            .map_err(ContentDirectoryFromRootError::from)?;
                     files.push(content_file);
                 }
             }
@@ -189,15 +204,16 @@ impl IntoIterator for ContentDirectory {
 mod tests {
     use super::*;
     use crate::test_lib::*;
+    use std::fs;
 
     #[test]
     fn directory_can_be_created_from_valid_root() {
-        let path = "./src";
+        let path = fs::canonicalize("./src").expect("Canonicalizing path failed");
         let result = ContentDirectory::from_root(&path);
         assert!(
             result.is_ok(),
             "Unable to use directory at '{}': {}",
-            path,
+            path.display(),
             result.err().unwrap().to_string()
         );
     }
@@ -208,6 +224,17 @@ mod tests {
         assert!(
             result.is_err(),
             "Directory was successfully created from non-existent path",
+        );
+    }
+
+    #[test]
+    fn directory_root_must_be_absolute_path() {
+        let non_absolute_path = "./src";
+        let result = ContentDirectory::from_root(&non_absolute_path);
+        assert!(
+            result.is_err(),
+            "ContentDirectory was successfully created from non-absolute path '{}', but this should have failed",
+            non_absolute_path,
         );
     }
 }

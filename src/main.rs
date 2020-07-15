@@ -7,6 +7,7 @@ mod test_lib;
 use crate::content_directory::ContentDirectory;
 use crate::lib::*;
 use mime::Mime;
+use std::fs;
 use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -76,7 +77,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             source_media_type,
             target_media_type,
         } => cli::render(
-            ContentDirectory::from_root(content_directory)?,
+            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
             source_media_type.clone(),
             target_media_type,
             VERSION,
@@ -90,7 +91,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             address,
             target_media_type,
         } => cli::get(
-            ContentDirectory::from_root(content_directory)?,
+            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
             &address,
             target_media_type,
             VERSION,
