@@ -317,7 +317,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 [] => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
-                            "Content file names must have an extension, but '{}' does not.",
+                            "Content file names must have extensions, but '{}' does not.",
                             entry.relative_path()
                         ),
                     })
