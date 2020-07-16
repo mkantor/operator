@@ -1,4 +1,6 @@
+use std::env;
 use std::fs::File;
+use std::os::unix::fs::PermissionsExt;
 use std::path;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -68,8 +70,10 @@ impl ContentDirectory {
 }
 
 pub struct ContentFile {
+    absolute_path: String,
     relative_path: String,
     is_hidden: bool,
+    is_executable: bool,
     relative_path_without_extensions: String,
     extensions: Vec<String>,
     file: File,
@@ -79,7 +83,7 @@ impl ContentFile {
 
     fn from_root_and_path(
         content_directory_root: &Path,
-        content_file_path: PathBuf,
+        absolute_content_file_path: PathBuf,
     ) -> Result<Self, ContentFileError> {
         if path::MAIN_SEPARATOR != Self::PATH_SEPARATOR {
             return Err(ContentFileError {
@@ -102,12 +106,21 @@ impl ContentFile {
             }
         };
 
-        let relative_path = content_file_path
+        let absolute_path =
+            String::from(
+                absolute_content_file_path
+                    .to_str()
+                    .ok_or_else(|| ContentFileError {
+                        message: String::from("Path was not unicode."),
+                    })?,
+            );
+
+        let relative_path = absolute_content_file_path
             .strip_prefix(root)
             .map_err(|strip_prefix_error| ContentFileError {
                 message: format!(
                     "Content file path '{}' did not start with expected prefix '{}': {}",
-                    content_file_path.display(),
+                    absolute_content_file_path.display(),
                     root,
                     strip_prefix_error
                 ),
@@ -118,14 +131,15 @@ impl ContentFile {
                 message: String::from("Path was not unicode."),
             })?;
 
-        let file = File::open(&content_file_path).map_err(|io_error| ContentFileError {
-            message: format!(
-                "Unable to open file '{}' in '{}' for reading: {}",
-                relative_path, root, io_error
-            ),
-        })?;
+        let file =
+            File::open(&absolute_content_file_path).map_err(|io_error| ContentFileError {
+                message: format!(
+                    "Unable to open file '{}' in '{}' for reading: {}",
+                    relative_path, root, io_error
+                ),
+            })?;
 
-        let basename = content_file_path
+        let basename = absolute_content_file_path
             .file_name()
             .ok_or_else(|| ContentFileError {
                 message: format!(
@@ -138,20 +152,47 @@ impl ContentFile {
                 message: String::from("File had a non-unicode basename."),
             })?;
 
-        let (extensions, is_hidden) = if basename.starts_with('.') {
-            let extensions = basename
-                .split('.')
-                .skip(2)
-                .map(String::from)
-                .collect::<Vec<String>>();
-            (extensions, true)
+        // Conventions around hidden files, whether a file is executable, etc
+        // differ across platforms. It wouldn't be hard to implement this, but
+        // soliton does not currently run its CI checks on non-unix platforms
+        // so it would be too easy to introduce regressions.
+        let (extensions, is_hidden, is_executable) = if !cfg!(unix) {
+            return Err(ContentFileError {
+                message: format!(
+                    "Soliton does not currently support your operating system ({})",
+                    env::consts::OS,
+                ),
+            });
         } else {
-            let extensions = basename
-                .split('.')
-                .skip(1)
-                .map(String::from)
-                .collect::<Vec<String>>();
-            (extensions, false)
+            let (extensions, is_hidden) = if basename.starts_with('.') {
+                let extensions = basename
+                    .split('.')
+                    .skip(2)
+                    .map(String::from)
+                    .collect::<Vec<String>>();
+                (extensions, true)
+            } else {
+                let extensions = basename
+                    .split('.')
+                    .skip(1)
+                    .map(String::from)
+                    .collect::<Vec<String>>();
+                (extensions, false)
+            };
+
+            let permissions = file
+                .metadata()
+                .map_err(|io_error| ContentFileError {
+                    message: format!(
+                        "Unable to query metadata for content file '{}': {}",
+                        absolute_content_file_path.display(),
+                        io_error
+                    ),
+                })?
+                .permissions();
+            let is_executable = permissions.mode() & 0o111 != 0;
+
+            (extensions, is_hidden, is_executable)
         };
 
         let relative_path_without_extensions = String::from({
@@ -163,12 +204,18 @@ impl ContentFile {
         });
 
         Ok(ContentFile {
+            absolute_path,
             relative_path,
             relative_path_without_extensions,
             extensions,
             file,
             is_hidden,
+            is_executable,
         })
+    }
+
+    pub fn absolute_path(&self) -> &str {
+        &self.absolute_path
     }
 
     pub fn relative_path(&self) -> &str {
@@ -177,6 +224,10 @@ impl ContentFile {
 
     pub fn is_hidden(&self) -> bool {
         self.is_hidden
+    }
+
+    pub fn is_executable(&self) -> bool {
+        self.is_executable
     }
 
     pub fn file_contents(self) -> File {

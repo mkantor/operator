@@ -9,6 +9,7 @@ use mime::{self, Mime};
 use mime_guess::MimeGuess;
 use std::collections::HashMap;
 use std::io;
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
@@ -52,7 +53,10 @@ pub enum ContentLoadingError {
     UnknownFileType { message: String },
 
     #[error("Failed to create index while loading content directory.")]
-    ContentIndexError { source: ContentIndexUpdateError },
+    ContentIndexError {
+        #[from]
+        source: ContentIndexUpdateError,
+    },
 
     #[error("You've encountered a bug! This should never happen: {}", .message)]
     Bug { message: String },
@@ -78,6 +82,9 @@ enum RegisteredContent {
 
     /// A named template that exists in the registry.
     RegisteredTemplate(RegisteredTemplate),
+
+    /// A program that can be executed by the operating system.
+    Executable(Executable),
 }
 type ContentRegistry = HashMap<CanonicalAddress, RegisteredContent>;
 
@@ -128,9 +135,17 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         for entry in content_item_entries {
             match entry.extensions() {
                 [single_extension] => {
-                    addresses
-                        .try_add(entry.relative_path_without_extensions())
-                        .map_err(|source| ContentLoadingError::ContentIndexError { source })?;
+                    if entry.is_executable() {
+                        return Err(ContentLoadingError::ContentFileNameError {
+                            message: format!(
+                                "The content file '{}' is executable, but only has one extension ('{}'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
+                                entry.relative_path(),
+                                single_extension,
+                            ),
+                        });
+                    }
+
+                    addresses.try_add(entry.relative_path_without_extensions())?;
 
                     let canonical_address =
                         CanonicalAddress::new(entry.relative_path_without_extensions());
@@ -139,7 +154,8 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             .first()
                             .ok_or_else(|| ContentLoadingError::UnknownFileType {
                                 message: format!(
-                                "The filename extension '{}' does not map to any known media type.",
+                                "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
+                                entry.relative_path(),
                                 single_extension,
                             ),
                             })?;
@@ -161,11 +177,16 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 [first_extension, second_extension] => {
                     match [first_extension.as_str(), second_extension.as_str()] {
                         [first_extension, HANDLEBARS_FILE_EXTENSION] => {
-                            addresses
-                                .try_add(entry.relative_path_without_extensions())
-                                .map_err(|source| ContentLoadingError::ContentIndexError {
-                                    source,
-                                })?;
+                            if entry.is_executable() {
+                                return Err(ContentLoadingError::ContentFileNameError {
+                                    message: format!(
+                                        "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), but it is also executable. It must be one or the other.",
+                                        entry.relative_path(),
+                                        HANDLEBARS_FILE_EXTENSION,
+                                    ),
+                                });
+                            }
+                            addresses.try_add(entry.relative_path_without_extensions())?;
 
                             let address_string =
                                 String::from(entry.relative_path_without_extensions());
@@ -221,10 +242,61 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             }
                         }
 
+                        [first_extension, _arbitrary_second_extension] if entry.is_executable() => {
+                            addresses.try_add(entry.relative_path_without_extensions())?;
+
+                            let canonical_address =
+                                CanonicalAddress::new(entry.relative_path_without_extensions());
+                            let media_type =
+                                MimeGuess::from_ext(first_extension)
+                                    .first()
+                                    .ok_or_else(|| ContentLoadingError::UnknownFileType {
+                                        message: format!(
+                                            "The first filename extension for the executable at '{}' ('{}') does not map to any known media type.",
+                                            entry.relative_path(),
+                                            first_extension,
+                                        ),
+                                    })?;
+
+                            // The working directory for the executable is the
+                            // immediate parent directory it resides in (which
+                            // may be a child of the content directory).
+                            let working_directory = Path::new(entry.absolute_path()).parent().ok_or_else(|| {
+                                // This indicates a bug because it can only
+                                // occur if `entry.absolute_path()` is the
+                                // filesystem root, but we should have already
+                                // verified that `entry` is a file (not a
+                                // directory). If it's the filesystem root then
+                                // it is a directory.
+                                ContentLoadingError::Bug {
+                                    message: format!(
+                                        "Failed to get a parent directory for the executable at '{}'.",
+                                        entry.absolute_path(),
+                                    ),
+                                }
+                            })?;
+                            let content_item = RegisteredContent::Executable(Executable::new(
+                                entry.absolute_path(),
+                                working_directory,
+                                media_type,
+                            ));
+
+                            let was_duplicate = content_registry
+                                .insert(canonical_address, content_item)
+                                .is_some();
+                            if was_duplicate {
+                                return Err(ContentLoadingError::Bug {
+                                    message: String::from(
+                                        "There were two or more content files with the same address.",
+                                    ),
+                                });
+                            }
+                        }
+
                         [first_unsupported_extension, second_unsupported_extension] => {
                             return Err(ContentLoadingError::ContentFileNameError {
                                 message: format!(
-                                    "The content file '{}' has unsupported extensions ('{}.{}').",
+                                    "The content file '{}' has two extensions ('{}.{}'), but is neither a handlebars template nor an executable.",
                                     entry.relative_path(),
                                     first_unsupported_extension,
                                     second_unsupported_extension
@@ -288,6 +360,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
         match self.content_registry.get(&CanonicalAddress::new(address)) {
             Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
             Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
+            Some(RegisteredContent::Executable(renderable)) => Some(renderable),
             None => None,
         }
     }
@@ -602,6 +675,129 @@ mod tests {
             expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
             template,
+            expected_output,
+            rendered,
+        );
+    }
+
+    #[test]
+    fn executables_are_given_zero_args() {
+        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let address = "count-cli-args";
+        let expected_output = "0\n";
+
+        let content = engine.get(address).expect("Content could not be found");
+        let rendered = content
+            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .expect(&format!("Rendering failed for content at '{}'", address));
+        assert_eq!(
+            rendered,
+            expected_output,
+            "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address,
+            expected_output,
+            rendered,
+        );
+    }
+
+    #[test]
+    fn executables_are_executed_with_correct_working_directory() {
+        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let address1 = "pwd";
+        let expected_output1 = format!("{}/examples/valid/executables\n", PROJECT_DIRECTORY);
+
+        let content = engine.get(address1).expect("Content could not be found");
+        let rendered = content
+            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .expect(&format!("Rendering failed for content at '{}'", address1));
+        assert_eq!(
+            rendered,
+            expected_output1,
+            "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address1,
+            expected_output1,
+            rendered,
+        );
+
+        let address2 = "subdirectory/pwd";
+        let expected_output2 = format!(
+            "{}/examples/valid/executables/subdirectory\n",
+            PROJECT_DIRECTORY
+        );
+
+        let content = engine.get(address2).expect("Content could not be found");
+        let rendered = content
+            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .expect(&format!("Rendering failed for content at '{}'", address2));
+        assert_eq!(
+            rendered,
+            expected_output2,
+            "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address2,
+            expected_output2,
+            rendered,
+        );
+    }
+
+    #[test]
+    fn executables_have_a_media_type() {
+        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let address = "system-info"; // This outputs text/html.
+        let content = engine.get(address).expect("Content could not be found");
+
+        let result1 = content.render(&engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!
+        assert!(
+            result1.is_err(),
+            "Rendering content at '{}' succeeded when it should have failed",
+            address,
+        );
+
+        let result2 = content.render(&engine.get_render_context(&mime::TEXT_HTML));
+        assert!(
+            result2.is_ok(),
+            "Rendering content at '{}' failed when it should have succeeded",
+            address,
+        );
+    }
+
+    #[test]
+    fn templates_can_get_executable_output() {
+        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let address = "template";
+        let expected_output = format!(
+            "this is pwd from subdirectory:\n{}/examples/valid/executables/subdirectory\n",
+            PROJECT_DIRECTORY
+        );
+
+        let content = engine.get(address).expect("Content could not be found");
+        let rendered = content
+            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .expect(&format!("Rendering failed for content at '{}'", address));
+        assert_eq!(
+            rendered,
+            expected_output,
+            "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            address,
             expected_output,
             rendered,
         );

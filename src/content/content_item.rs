@@ -4,6 +4,8 @@ use mime::{self, Mime};
 use std::fs;
 use std::io;
 use std::io::{Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::process::{self, Command};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -17,7 +19,33 @@ pub enum ContentRenderingError {
         source: handlebars::RenderError,
     },
 
-    #[error("Input/output error during rendering.")]
+    #[error(
+        "Executable '{}' with working directory '{}' could not be successfully executed: {}",
+        .program,
+        .working_directory.display(),
+        .message,
+    )]
+    ExecutableError {
+        program: String,
+        working_directory: PathBuf,
+        message: String,
+    },
+
+    #[error(
+        "Executable '{}' with working directory '{}' exited with code {}: {}",
+        .program,
+        .working_directory.display(),
+        .exit_code,
+        .message,
+    )]
+    ExecutableExitedWithNonzero {
+        program: String,
+        working_directory: PathBuf,
+        exit_code: i32,
+        message: String,
+    },
+
+    #[error("Input/output error during rendering")]
     IOError {
         #[from]
         source: io::Error,
@@ -133,11 +161,87 @@ impl Render for UnregisteredTemplate {
     }
 }
 
+pub struct Executable {
+    program: String,
+    working_directory: PathBuf,
+    output_media_type: Mime,
+}
+impl Executable {
+    pub fn new<P: AsRef<str>, W: AsRef<Path>>(
+        program: P,
+        working_directory: W,
+        output_media_type: Mime,
+    ) -> Self {
+        Executable {
+            program: String::from(program.as_ref()),
+            working_directory: PathBuf::from(working_directory.as_ref()),
+            output_media_type,
+        }
+    }
+}
+impl Render for Executable {
+    fn render(&self, context: &RenderContext) -> Result<String, ContentRenderingError> {
+        if context.data.target_media_type != self.output_media_type {
+            Err(ContentRenderingError::MediaTypeError {
+                source_media_type: self.output_media_type.clone(),
+                target_media_type: context.data.target_media_type.media_type.clone(),
+            })
+        } else {
+            let mut command = Command::new(self.program.clone());
+            command.current_dir(self.working_directory.clone());
+
+            let process::Output {
+                status,
+                stdout,
+                stderr,
+            } = command
+                .output()
+                .map_err(|io_error| ContentRenderingError::ExecutableError {
+                    message: format!("Unable to execute program: {}", io_error),
+                    program: self.program.clone(),
+                    working_directory: self.working_directory.clone(),
+                })?;
+
+            if !status.success() {
+                Err(match status.code() {
+                    Some(exit_code) => ContentRenderingError::ExecutableExitedWithNonzero {
+                        message: String::from_utf8_lossy(&stderr).to_string(),
+                        program: self.program.clone(),
+                        exit_code,
+                        working_directory: self.working_directory.clone(),
+                    },
+                    None => ContentRenderingError::ExecutableError {
+                        message: String::from(
+                            "Program exited with failure, but its exit code was not available. It may have been killed by a signal."
+                        ),
+                        program: self.program.clone(),
+                        working_directory: self.working_directory.clone(),
+                    }
+                })
+            } else {
+                let output = String::from_utf8(stdout).map_err(|utf8_error| {
+                    ContentRenderingError::ExecutableError {
+                        message: format!(
+                            "Program exited with success, but its output was not valid UTF-8: {}",
+                            utf8_error
+                        ),
+                        program: self.program.clone(),
+                        working_directory: self.working_directory.clone(),
+                    }
+                })?;
+                Ok(output)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::test_lib::*;
     use super::super::*;
     use super::*;
+    use crate::test_lib::*;
+    use std::fs;
     use std::io::Write;
     use tempfile::tempfile;
 
@@ -171,5 +275,41 @@ mod tests {
             static_content.render(&MOCK_CONTENT_ENGINE.get_render_context(&target_media_type));
 
         assert!(render_result.is_err());
+    }
+
+    #[test]
+    fn executables_execute_when_rendered() {
+        let path = format!("{}/src", PROJECT_DIRECTORY);
+        let working_directory =
+            fs::canonicalize(path).expect("Could not canonicalize path for test");
+        let executable = Executable::new("pwd", working_directory.clone(), mime::TEXT_PLAIN);
+
+        let output = executable
+            .render(&MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN))
+            .expect("Executable failed but it should have succeeded");
+        assert_eq!(output, format!("{}\n", working_directory.display()));
+    }
+
+    #[test]
+    fn executables_exiting_with_nonzero_are_err() {
+        let executable = Executable::new("false", PROJECT_DIRECTORY, mime::TEXT_PLAIN);
+
+        let result = executable.render(&MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN));
+        assert!(
+            result.is_err(),
+            "Executable succeeded but it should have failed"
+        );
+    }
+
+    #[test]
+    fn executables_require_working_directory_that_exists() {
+        let working_directory = "/hopefully/this/path/does/not/actually/exist/on/your/system";
+        let executable = Executable::new("pwd", working_directory, mime::TEXT_PLAIN);
+
+        let result = executable.render(&MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN));
+        assert!(
+            result.is_err(),
+            "Executable succeeded but it should have failed"
+        );
     }
 }
