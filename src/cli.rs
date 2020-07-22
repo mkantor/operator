@@ -91,7 +91,9 @@ pub fn render<I: io::Read, O: io::Write>(
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
-    Ok(())
+    output
+        .flush()
+        .map_err(|source| RenderCommandError::WriteError { source })
 }
 
 /// Renders an item from the content directory and writes it to `output`.
@@ -118,7 +120,9 @@ pub fn get<O: io::Write>(
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 
-    Ok(())
+    output
+        .flush()
+        .map_err(|source| GetCommandError::WriteError { source })
 }
 
 #[cfg(test)]
