@@ -32,17 +32,17 @@ pub enum ContentRenderingError {
     },
 
     #[error(
-        "Executable '{}' with working directory '{}' exited with code {}: {}",
+        "Executable '{}' with working directory '{}' exited with code {}{}",
         .program,
         .working_directory.display(),
         .exit_code,
-        .message,
+        .stderr_contents.as_ref().map(|message| format!(": {}", message)).unwrap_or_default(),
     )]
     ExecutableExitedWithNonzero {
         program: String,
         working_directory: PathBuf,
         exit_code: i32,
-        message: String,
+        stderr_contents: Option<String>,
     },
 
     #[error("Input/output error during rendering")]
@@ -205,7 +205,10 @@ impl Render for Executable {
             if !status.success() {
                 Err(match status.code() {
                     Some(exit_code) => ContentRenderingError::ExecutableExitedWithNonzero {
-                        message: String::from_utf8_lossy(&stderr).to_string(),
+                        stderr_contents: match String::from_utf8_lossy(&stderr).as_ref() {
+                            "" => None,
+                            message => Some(message.to_string()),
+                        },
                         program: self.program.clone(),
                         exit_code,
                         working_directory: self.working_directory.clone(),
