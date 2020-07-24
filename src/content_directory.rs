@@ -164,21 +164,18 @@ impl ContentFile {
                 ),
             });
         } else {
-            let (extensions, is_hidden) = if basename.starts_with('.') {
-                let extensions = basename
-                    .split('.')
-                    .skip(2)
-                    .map(String::from)
-                    .collect::<Vec<String>>();
-                (extensions, true)
-            } else {
-                let extensions = basename
-                    .split('.')
-                    .skip(1)
-                    .map(String::from)
-                    .collect::<Vec<String>>();
-                (extensions, false)
-            };
+            // If the basename begins with `.` its first chunk isn't considered an "extension".
+            let non_extension_components = if basename.starts_with('.') { 2 } else { 1 };
+            let extensions = basename
+                .split('.')
+                .skip(non_extension_components)
+                .map(String::from)
+                .collect::<Vec<String>>();
+
+            // The file is hidden if any of its relative path components starts
+            // with a dot.
+            let is_hidden = relative_path.starts_with('.')
+                || relative_path.contains(&format!("{}.", Self::PATH_SEPARATOR));
 
             let permissions = file
                 .metadata()

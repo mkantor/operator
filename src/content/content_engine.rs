@@ -802,4 +802,36 @@ mod tests {
             rendered,
         );
     }
+
+    #[test]
+    fn content_can_be_hidden() {
+        let directory = ContentDirectory::from_root(&example_path("valid/hidden-content")).unwrap();
+        let locked_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
+                .expect("Content engine could not be created");
+        let engine = locked_engine.read().unwrap();
+
+        let addresses = [
+            "hidden-file",
+            ".hidden-file",
+            "hidden-directory",
+            ".hidden-directory",
+            "hidden-directory/hidden-file",
+            ".hidden-directory/hidden-file",
+            "hidden-directory/.hidden-file",
+            ".hidden-directory/.hidden-file",
+            "hidden-directory/non-hidden-file",
+            ".hidden-directory/non-hidden-file",
+            "hidden-directory/.non-hidden-file",
+            ".hidden-directory/.non-hidden-file",
+        ];
+
+        for address in addresses.iter() {
+            assert!(
+                engine.get(address).is_none(),
+                "Content was successfully retrieved for hidden item `{}`, but `get` should have returned None",
+                address,
+            );
+        }
+    }
 }

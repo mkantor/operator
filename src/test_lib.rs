@@ -30,6 +30,7 @@ pub fn content_directories_with_valid_contents() -> Vec<ContentDirectory> {
         example_content_directory("valid/media-types"),
         example_content_directory("valid/changing-context"),
         example_content_directory("valid/executables"),
+        example_content_directory("valid/hidden-content"),
     ]
 }
 
