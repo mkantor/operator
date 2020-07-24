@@ -4,8 +4,9 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-#[error("Unable to update index: {}", .message)]
+#[error("Failed to add '{}' to address index: {}", .failed_address, .message)]
 pub struct ContentIndexUpdateError {
+    failed_address: String,
     message: String,
 }
 
@@ -59,13 +60,15 @@ impl ContentIndexEntries {
                     node = match next_node {
                         ContentIndex::Directory(branch) => branch,
                         ContentIndex::File(CanonicalAddress(conficting_address)) => {
+                            // Each component in dirname_components represents
+                            // a directory along the path
                             return Err(ContentIndexUpdateError {
+                            failed_address: String::from(canonical_address.as_ref()),
                               message: format!(
-                                "Unable to add address '{}' because there is already a file at '{}', but that is a directory in the new address.",
-                                canonical_address.as_ref(),
+                                "There is already a file at '{}', but that needs to be a directory to accommodate the new address.",
                                 conficting_address,
                               )
-                            })
+                            });
                         }
                     };
                 }
@@ -78,10 +81,11 @@ impl ContentIndexEntries {
                             ContentIndex::File(..) => "file",
                         };
                         Err(ContentIndexUpdateError {
+                            failed_address: String::from(canonical_address.as_ref()),
                             message: format!(
-                                "Unable to add address '{}' because there is already a {} at that address.",
-                                canonical_address.as_ref(),
+                                "There is already a {} at '{}'.",
                                 entry_description,
+                                canonical_address.as_ref(),
                             ),
                         })
                     }
