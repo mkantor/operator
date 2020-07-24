@@ -52,7 +52,7 @@ pub enum ContentLoadingError {
     #[error("Content file has an unknown media type: {}", .message)]
     UnknownFileType { message: String },
 
-    #[error("Failed to create index while loading content directory.")]
+    #[error("Failed to create address index while loading content directory.")]
     ContentIndexError {
         #[from]
         source: ContentIndexUpdateError,
