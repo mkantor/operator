@@ -457,7 +457,7 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         let template = "this is partial: {{> (content.abc)}}";
-        let expected_output = "this is partial: a\nb\n\nc\n\n";
+        let expected_output = "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
         let renderable = engine
             .new_template(template, mime::TEXT_HTML)
@@ -484,7 +484,7 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         let address = "abc";
-        let expected_output = "a\nb\n\nc\n\n";
+        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
         let content = engine.get(address).expect("Content could not be found");
         let rendered = content
