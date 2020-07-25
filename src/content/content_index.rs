@@ -54,7 +54,9 @@ impl ContentIndexEntries {
                 for path_component in dirname_components {
                     let next_node = node
                         .0
-                        .entry(String::from(path_component))
+                        // Non-leaf nodes in the index end with `/` (they
+                        // represent directories).
+                        .entry(format!("{}/", path_component))
                         .or_insert_with(|| ContentIndex::Directory(Self::new()));
 
                     node = match next_node {
