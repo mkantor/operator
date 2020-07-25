@@ -457,7 +457,8 @@ mod tests {
         let engine = locked_engine.read().unwrap();
 
         let template = "this is partial: {{> (content.abc)}}";
-        let expected_output = "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
+        let expected_output =
+            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
         let renderable = engine
             .new_template(template, mime::TEXT_HTML)
