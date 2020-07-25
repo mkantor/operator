@@ -154,10 +154,10 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             .first()
                             .ok_or_else(|| ContentLoadingError::UnknownFileType {
                                 message: format!(
-                                "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
-                                entry.relative_path(),
-                                single_extension,
-                            ),
+                                    "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
+                                    entry.relative_path(),
+                                    single_extension,
+                                ),
                             })?;
                     let content_item = RegisteredContent::StaticContentItem(
                         StaticContentItem::new(entry.file_contents(), media_type),
