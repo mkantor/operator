@@ -382,7 +382,17 @@ mod tests {
 
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
-        for directory in content_directories_with_valid_contents() {
+        let content_directories_with_valid_contents = vec![
+            example_content_directory("hello-world"),
+            example_content_directory("partials"),
+            example_content_directory("empty"),
+            example_content_directory("static-content"),
+            example_content_directory("media-types"),
+            example_content_directory("changing-context"),
+            example_content_directory("executables"),
+            example_content_directory("hidden-content"),
+        ];
+        for directory in content_directories_with_valid_contents {
             if let Err(error) =
                 FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
             {
@@ -393,7 +403,16 @@ mod tests {
 
     #[test]
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
-        for directory in content_directories_with_invalid_contents() {
+        let content_directories_with_invalid_contents = vec![
+            example_content_directory("invalid-templates"),
+            example_content_directory("invalid-unsupported-static-file"),
+            example_content_directory("invalid-single-extension-executable"),
+            example_content_directory("invalid-two-extensions-not-template-or-executable"),
+            example_content_directory("invalid-template-that-is-executable"),
+            example_content_directory("invalid-three-extensions-not-executable"),
+            example_content_directory("invalid-three-extensions-executable"),
+        ];
+        for directory in content_directories_with_invalid_contents {
             assert!(
                 FilesystemBasedContentEngine::from_content_directory(directory, VERSION).is_err(),
                 "Content engine was successfully created, but this should have failed",
@@ -450,7 +469,7 @@ mod tests {
 
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
-        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -478,7 +497,7 @@ mod tests {
 
     #[test]
     fn content_can_be_retrieved() {
-        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -506,7 +525,7 @@ mod tests {
 
     #[test]
     fn content_may_not_exist_at_address() {
-        let directory = ContentDirectory::from_root(&example_path("valid/hello-world")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -523,7 +542,7 @@ mod tests {
 
     #[test]
     fn get_helper_is_available() {
-        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -550,7 +569,7 @@ mod tests {
 
     #[test]
     fn get_helper_requires_an_address_argument() {
-        let directory = ContentDirectory::from_root(&example_path("valid/partials")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -579,7 +598,7 @@ mod tests {
 
     #[test]
     fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
-        let content_directory_path = &example_path("valid/media-types");
+        let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
@@ -625,7 +644,7 @@ mod tests {
 
     #[test]
     fn nesting_incompatible_media_types_fails_at_render_time() {
-        let content_directory_path = &example_path("valid/media-types");
+        let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
@@ -683,7 +702,7 @@ mod tests {
 
     #[test]
     fn executables_are_given_zero_args() {
-        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -708,14 +727,14 @@ mod tests {
 
     #[test]
     fn executables_are_executed_with_correct_working_directory() {
-        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
         let address1 = "pwd";
-        let expected_output1 = format!("{}/examples/valid/executables\n", PROJECT_DIRECTORY);
+        let expected_output1 = format!("{}/src/examples/executables\n", PROJECT_DIRECTORY);
 
         let content = engine.get(address1).expect("Content could not be found");
         let rendered = content
@@ -732,7 +751,7 @@ mod tests {
 
         let address2 = "subdirectory/pwd";
         let expected_output2 = format!(
-            "{}/examples/valid/executables/subdirectory\n",
+            "{}/src/examples/executables/subdirectory\n",
             PROJECT_DIRECTORY
         );
 
@@ -752,13 +771,13 @@ mod tests {
 
     #[test]
     fn executables_have_a_media_type() {
-        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "system-info"; // This outputs text/html.
+        let address = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
         let content = engine.get(address).expect("Content could not be found");
 
         let result1 = content.render(&engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!
@@ -778,7 +797,7 @@ mod tests {
 
     #[test]
     fn templates_can_get_executable_output() {
-        let directory = ContentDirectory::from_root(&example_path("valid/executables")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
@@ -786,7 +805,7 @@ mod tests {
 
         let address = "template";
         let expected_output = format!(
-            "this is pwd from subdirectory:\n{}/examples/valid/executables/subdirectory\n",
+            "this is pwd from subdirectory:\n{}/src/examples/executables/subdirectory\n",
             PROJECT_DIRECTORY
         );
 
@@ -806,7 +825,7 @@ mod tests {
 
     #[test]
     fn content_can_be_hidden() {
-        let directory = ContentDirectory::from_root(&example_path("valid/hidden-content")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("hidden-content")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");

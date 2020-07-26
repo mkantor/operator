@@ -1,0 +1,6 @@
+---
+source: src/cli.rs
+expression: contents
+input_file: src/examples/hello-world
+---
+hello: "hello world\n"

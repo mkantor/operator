@@ -129,7 +129,91 @@ pub fn get<O: io::Write>(
 mod tests {
     use super::*;
     use crate::test_lib::*;
+    use mime_guess::MimeGuess;
+    use std::collections::{BTreeMap, HashMap};
     use std::str;
+
+    /// Attempts to render all non-hidden files in ContentDirectory, returning
+    /// them as a map of Address -> RenderedContent | ErrorMessage.
+    fn render_everything(
+        content_directory: ContentDirectory,
+    ) -> Result<HashMap<String, String>, String> {
+        let mut content = HashMap::new();
+        let content_directory_root = content_directory.root();
+        for content_file in content_directory {
+            if !content_file.is_hidden() {
+                // Create a separate ContentDirectory that can be consumed by
+                // the CLI calls.
+                let consumable_content_directory =
+                    ContentDirectory::from_root(&content_directory_root).map_err(|error| {
+                        format!("Could not create content directory: {:?}", error)
+                    })?;
+                let address = content_file.relative_path_without_extensions();
+                let empty_string = String::from("");
+                let first_filename_extension =
+                    content_file.extensions().first().unwrap_or(&empty_string);
+
+                // Target media type is just the source media type. This isn't
+                // testing transcoding.
+                let target_media_type = MimeGuess::from_ext(first_filename_extension)
+                    .first()
+                    .unwrap_or(mime::APPLICATION_OCTET_STREAM);
+
+                let mut output = Vec::new();
+                let result = get(
+                    consumable_content_directory,
+                    address,
+                    &target_media_type,
+                    SolitonVersion("0.0.0"),
+                    &mut output,
+                );
+
+                let output_or_error_message = match result {
+                    Ok(()) => String::from_utf8(output)
+                        .map_err(|error| format!("Output was not valid UTF-8: {:?}", error))?,
+                    Err(error) => {
+                        let anyhow_error = anyhow::Error::from(error);
+                        let causes = anyhow_error.chain().map(|error| error.to_string());
+                        let message = causes.fold(String::new(), |acc, arg| acc + " " + &arg);
+                        format!("Error:{}", message)
+                    }
+                };
+
+                content.insert(
+                    String::from(content_file.relative_path_without_extensions()),
+                    output_or_error_message,
+                );
+            }
+        }
+        Ok(content)
+    }
+
+    #[test]
+    fn examples_match_snapshots() {
+        for content_directory in example_content_directories() {
+            let content_directory_root = &content_directory.root();
+
+            let unordered_content =
+                render_everything(content_directory).expect("Fatal error in valid example");
+            let contents = unordered_content
+                .iter()
+                // If dynamic content files mention where the repo is checked
+                // out, redact it to keep tests portable.
+                .map(|(key, value)| (key, value.replace(PROJECT_DIRECTORY, "$PROJECT_DIRECTORY")))
+                // Files can be omitted from snapshots with a naming convention.
+                .filter(|(key, _)| !key.ends_with("-SKIP-SNAPSHOT"))
+                .collect::<BTreeMap<_, _>>();
+
+            let mut insta_settings = insta::Settings::clone_current();
+            insta_settings.set_input_file(content_directory_root);
+            let id = content_directory_root
+                .strip_prefix(example_path("."))
+                .unwrap()
+                .to_string_lossy();
+            insta_settings.set_snapshot_suffix(id);
+            insta_settings.bind(|| insta::assert_yaml_snapshot!(contents));
+        }
+    }
 
     #[test]
     fn cli_renders_valid_templates() {
@@ -251,7 +335,7 @@ mod tests {
     #[test]
     fn cli_provides_target_media_type() {
         let mut output = Vec::new();
-        let directory = ContentDirectory::from_root(&example_path("valid/media-types")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("media-types")).unwrap();
         let address = "echo-target-media-type";
 
         let media_type = mime::TEXT_HTML;

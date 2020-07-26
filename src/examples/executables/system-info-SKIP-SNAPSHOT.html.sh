@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: probably nuke this to make tests deterministic?
+# ...or see if i can use redactions?
 echo "
     <dl>
         <dt>date:</dt>
