@@ -4,3 +4,4 @@ expression: contents
 input_file: examples/valid/static-content
 ---
 index: "<h1>title</h1><p>content</p>\n"
+no-trailing-newline: there is no newline following this
