@@ -28,6 +28,7 @@ pub struct ContentFileError {
 }
 
 pub struct ContentDirectory {
+    root: PathBuf,
     files: Vec<ContentFile>,
 }
 
@@ -65,7 +66,14 @@ impl ContentDirectory {
             }
         }
 
-        Ok(ContentDirectory { files })
+        Ok(ContentDirectory {
+            root: absolute_root_path.into(),
+            files,
+        })
+    }
+
+    pub fn root(&self) -> PathBuf {
+        self.root.clone()
     }
 }
 

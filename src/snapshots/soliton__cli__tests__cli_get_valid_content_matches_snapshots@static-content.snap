@@ -1,0 +1,6 @@
+---
+source: src/cli.rs
+expression: contents
+input_file: examples/valid/static-content
+---
+index: "<h1>title</h1><p>content</p>\n"

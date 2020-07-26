@@ -758,7 +758,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "system-info"; // This outputs text/html.
+        let address = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
         let content = engine.get(address).expect("Content could not be found");
 
         let result1 = content.render(&engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!

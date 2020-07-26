@@ -15,4 +15,5 @@ thiserror = "1.0.20"
 walkdir = "2.3.1"
 
 [dev-dependencies]
+insta = "0.16.1"
 tempfile = "3.1.0"

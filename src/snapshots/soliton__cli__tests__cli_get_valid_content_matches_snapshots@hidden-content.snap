@@ -1,0 +1,6 @@
+---
+source: src/cli.rs
+expression: contents
+input_file: examples/valid/hidden-content
+---
+{}
