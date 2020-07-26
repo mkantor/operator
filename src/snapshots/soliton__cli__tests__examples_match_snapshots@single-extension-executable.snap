@@ -3,4 +3,4 @@ source: src/cli.rs
 expression: contents
 input_file: examples/invalid/single-extension-executable
 ---
-this-file-is-executable: "Error: Unable to load content. Content file name is not supported: The content file 'this-file-is-executable.txt' is executable, but only has one extension ('txt'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc). "
+this-file-is-executable: "Error: Unable to load content. Content file name is not supported: The content file 'this-file-is-executable.txt' is executable, but only has one extension ('txt'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc)."

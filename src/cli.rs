@@ -175,8 +175,8 @@ mod tests {
                     Err(error) => {
                         let anyhow_error = anyhow::Error::from(error);
                         let causes = anyhow_error.chain().map(|error| error.to_string());
-                        let message = causes.fold(String::new(), |acc, arg| acc + &arg + " ");
-                        format!("Error: {}", message)
+                        let message = causes.fold(String::new(), |acc, arg| acc + " " + &arg);
+                        format!("Error:{}", message)
                     }
                 };
 

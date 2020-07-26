@@ -5,7 +5,7 @@ input_file: examples/valid/executables
 ---
 cat: ""
 count-cli-args: "0\n"
-error: "Error: Unable to render content. Executable '$PROJECT_DIRECTORY/examples/valid/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/examples/valid/executables' exited with code 1: boom!\n "
+error: "Error: Unable to render content. Executable '$PROJECT_DIRECTORY/examples/valid/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/examples/valid/executables' exited with code 1: boom!\n"
 ls: "cat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\npwd.txt.sh\nsubdirectory\nsystem-info-SKIP-SNAPSHOT.html.sh\ntemplate.txt.hbs\n"
 pwd: "$PROJECT_DIRECTORY/examples/valid/executables\n"
 subdirectory/pwd: "$PROJECT_DIRECTORY/examples/valid/executables/subdirectory\n"
