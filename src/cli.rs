@@ -145,8 +145,9 @@ mod tests {
                 // Create a separate ContentDirectory that can be consumed by
                 // the CLI calls.
                 let consumable_content_directory =
-                    ContentDirectory::from_root(&content_directory_root)
-                        .map_err(|error| format!("{:?}", error))?;
+                    ContentDirectory::from_root(&content_directory_root).map_err(|error| {
+                        format!("Could not create content directory: {:?}", error)
+                    })?;
                 let address = content_file.relative_path_without_extensions();
                 let first_filename_extension = content_file.extensions().first().expect(&format!(
                     "Content file at '{}' does not have a filename extension",
@@ -156,7 +157,8 @@ mod tests {
                 // Target media type is just the source media type. This isn't
                 // testing transcoding.
                 let target_media_type = MimeGuess::from_ext(first_filename_extension)
-                    .first().ok_or(&format!("The filename extension '{}' from file at '{}' could not be mapped to a media type", first_filename_extension, content_file.absolute_path()))?;
+                    .first()
+                    .unwrap_or(mime::APPLICATION_OCTET_STREAM);
 
                 let mut output = Vec::new();
                 let result = get(
@@ -168,7 +170,8 @@ mod tests {
                 );
 
                 let output_or_error_message = match result {
-                    Ok(()) => String::from_utf8(output).map_err(|error| format!("{:?}", error))?,
+                    Ok(()) => String::from_utf8(output)
+                        .map_err(|error| format!("Output was not valid UTF-8: {:?}", error))?,
                     Err(error) => {
                         let anyhow_error = anyhow::Error::from(error);
                         let causes = anyhow_error.chain().map(|error| error.to_string());
@@ -187,8 +190,9 @@ mod tests {
     }
 
     #[test]
+    // FIXME: Fix this test name in a separate commit.
     fn cli_get_valid_content_matches_snapshots() {
-        for content_directory in content_directories_with_valid_contents() {
+        for content_directory in example_content_directories() {
             let content_directory_root = &content_directory.root();
 
             let unordered_content =
@@ -210,6 +214,11 @@ mod tests {
                         .iter()
                         .collect::<std::path::PathBuf>(),
                 )
+                .or(content_directory_root.strip_prefix(
+                    [PROJECT_DIRECTORY, "examples", "invalid"]
+                        .iter()
+                        .collect::<std::path::PathBuf>(),
+                ))
                 .unwrap()
                 .to_string_lossy();
             insta_settings.set_snapshot_suffix(id);
