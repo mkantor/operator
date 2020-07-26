@@ -1,8 +1,10 @@
 use crate::content::*;
 use crate::content_directory::ContentDirectory;
+use crate::http;
 use crate::lib::*;
 use mime::Mime;
 use std::io;
+use std::net::ToSocketAddrs;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -59,6 +61,18 @@ pub enum GetCommandError {
     ContentRenderingError {
         #[from]
         source: ContentRenderingError,
+    },
+
+    #[error("Failed to write output.")]
+    WriteError { source: io::Error },
+}
+
+#[derive(Error, Debug)]
+pub enum ServeCommandError {
+    #[error("Unable to load content.")]
+    ContentLoadingError {
+        #[from]
+        source: ContentLoadingError,
     },
 
     #[error("Failed to write output.")]
@@ -123,6 +137,21 @@ pub fn get<O: io::Write>(
     output
         .flush()
         .map_err(|source| GetCommandError::WriteError { source })
+}
+
+/// Starts an HTTP server for the given content directory.
+pub fn serve<A: 'static + ToSocketAddrs>(
+    content_directory: ContentDirectory,
+    index_address: &str,
+    socket_address: A,
+    soliton_version: SolitonVersion,
+) -> Result<(), ServeCommandError> {
+    let locked_engine =
+        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
+
+    http::run_server(locked_engine, index_address, socket_address);
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 mod cli;
 mod content;
 mod content_directory;
+mod http;
 mod lib;
 mod test_lib;
 
@@ -9,6 +10,7 @@ use crate::lib::*;
 use mime::Mime;
 use std::fs;
 use std::io;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -45,6 +47,21 @@ enum SolitonCommand {
         #[structopt(long)]
         target_media_type: Mime,
     },
+
+    /// Serves the content directory over HTTP.
+    #[structopt(
+        after_help = "EXAMPLES:\n    mkdir site && echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html && soliton serve --content-directory=./site --index-address=home --socket-address=127.0.0.1:8080"
+    )]
+    Serve {
+        #[structopt(long, parse(from_os_str))]
+        content_directory: PathBuf,
+
+        #[structopt(long)]
+        index_address: String,
+
+        #[structopt(long)]
+        socket_address: SocketAddr,
+    },
 }
 
 fn main() {
@@ -55,7 +72,7 @@ fn main() {
     let mut input = stdin.lock();
     let mut output = stdout.lock();
 
-    match handle_command(&command, &mut input, &mut output) {
+    match handle_command(command, &mut input, &mut output) {
         Err(error) => {
             eprintln!("Error: {:?}", error);
             std::process::exit(1);
@@ -67,7 +84,7 @@ fn main() {
 }
 
 fn handle_command<I: io::Read, O: io::Write>(
-    command: &SolitonCommand,
+    command: SolitonCommand,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
@@ -79,7 +96,7 @@ fn handle_command<I: io::Read, O: io::Write>(
         } => cli::render(
             ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
             source_media_type.clone(),
-            target_media_type,
+            &target_media_type,
             VERSION,
             input,
             output,
@@ -93,9 +110,21 @@ fn handle_command<I: io::Read, O: io::Write>(
         } => cli::get(
             ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
             &address,
-            target_media_type,
+            &target_media_type,
             VERSION,
             output,
+        )
+        .map_err(anyhow::Error::from),
+
+        SolitonCommand::Serve {
+            content_directory,
+            index_address,
+            socket_address,
+        } => cli::serve(
+            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
+            &index_address,
+            socket_address,
+            VERSION,
         )
         .map_err(anyhow::Error::from),
     }
