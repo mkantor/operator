@@ -149,10 +149,9 @@ mod tests {
                         format!("Could not create content directory: {:?}", error)
                     })?;
                 let address = content_file.relative_path_without_extensions();
-                let first_filename_extension = content_file.extensions().first().expect(&format!(
-                    "Content file at '{}' does not have a filename extension",
-                    content_file.absolute_path()
-                ));
+                let empty_string = String::from("");
+                let first_filename_extension =
+                    content_file.extensions().first().unwrap_or(&empty_string);
 
                 // Target media type is just the source media type. This isn't
                 // testing transcoding.
