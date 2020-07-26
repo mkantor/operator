@@ -1,7 +1,7 @@
 ---
 source: src/cli.rs
 expression: contents
-input_file: examples/valid/media-types
+input_file: src/examples/media-types
 ---
 cannot-become-html: ""
 echo-target-media-type: text/html

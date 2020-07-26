@@ -1,6 +1,6 @@
 ---
 source: src/cli.rs
 expression: contents
-input_file: examples/invalid/two-extensions-not-template-or-executable
+input_file: src/examples/invalid-two-extensions-not-template-or-executable
 ---
 this-file-is-not-executable: "Error: Unable to load content. Content file name is not supported: The content file 'this-file-is-not-executable.txt.html' has two extensions ('txt.html'), but is neither a handlebars template nor an executable."

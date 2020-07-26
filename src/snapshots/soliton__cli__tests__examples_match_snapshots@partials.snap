@@ -1,7 +1,7 @@
 ---
 source: src/cli.rs
 expression: contents
-input_file: examples/valid/partials
+input_file: src/examples/partials
 ---
 a: "a\n"
 ab: "a\nb\n\n"

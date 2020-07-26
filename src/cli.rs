@@ -208,16 +208,7 @@ mod tests {
             let mut insta_settings = insta::Settings::clone_current();
             insta_settings.set_input_file(content_directory_root);
             let id = content_directory_root
-                .strip_prefix(
-                    [PROJECT_DIRECTORY, "examples", "valid"]
-                        .iter()
-                        .collect::<std::path::PathBuf>(),
-                )
-                .or(content_directory_root.strip_prefix(
-                    [PROJECT_DIRECTORY, "examples", "invalid"]
-                        .iter()
-                        .collect::<std::path::PathBuf>(),
-                ))
+                .strip_prefix(example_path("."))
                 .unwrap()
                 .to_string_lossy();
             insta_settings.set_snapshot_suffix(id);
@@ -345,7 +336,7 @@ mod tests {
     #[test]
     fn cli_provides_target_media_type() {
         let mut output = Vec::new();
-        let directory = ContentDirectory::from_root(&example_path("valid/media-types")).unwrap();
+        let directory = ContentDirectory::from_root(&example_path("media-types")).unwrap();
         let address = "echo-target-media-type";
 
         let media_type = mime::TEXT_HTML;

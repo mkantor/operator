@@ -1,6 +1,6 @@
 ---
 source: src/cli.rs
 expression: contents
-input_file: examples/invalid/three-extensions-executable
+input_file: src/examples/invalid-three-extensions-executable
 ---
 this-file-is-executable: "Error: Unable to load content. Content file name is not supported: Content file name 'this-file-is-executable.txt.html.jpg' has too many extensions."
