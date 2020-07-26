@@ -190,8 +190,7 @@ mod tests {
     }
 
     #[test]
-    // FIXME: Fix this test name in a separate commit.
-    fn cli_get_valid_content_matches_snapshots() {
+    fn examples_match_snapshots() {
         for content_directory in example_content_directories() {
             let content_directory_root = &content_directory.root();
 
