@@ -12,6 +12,7 @@ use std::fs;
 use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::process;
 use structopt::StructOpt;
 
 const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
@@ -75,10 +76,10 @@ fn main() {
     match handle_command(command, &mut input, &mut output) {
         Err(error) => {
             eprintln!("Error: {:?}", error);
-            std::process::exit(1);
+            process::exit(1);
         }
         Ok(_) => {
-            std::process::exit(0);
+            process::exit(0);
         }
     }
 }
