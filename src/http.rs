@@ -77,15 +77,21 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 "Successfully rendered content from address \"/{}\"",
                 address
             );
-            HttpResponse::Ok().body(body)
+            HttpResponse::Ok()
+                .content_type(mime::TEXT_HTML.essence_str())
+                .body(body)
         }
         Some(Err(error)) => {
             log::warn!("Failed to render content from address \"/{}\"", address);
-            HttpResponse::InternalServerError().body(error.to_string())
+            HttpResponse::InternalServerError()
+                .content_type(mime::TEXT_HTML.essence_str())
+                .body(error.to_string())
         }
         None => {
             log::warn!("No content found at \"/{}\"", address);
-            HttpResponse::NotFound().body("Not found.")
+            HttpResponse::NotFound()
+                .content_type(mime::TEXT_HTML.essence_str())
+                .body("Not found.")
         }
     }
 }
