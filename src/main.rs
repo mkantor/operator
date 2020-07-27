@@ -36,7 +36,7 @@ enum SolitonCommand {
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.html.hbs && soliton get --content-directory=path/to/content --address=hello --target-media-type=text/html"
+        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.txt && soliton get --content-directory=./content --address=hello --target-media-type=text/plain"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
