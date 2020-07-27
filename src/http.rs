@@ -10,12 +10,6 @@ where
     A: 'static + ToSocketAddrs,
     E: 'static + ContentEngine + Send + Sync,
 {
-    stderrlog::new()
-        .verbosity(3)
-        .timestamp(stderrlog::Timestamp::Millisecond)
-        .init()
-        .unwrap(); // FIXME: Return a Result from run_server.
-
     info!("Initializing HTTP server");
     let mut system = System::new("server");
     system

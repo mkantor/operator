@@ -88,6 +88,11 @@ fn handle_command<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
+    stderrlog::new()
+        .verbosity(3)
+        .timestamp(stderrlog::Timestamp::Millisecond)
+        .init()?;
+
     match command {
         SolitonCommand::Render {
             content_directory,
