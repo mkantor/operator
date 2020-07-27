@@ -75,8 +75,8 @@ pub enum ServeCommandError {
         source: ContentLoadingError,
     },
 
-    #[error("Failed to write output.")]
-    WriteError { source: io::Error },
+    #[error("Failed to run server.")]
+    ServerError { source: io::Error },
 }
 
 /// Reads a template from `input`, renders it, and writes it to `output`.
@@ -149,9 +149,8 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     let locked_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
 
-    http::run_server(locked_engine, index_address, socket_address);
-
-    Ok(())
+    http::run_server(locked_engine, index_address, socket_address)
+        .map_err(|source| ServeCommandError::ServerError { source })
 }
 
 #[cfg(test)]

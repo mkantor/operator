@@ -1,6 +1,7 @@
 use crate::content::*;
 use actix_rt::System;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use std::io;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
@@ -13,7 +14,8 @@ pub fn run_server<A, E>(
     locked_content_engine: Arc<RwLock<E>>,
     index_address: &str,
     socket_address: A,
-) where
+) -> Result<(), io::Error>
+where
     A: 'static + ToSocketAddrs,
     E: 'static + ContentEngine + Send + Sync,
 {
@@ -21,23 +23,22 @@ pub fn run_server<A, E>(
 
     log::info!("Initializing HTTP server");
     let mut system = System::new("server");
-    system
-        .block_on(async move {
-            HttpServer::new(move || {
-                App::new()
-                    .app_data(AppData {
-                        locked_content_engine: locked_content_engine.clone(),
-                        index_address: index_address.clone(),
-                    })
-                    .route("/{path:.*}", web::get().to(get::<E>))
-            })
-            .bind(socket_address)?
-            .run()
-            .await
+    let result = system.block_on(async move {
+        HttpServer::new(move || {
+            App::new()
+                .app_data(AppData {
+                    locked_content_engine: locked_content_engine.clone(),
+                    index_address: index_address.clone(),
+                })
+                .route("/{path:.*}", web::get().to(get::<E>))
         })
-        .unwrap(); // TODO: Return Result.
+        .bind(socket_address)?
+        .run()
+        .await
+    });
 
     log::info!("HTTP server has terminated");
+    result
 }
 
 async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> HttpResponse {
