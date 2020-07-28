@@ -6,12 +6,12 @@ use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
 struct AppData<E: 'static + ContentEngine + Send + Sync> {
-    locked_content_engine: Arc<RwLock<E>>,
+    shared_content_engine: Arc<RwLock<E>>,
     index_route: String,
 }
 
 pub fn run_server<A, E>(
-    locked_content_engine: Arc<RwLock<E>>,
+    shared_content_engine: Arc<RwLock<E>>,
     index_route: &str,
     socket_address: A,
 ) -> Result<(), io::Error>
@@ -27,7 +27,7 @@ where
         HttpServer::new(move || {
             App::new()
                 .app_data(AppData {
-                    locked_content_engine: locked_content_engine.clone(),
+                    shared_content_engine: shared_content_engine.clone(),
                     index_route: index_route.clone(),
                 })
                 .route("/{path:.*}", web::get().to(get::<E>))
@@ -54,7 +54,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .expect("App data was not of the expected type!");
 
     let content_engine = app_data
-        .locked_content_engine
+        .shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 

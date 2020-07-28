@@ -107,23 +107,23 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         let (routes, content_registry, handlebars_registry) =
             Self::create_registries(content_item_entries)?;
 
-        let engine = FilesystemBasedContentEngine {
+        let content_engine = FilesystemBasedContentEngine {
             soliton_version,
             index: ContentIndex::Directory(routes),
             content_registry,
             handlebars_registry,
         };
 
-        let shared_engine = Arc::new(RwLock::new(engine));
+        let shared_content_engine = Arc::new(RwLock::new(content_engine));
 
-        let get_helper = GetHelper::new(shared_engine.clone());
-        shared_engine
+        let get_helper = GetHelper::new(shared_content_engine.clone());
+        shared_content_engine
             .write()
             .expect("RwLock for ContentEngine has been poisoned")
             .handlebars_registry
             .register_helper("get", Box::new(get_helper));
 
-        Ok(shared_engine)
+        Ok(shared_content_engine)
     }
 
     fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
@@ -332,7 +332,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
 impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
     fn get_render_context<'a, 'b>(&'a self, target_media_type: &'b Mime) -> RenderContext<'a, 'b> {
         RenderContext {
-            engine: self,
+            content_engine: self,
             data: RenderData {
                 soliton: SolitonRenderData {
                     version: self.soliton_version,
@@ -422,19 +422,19 @@ mod tests {
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         for &(template, expected_output) in &VALID_TEMPLATES {
-            let renderable = engine
+            let renderable = content_engine
                 .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
             let rendered = renderable
-                .render(&engine.get_render_context(&mime::TEXT_HTML))
+                .render(&content_engine.get_render_context(&mime::TEXT_HTML))
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
                 rendered,
@@ -449,15 +449,15 @@ mod tests {
 
     #[test]
     fn new_template_fails_for_invalid_templates() {
-        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         for &template in &INVALID_TEMPLATES {
-            let result = engine.new_template(template, mime::TEXT_HTML);
+            let result = content_engine.new_template(template, mime::TEXT_HTML);
 
             assert!(
                 result.is_err(),
@@ -470,20 +470,20 @@ mod tests {
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let template = "this is partial: {{> (content.abc)}}";
         let expected_output =
             "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
-        let renderable = engine
+        let renderable = content_engine
             .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = renderable
-            .render(&engine.get_render_context(&mime::TEXT_HTML))
+            .render(&content_engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -498,17 +498,19 @@ mod tests {
     #[test]
     fn content_can_be_retrieved() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route = "abc";
         let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
-        let content = engine.get(route).expect("Content could not be found");
+        let content = content_engine
+            .get(route)
+            .expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context(&mime::TEXT_HTML))
+            .render(&content_engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!(
                 "Template rendering failed for content at '{}'",
                 route
@@ -526,15 +528,15 @@ mod tests {
     #[test]
     fn content_may_not_exist_at_route() {
         let directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route = "this-route-does-not-refer-to-any-content";
 
         assert!(
-            engine.get(route).is_none(),
+            content_engine.get(route).is_none(),
             "Content was found at '{}', but it was not expected to be",
             route
         );
@@ -543,19 +545,19 @@ mod tests {
     #[test]
     fn get_helper_is_available() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let template = "i got stuff: {{get content.b}}";
         let expected_output = "i got stuff: b\n";
 
-        let renderable = engine
+        let renderable = content_engine
             .new_template(template, mime::TEXT_HTML)
             .expect("Template could not be parsed");
         let rendered = renderable
-            .render(&engine.get_render_context(&mime::TEXT_HTML))
+            .render(&content_engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -570,10 +572,10 @@ mod tests {
     #[test]
     fn get_helper_requires_an_route_argument() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let templates = [
             "no argument: {{get}}",
@@ -584,10 +586,10 @@ mod tests {
         ];
 
         for template in templates.iter() {
-            let renderable = engine
+            let renderable = content_engine
                 .new_template(template, mime::TEXT_HTML)
                 .expect("Template could not be parsed");
-            let result = renderable.render(&engine.get_render_context(&mime::TEXT_HTML));
+            let result = renderable.render(&content_engine.get_render_context(&mime::TEXT_HTML));
             assert!(
                 result.is_err(),
                 "Content was successfully rendered for invalid template `{}`, but it should have failed",
@@ -600,18 +602,19 @@ mod tests {
     fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
         let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let routes = ["cannot-become-html", "template-cannot-become-html"];
 
         for route in routes.iter() {
-            match engine.get(route) {
+            match content_engine.get(route) {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
-                    let result = renderable.render(&engine.get_render_context(&mime::TEXT_HTML));
+                    let result =
+                        renderable.render(&content_engine.get_render_context(&mime::TEXT_HTML));
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
@@ -624,17 +627,17 @@ mod tests {
 
     #[test]
     fn anonymous_template_cannot_be_rendered_with_unacceptable_target_media_type() {
-        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
-        let template = engine
+        let template = content_engine
             .new_template("<p>hi</p>", mime::TEXT_HTML)
             .expect("Template could not be created");
-        let result = template.render(&engine.get_render_context(&mime::TEXT_PLAIN));
+        let result = template.render(&content_engine.get_render_context(&mime::TEXT_PLAIN));
 
         assert!(
             result.is_err(),
@@ -646,10 +649,10 @@ mod tests {
     fn nesting_incompatible_media_types_fails_at_render_time() {
         let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let inputs = [
             (mime::TEXT_PLAIN, "nesting/txt-that-includes-html"),
@@ -657,10 +660,11 @@ mod tests {
         ];
 
         for (target_media_type, route) in inputs.iter() {
-            match engine.get(route) {
+            match content_engine.get(route) {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
-                    let result = renderable.render(&engine.get_render_context(target_media_type));
+                    let result =
+                        renderable.render(&content_engine.get_render_context(target_media_type));
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed",
@@ -673,22 +677,22 @@ mod tests {
 
     #[test]
     fn templates_are_told_what_target_media_type_they_are_being_rendered_to() {
-        let locked_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
             VERSION,
         )
         .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let target_media_type = mime::APPLICATION_WWW_FORM_URLENCODED;
         let template = "{{target-media-type}}";
         let expected_output = target_media_type.essence_str();
 
-        let renderable = engine
+        let renderable = content_engine
             .new_template(template, target_media_type.clone())
             .expect("Template could not be parsed");
         let rendered = renderable
-            .render(&engine.get_render_context(&target_media_type))
+            .render(&content_engine.get_render_context(&target_media_type))
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
             rendered,
@@ -703,17 +707,19 @@ mod tests {
     #[test]
     fn executables_are_given_zero_args() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route = "count-cli-args";
         let expected_output = "0\n";
 
-        let content = engine.get(route).expect("Content could not be found");
+        let content = content_engine
+            .get(route)
+            .expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .render(&content_engine.get_render_context(&mime::TEXT_PLAIN))
             .expect(&format!("Rendering failed for content at '{}'", route));
         assert_eq!(
             rendered,
@@ -728,17 +734,19 @@ mod tests {
     #[test]
     fn executables_are_executed_with_correct_working_directory() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route1 = "pwd";
         let expected_output1 = format!("{}/src/examples/executables\n", PROJECT_DIRECTORY);
 
-        let content = engine.get(route1).expect("Content could not be found");
+        let content = content_engine
+            .get(route1)
+            .expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .render(&content_engine.get_render_context(&mime::TEXT_PLAIN))
             .expect(&format!("Rendering failed for content at '{}'", route1));
         assert_eq!(
             rendered,
@@ -755,9 +763,11 @@ mod tests {
             PROJECT_DIRECTORY
         );
 
-        let content = engine.get(route2).expect("Content could not be found");
+        let content = content_engine
+            .get(route2)
+            .expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .render(&content_engine.get_render_context(&mime::TEXT_PLAIN))
             .expect(&format!("Rendering failed for content at '{}'", route2));
         assert_eq!(
             rendered,
@@ -772,22 +782,24 @@ mod tests {
     #[test]
     fn executables_have_a_media_type() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
-        let content = engine.get(route).expect("Content could not be found");
+        let content = content_engine
+            .get(route)
+            .expect("Content could not be found");
 
-        let result1 = content.render(&engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!
+        let result1 = content.render(&content_engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!
         assert!(
             result1.is_err(),
             "Rendering content at '{}' succeeded when it should have failed",
             route,
         );
 
-        let result2 = content.render(&engine.get_render_context(&mime::TEXT_HTML));
+        let result2 = content.render(&content_engine.get_render_context(&mime::TEXT_HTML));
         assert!(
             result2.is_ok(),
             "Rendering content at '{}' failed when it should have succeeded",
@@ -798,10 +810,10 @@ mod tests {
     #[test]
     fn templates_can_get_executable_output() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let route = "template";
         let expected_output = format!(
@@ -809,9 +821,11 @@ mod tests {
             PROJECT_DIRECTORY
         );
 
-        let content = engine.get(route).expect("Content could not be found");
+        let content = content_engine
+            .get(route)
+            .expect("Content could not be found");
         let rendered = content
-            .render(&engine.get_render_context(&mime::TEXT_PLAIN))
+            .render(&content_engine.get_render_context(&mime::TEXT_PLAIN))
             .expect(&format!("Rendering failed for content at '{}'", route));
         assert_eq!(
             rendered,
@@ -826,10 +840,10 @@ mod tests {
     #[test]
     fn content_can_be_hidden() {
         let directory = ContentDirectory::from_root(&example_path("hidden-content")).unwrap();
-        let locked_engine =
+        let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
-        let engine = locked_engine.read().unwrap();
+        let content_engine = shared_content_engine.read().unwrap();
 
         let routes = [
             "hidden-file",
@@ -848,7 +862,7 @@ mod tests {
 
         for route in routes.iter() {
             assert!(
-                engine.get(route).is_none(),
+                content_engine.get(route).is_none(),
                 "Content was successfully retrieved for hidden item `{}`, but `get` should have returned None",
                 route,
             );

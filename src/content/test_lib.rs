@@ -8,7 +8,7 @@ pub struct MockContentEngine;
 impl ContentEngine for MockContentEngine {
     fn get_render_context<'a, 'b>(&'a self, media_type: &'b Mime) -> RenderContext<'a, 'b> {
         RenderContext {
-            engine: self,
+            content_engine: self,
             data: RenderData {
                 soliton: SolitonRenderData {
                     version: SolitonVersion("0.0.0"),

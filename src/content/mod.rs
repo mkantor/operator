@@ -63,6 +63,6 @@ struct RenderData<'a> {
 }
 
 pub struct RenderContext<'engine, 'data> {
-    engine: &'engine dyn ContentEngine,
+    content_engine: &'engine dyn ContentEngine,
     data: RenderData<'data>,
 }

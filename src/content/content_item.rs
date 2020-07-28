@@ -116,7 +116,7 @@ impl Render for RegisteredTemplate {
             })
         } else {
             context
-                .engine
+                .content_engine
                 .handlebars_registry()
                 .render(&self.name_in_registry, &context.data)
                 .map_err(ContentRenderingError::from)
@@ -152,7 +152,7 @@ impl Render for UnregisteredTemplate {
             let mut handlebars_render_context = handlebars::RenderContext::new(None);
             self.template
                 .renders(
-                    context.engine.handlebars_registry(),
+                    context.content_engine.handlebars_registry(),
                     &handlebars_context,
                     &mut handlebars_render_context,
                 )

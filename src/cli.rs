@@ -88,9 +88,9 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let locked_engine =
+    let shared_content_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
-    let engine = locked_engine
+    let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
@@ -99,8 +99,8 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let content_item = engine.new_template(&template, source_media_type)?;
-    let render_context = engine.get_render_context(target_media_type);
+    let content_item = content_engine.new_template(&template, source_media_type)?;
+    let render_context = content_engine.get_render_context(target_media_type);
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
@@ -118,16 +118,18 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let locked_engine =
+    let shared_content_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
-    let engine = locked_engine
+    let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
-    let content_item = engine.get(route).ok_or(GetCommandError::ContentNotFound {
-        route: String::from(route),
-    })?;
-    let render_context = engine.get_render_context(target_media_type);
+    let content_item = content_engine
+        .get(route)
+        .ok_or(GetCommandError::ContentNotFound {
+            route: String::from(route),
+        })?;
+    let render_context = content_engine.get_render_context(target_media_type);
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
@@ -144,10 +146,10 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     socket_address: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
-    let locked_engine =
+    let shared_content_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
 
-    http::run_server(locked_engine, index_route, socket_address)
+    http::run_server(shared_content_engine, index_route, socket_address)
         .map_err(|source| ServeCommandError::ServerError { source })
 }
 

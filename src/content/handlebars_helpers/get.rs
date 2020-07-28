@@ -20,7 +20,7 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
         _: &mut handlebars::RenderContext<'registry, 'context>,
         output: &mut dyn handlebars::Output,
     ) -> handlebars::HelperResult {
-        let engine = self
+        let content_engine = self
             .content_engine
             .read()
             .expect("RwLock for ContentEngine has been poisoned");
@@ -36,7 +36,7 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
                 "The `get` helper's first argument must be a string (the route of the content item to get).",
             ))?;
 
-        let content_item = engine.get(&route).ok_or_else(|| {
+        let content_item = content_engine.get(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
                 "No content found at route passed to `get` helper (\"{}\").",
                 route
@@ -61,7 +61,7 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
                 ))
             })?;
 
-        let context = engine.get_render_context(&target_media_type);
+        let context = content_engine.get_render_context(&target_media_type);
 
         let rendered_content = content_item
             .render(&context).map_err(|soliton_render_error| {
