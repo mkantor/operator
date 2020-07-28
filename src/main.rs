@@ -21,7 +21,7 @@ const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 enum SolitonCommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLES:\n    echo \"{{#if true}}hello world{{/if}}\" | soliton render --content-directory=path/to/content --source-media-type=text/html --target-media-type=text/html"
+        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null --source-media-type=text/plain --target-media-type=text/plain"
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
@@ -36,7 +36,7 @@ enum SolitonCommand {
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir content && echo 'hello world' > content/hello.txt && soliton get --content-directory=./content --address=hello --target-media-type=text/plain"
+        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --address=hello --target-media-type=text/plain"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
@@ -51,7 +51,7 @@ enum SolitonCommand {
 
     /// Serves the content directory over HTTP.
     #[structopt(
-        after_help = "EXAMPLES:\n    mkdir site && echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html && soliton serve --content-directory=./site --index-address=home --socket-address=127.0.0.1:8080"
+        after_help = "EXAMPLE:\n    mkdir -p site\n    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n    soliton serve --content-directory=site --index-address=home --socket-address=127.0.0.1:8080"
     )]
     Serve {
         #[structopt(long, parse(from_os_str))]
