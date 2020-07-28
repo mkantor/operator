@@ -53,25 +53,28 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .app_data::<AppData<E>>()
         .expect("App data was not of the expected type!");
 
-    let content_engine = app_data
-        .shared_content_engine
-        .read()
-        .expect("RwLock for ContentEngine has been poisoned");
-
     let route = if path.is_empty() {
         &app_data.index_route
     } else {
         path
     };
-    let result = content_engine.get(route).map(|content| {
-        // TODO: Content negotiation!
-        let render_context = content_engine.get_render_context(&mime::TEXT_HTML);
-        content.render(&render_context)
-    });
+
+    let render_result = {
+        let content_engine = app_data
+            .shared_content_engine
+            .read()
+            .expect("RwLock for ContentEngine has been poisoned");
+
+        content_engine.get(route).map(|content| {
+            // TODO: Content negotiation!
+            let render_context = content_engine.get_render_context(&mime::TEXT_HTML);
+            content.render(&render_context)
+        })
+    };
 
     // FIXME: Is logging response status problematic? It could leak info on a
     // site with dynamic state. Maybe make these logs trace level?
-    match result {
+    match render_result {
         Some(Ok(body)) => {
             log::info!("Successfully rendered content from route \"/{}\"", route);
             HttpResponse::Ok()
