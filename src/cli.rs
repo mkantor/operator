@@ -54,8 +54,8 @@ pub enum GetCommandError {
         source: RegisteredTemplateParseError,
     },
 
-    #[error("Content not found at address '{}'.", .address)]
-    ContentNotFound { address: String },
+    #[error("Content not found at route '{}'.", .route)]
+    ContentNotFound { route: String },
 
     #[error("Unable to render content.")]
     ContentRenderingError {
@@ -113,7 +113,7 @@ pub fn render<I: io::Read, O: io::Write>(
 /// Renders an item from the content directory and writes it to `output`.
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
-    address: &str,
+    route: &str,
     target_media_type: &Mime,
     soliton_version: SolitonVersion,
     output: &mut O,
@@ -124,11 +124,9 @@ pub fn get<O: io::Write>(
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
-    let content_item = engine
-        .get(address)
-        .ok_or(GetCommandError::ContentNotFound {
-            address: String::from(address),
-        })?;
+    let content_item = engine.get(route).ok_or(GetCommandError::ContentNotFound {
+        route: String::from(route),
+    })?;
     let render_context = engine.get_render_context(target_media_type);
     let rendered_output = content_item.render(&render_context)?;
     write!(output, "{}", rendered_output)
@@ -142,14 +140,14 @@ pub fn get<O: io::Write>(
 /// Starts an HTTP server for the given content directory.
 pub fn serve<A: 'static + ToSocketAddrs>(
     content_directory: ContentDirectory,
-    index_address: &str,
+    index_route: &str,
     socket_address: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
     let locked_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
 
-    http::run_server(locked_engine, index_address, socket_address)
+    http::run_server(locked_engine, index_route, socket_address)
         .map_err(|source| ServeCommandError::ServerError { source })
 }
 
@@ -162,7 +160,7 @@ mod tests {
     use std::str;
 
     /// Attempts to render all non-hidden files in ContentDirectory, returning
-    /// them as a map of Address -> RenderedContent | ErrorMessage.
+    /// them as a map of Route -> RenderedContent | ErrorMessage.
     fn render_everything(
         content_directory: ContentDirectory,
     ) -> Result<HashMap<String, String>, String> {
@@ -176,7 +174,7 @@ mod tests {
                     ContentDirectory::from_root(&content_directory_root).map_err(|error| {
                         format!("Could not create content directory: {:?}", error)
                     })?;
-                let address = content_file.relative_path_without_extensions();
+                let route = content_file.relative_path_without_extensions();
                 let empty_string = String::from("");
                 let first_filename_extension =
                     content_file.extensions().first().unwrap_or(&empty_string);
@@ -190,7 +188,7 @@ mod tests {
                 let mut output = Vec::new();
                 let result = get(
                     consumable_content_directory,
-                    address,
+                    route,
                     &target_media_type,
                     SolitonVersion("0.0.0"),
                     &mut output,
@@ -302,13 +300,13 @@ mod tests {
     #[test]
     fn cli_can_get_content() {
         let mut output = Vec::new();
-        let address = "hello";
+        let route = "hello";
         let expected_output = "hello world\n";
 
         let directory = arbitrary_content_directory_with_valid_content();
         let result = get(
             directory,
-            address,
+            route,
             &mime::TEXT_HTML,
             SolitonVersion("0.0.0"),
             &mut output,
@@ -317,7 +315,7 @@ mod tests {
         assert!(
             result.is_ok(),
             "Template rendering failed for content at '{}': {}",
-            address,
+            route,
             result.unwrap_err(),
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
@@ -325,7 +323,7 @@ mod tests {
             output_as_str,
             expected_output,
             "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address,
+            route,
             expected_output,
             output_as_str
         );
@@ -334,12 +332,12 @@ mod tests {
     #[test]
     fn cli_can_fail_to_get_content_which_does_not_exist() {
         let mut output = Vec::new();
-        let address = "this-address-does-not-refer-to-any-content";
+        let route = "this-route-does-not-refer-to-any-content";
 
         let directory = arbitrary_content_directory_with_valid_content();
         let result = get(
             directory,
-            address,
+            route,
             &mime::TEXT_HTML,
             SolitonVersion("0.0.0"),
             &mut output,
@@ -348,13 +346,13 @@ mod tests {
         match result {
             Ok(_) => panic!(
                 "Getting content from '{}' succeeded, but it should have failed",
-                address
+                route
             ),
             Err(GetCommandError::ContentNotFound {
-                address: address_from_error,
+                route: route_from_error,
             }) => assert_eq!(
-                address_from_error, address,
-                "Address from error did not match address used"
+                route_from_error, route,
+                "Route from error did not match route used"
             ),
             Err(_) => panic!("Wrong type of error was produced, expected ContentNotFound"),
         };
@@ -364,13 +362,13 @@ mod tests {
     fn cli_provides_target_media_type() {
         let mut output = Vec::new();
         let directory = ContentDirectory::from_root(&example_path("media-types")).unwrap();
-        let address = "echo-target-media-type";
+        let route = "echo-target-media-type";
 
         let media_type = mime::TEXT_HTML;
 
         let result = get(
             directory,
-            address,
+            route,
             &media_type,
             SolitonVersion("0.0.0"),
             &mut output,
@@ -378,7 +376,7 @@ mod tests {
         assert!(
             result.is_ok(),
             "Template rendering failed for content at '{}': {}",
-            address,
+            route,
             result.unwrap_err(),
         );
 
@@ -387,7 +385,7 @@ mod tests {
             output_as_str,
             media_type.essence_str(),
             "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address,
+            route,
             media_type.essence_str(),
             output_as_str
         );

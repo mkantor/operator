@@ -25,21 +25,21 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
             .read()
             .expect("RwLock for ContentEngine has been poisoned");
 
-        let address = helper
+        let route = helper
             .param(0)
             .ok_or_else(|| handlebars::RenderError::new(
-                "The `get` helper requires an argument (the address of the content item to get).",
+                "The `get` helper requires an argument (the route of the content item to get).",
             ))?
             .value()
             .as_str()
             .ok_or_else(|| handlebars::RenderError::new(
-                "The `get` helper's first argument must be a string (the address of the content item to get).",
+                "The `get` helper's first argument must be a string (the route of the content item to get).",
             ))?;
 
-        let content_item = engine.get(&address).ok_or_else(|| {
+        let content_item = engine.get(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
-                "No content found at address passed to `get` helper (\"{}\").",
-                address
+                "No content found at route passed to `get` helper (\"{}\").",
+                route
             ))
         })?;
 
@@ -67,7 +67,7 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
             .render(&context).map_err(|soliton_render_error| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the content item being retrieved (\"{}\") could not be rendered: {}",
-                    address,
+                    route,
                     soliton_render_error
                 ))
             })?;

@@ -4,24 +4,24 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-#[error("Failed to add '{}' to address index: {}", .failed_address, .message)]
+#[error("Failed to add route '{}' to index: {}", .failed_route, .message)]
 pub struct ContentIndexUpdateError {
-    failed_address: String,
+    failed_route: String,
     message: String,
 }
 
 #[derive(Clone, Serialize)]
 #[serde(untagged)]
 pub enum ContentIndex {
-    File(CanonicalAddress),
+    File(CanonicalRoute),
     Directory(ContentIndexEntries),
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, Serialize)]
-pub struct CanonicalAddress(String);
-impl CanonicalAddress {
-    pub fn new<C: AsRef<str>>(canonical_address: C) -> Self {
-        CanonicalAddress(String::from(canonical_address.as_ref()))
+pub struct CanonicalRoute(String);
+impl CanonicalRoute {
+    pub fn new<C: AsRef<str>>(canonical_route: C) -> Self {
+        CanonicalRoute(String::from(canonical_route.as_ref()))
     }
 }
 
@@ -34,12 +34,10 @@ impl ContentIndexEntries {
 
     pub fn try_add<C: AsRef<str>>(
         &mut self,
-        canonical_address: C,
+        canonical_route: C,
     ) -> Result<(), ContentIndexUpdateError> {
         let (dirname_components, basename) = {
-            let mut path_components = canonical_address
-                .as_ref()
-                .split(ContentFile::PATH_SEPARATOR);
+            let mut path_components = canonical_route.as_ref().split(ContentFile::PATH_SEPARATOR);
             let basename = path_components.next_back();
             (path_components, basename)
         };
@@ -61,14 +59,14 @@ impl ContentIndexEntries {
 
                     node = match next_node {
                         ContentIndex::Directory(branch) => branch,
-                        ContentIndex::File(CanonicalAddress(conficting_address)) => {
+                        ContentIndex::File(CanonicalRoute(conficting_route)) => {
                             // Each component in dirname_components represents
                             // a directory along the path
                             return Err(ContentIndexUpdateError {
-                            failed_address: String::from(canonical_address.as_ref()),
+                            failed_route: String::from(canonical_route.as_ref()),
                               message: format!(
-                                "There is already a file at '{}', but that needs to be a directory to accommodate the new address.",
-                                conficting_address,
+                                "There is already a file at '{}', but that needs to be a directory to accommodate the new route.",
+                                conficting_route,
                               )
                             });
                         }
@@ -83,17 +81,17 @@ impl ContentIndexEntries {
                             ContentIndex::File(..) => "file",
                         };
                         Err(ContentIndexUpdateError {
-                            failed_address: String::from(canonical_address.as_ref()),
+                            failed_route: String::from(canonical_route.as_ref()),
                             message: format!(
                                 "There is already a {} at '{}'.",
                                 entry_description,
-                                canonical_address.as_ref(),
+                                canonical_route.as_ref(),
                             ),
                         })
                     }
                     None => {
                         node.0.entry(String::from(basename)).or_insert_with(|| {
-                            ContentIndex::File(CanonicalAddress::new(canonical_address))
+                            ContentIndex::File(CanonicalRoute::new(canonical_route))
                         });
                         Ok(())
                     }

@@ -52,7 +52,7 @@ pub enum ContentLoadingError {
     #[error("Content file has an unknown media type: {}", .message)]
     UnknownFileType { message: String },
 
-    #[error("Failed to create address index while loading content directory.")]
+    #[error("Failed to create route index while loading content directory.")]
     ContentIndexError {
         #[from]
         source: ContentIndexUpdateError,
@@ -71,7 +71,7 @@ pub trait ContentEngine {
         media_type: Mime,
     ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError>;
 
-    fn get(&self, address: &str) -> Option<&dyn Render>;
+    fn get(&self, route: &str) -> Option<&dyn Render>;
 
     fn handlebars_registry(&self) -> &Handlebars;
 }
@@ -86,7 +86,7 @@ enum RegisteredContent {
     /// A program that can be executed by the operating system.
     Executable(Executable),
 }
-type ContentRegistry = HashMap<CanonicalAddress, RegisteredContent>;
+type ContentRegistry = HashMap<CanonicalRoute, RegisteredContent>;
 
 pub struct FilesystemBasedContentEngine<'engine> {
     soliton_version: SolitonVersion,
@@ -104,12 +104,12 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
             .into_iter()
             .filter(|entry| !entry.is_hidden());
 
-        let (addresses, content_registry, handlebars_registry) =
+        let (routes, content_registry, handlebars_registry) =
             Self::create_registries(content_item_entries)?;
 
         let engine = FilesystemBasedContentEngine {
             soliton_version,
-            index: ContentIndex::Directory(addresses),
+            index: ContentIndex::Directory(routes),
             content_registry,
             handlebars_registry,
         };
@@ -129,7 +129,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
     fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
     ) -> Result<(ContentIndexEntries, ContentRegistry, Handlebars<'a>), ContentLoadingError> {
-        let mut addresses = ContentIndexEntries::new();
+        let mut routes = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         let mut content_registry = ContentRegistry::new();
         for entry in content_item_entries {
@@ -145,10 +145,10 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                         });
                     }
 
-                    addresses.try_add(entry.relative_path_without_extensions())?;
+                    routes.try_add(entry.relative_path_without_extensions())?;
 
-                    let canonical_address =
-                        CanonicalAddress::new(entry.relative_path_without_extensions());
+                    let canonical_route =
+                        CanonicalRoute::new(entry.relative_path_without_extensions());
                     let media_type =
                         MimeGuess::from_ext(single_extension)
                             .first()
@@ -163,12 +163,12 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                         StaticContentItem::new(entry.file_contents(), media_type),
                     );
                     let was_duplicate = content_registry
-                        .insert(canonical_address, content_item)
+                        .insert(canonical_route, content_item)
                         .is_some();
                     if was_duplicate {
                         return Err(ContentLoadingError::Bug {
                             message: String::from(
-                                "There were two or more content files with the same address.",
+                                "There were two or more content files with the same route.",
                             ),
                         });
                     }
@@ -186,12 +186,12 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                                     ),
                                 });
                             }
-                            addresses.try_add(entry.relative_path_without_extensions())?;
+                            routes.try_add(entry.relative_path_without_extensions())?;
 
-                            let address_string =
+                            let route_string =
                                 String::from(entry.relative_path_without_extensions());
-                            let canonical_address =
-                                CanonicalAddress::new(entry.relative_path_without_extensions());
+                            let canonical_route =
+                                CanonicalRoute::new(entry.relative_path_without_extensions());
 
                             let media_type = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
                                 ContentLoadingError::UnknownFileType {
@@ -205,7 +205,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             let mut contents = entry.file_contents();
 
                             handlebars_registry
-                                .register_template_source(&address_string, &mut contents)
+                                .register_template_source(&route_string, &mut contents)
                                 .map_err(|template_render_error| match template_render_error {
                                     handlebars::TemplateFileError::TemplateError(source) => {
                                         ContentLoadingError::TemplateParseError(
@@ -228,25 +228,25 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                                 })?;
 
                             let content_item = RegisteredContent::RegisteredTemplate(
-                                RegisteredTemplate::new(address_string, media_type),
+                                RegisteredTemplate::new(route_string, media_type),
                             );
                             let was_duplicate = content_registry
-                                .insert(canonical_address, content_item)
+                                .insert(canonical_route, content_item)
                                 .is_some();
                             if was_duplicate {
                                 return Err(ContentLoadingError::Bug {
                                     message: String::from(
-                                        "There were two or more content files with the same address.",
+                                        "There were two or more content files with the same route.",
                                     ),
                                 });
                             }
                         }
 
                         [first_extension, _arbitrary_second_extension] if entry.is_executable() => {
-                            addresses.try_add(entry.relative_path_without_extensions())?;
+                            routes.try_add(entry.relative_path_without_extensions())?;
 
-                            let canonical_address =
-                                CanonicalAddress::new(entry.relative_path_without_extensions());
+                            let canonical_route =
+                                CanonicalRoute::new(entry.relative_path_without_extensions());
                             let media_type =
                                 MimeGuess::from_ext(first_extension)
                                     .first()
@@ -282,12 +282,12 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             ));
 
                             let was_duplicate = content_registry
-                                .insert(canonical_address, content_item)
+                                .insert(canonical_route, content_item)
                                 .is_some();
                             if was_duplicate {
                                 return Err(ContentLoadingError::Bug {
                                     message: String::from(
-                                        "There were two or more content files with the same address.",
+                                        "There were two or more content files with the same route.",
                                     ),
                                 });
                             }
@@ -325,7 +325,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
             }
         }
 
-        Ok((addresses, content_registry, handlebars_registry))
+        Ok((routes, content_registry, handlebars_registry))
     }
 }
 
@@ -356,8 +356,8 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
         }
     }
 
-    fn get(&self, address: &str) -> Option<&dyn Render> {
-        match self.content_registry.get(&CanonicalAddress::new(address)) {
+    fn get(&self, route: &str) -> Option<&dyn Render> {
+        match self.content_registry.get(&CanonicalRoute::new(route)) {
             Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
             Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
             Some(RegisteredContent::Executable(renderable)) => Some(renderable),
@@ -503,40 +503,40 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "abc";
+        let route = "abc";
         let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
-        let content = engine.get(address).expect("Content could not be found");
+        let content = engine.get(route).expect("Content could not be found");
         let rendered = content
             .render(&engine.get_render_context(&mime::TEXT_HTML))
             .expect(&format!(
                 "Template rendering failed for content at '{}'",
-                address
+                route
             ));
         assert_eq!(
             rendered,
             expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address,
+            route,
             expected_output,
             rendered,
         );
     }
 
     #[test]
-    fn content_may_not_exist_at_address() {
+    fn content_may_not_exist_at_route() {
         let directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "this-address-does-not-refer-to-any-content";
+        let route = "this-route-does-not-refer-to-any-content";
 
         assert!(
-            engine.get(address).is_none(),
+            engine.get(route).is_none(),
             "Content was found at '{}', but it was not expected to be",
-            address
+            route
         );
     }
 
@@ -568,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn get_helper_requires_an_address_argument() {
+    fn get_helper_requires_an_route_argument() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let locked_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
@@ -579,7 +579,7 @@ mod tests {
             "no argument: {{get}}",
             "not a string: {{get 3}}",
             "empty string: {{get \"\"}}",
-            "unknown address: {{get \"no/content/at/this/address\"}}",
+            "unknown route: {{get \"no/content/at/this/route\"}}",
             "non-existent variables: {{get complete garbage}}",
         ];
 
@@ -605,17 +605,17 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let addresses = ["cannot-become-html", "template-cannot-become-html"];
+        let routes = ["cannot-become-html", "template-cannot-become-html"];
 
-        for address in addresses.iter() {
-            match engine.get(address) {
-                None => panic!("No content was found at '{}'", address),
+        for route in routes.iter() {
+            match engine.get(route) {
+                None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
                     let result = renderable.render(&engine.get_render_context(&mime::TEXT_HTML));
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
-                        address,
+                        route,
                     );
                 }
             }
@@ -656,15 +656,15 @@ mod tests {
             (mime::TEXT_HTML, "nesting/html-that-includes-txt"),
         ];
 
-        for (target_media_type, address) in inputs.iter() {
-            match engine.get(address) {
-                None => panic!("No content was found at '{}'", address),
+        for (target_media_type, route) in inputs.iter() {
+            match engine.get(route) {
+                None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
                     let result = renderable.render(&engine.get_render_context(target_media_type));
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed",
-                        address,
+                        route,
                     );
                 }
             }
@@ -708,18 +708,18 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "count-cli-args";
+        let route = "count-cli-args";
         let expected_output = "0\n";
 
-        let content = engine.get(address).expect("Content could not be found");
+        let content = engine.get(route).expect("Content could not be found");
         let rendered = content
             .render(&engine.get_render_context(&mime::TEXT_PLAIN))
-            .expect(&format!("Rendering failed for content at '{}'", address));
+            .expect(&format!("Rendering failed for content at '{}'", route));
         assert_eq!(
             rendered,
             expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address,
+            route,
             expected_output,
             rendered,
         );
@@ -733,37 +733,37 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address1 = "pwd";
+        let route1 = "pwd";
         let expected_output1 = format!("{}/src/examples/executables\n", PROJECT_DIRECTORY);
 
-        let content = engine.get(address1).expect("Content could not be found");
+        let content = engine.get(route1).expect("Content could not be found");
         let rendered = content
             .render(&engine.get_render_context(&mime::TEXT_PLAIN))
-            .expect(&format!("Rendering failed for content at '{}'", address1));
+            .expect(&format!("Rendering failed for content at '{}'", route1));
         assert_eq!(
             rendered,
             expected_output1,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address1,
+            route1,
             expected_output1,
             rendered,
         );
 
-        let address2 = "subdirectory/pwd";
+        let route2 = "subdirectory/pwd";
         let expected_output2 = format!(
             "{}/src/examples/executables/subdirectory\n",
             PROJECT_DIRECTORY
         );
 
-        let content = engine.get(address2).expect("Content could not be found");
+        let content = engine.get(route2).expect("Content could not be found");
         let rendered = content
             .render(&engine.get_render_context(&mime::TEXT_PLAIN))
-            .expect(&format!("Rendering failed for content at '{}'", address2));
+            .expect(&format!("Rendering failed for content at '{}'", route2));
         assert_eq!(
             rendered,
             expected_output2,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address2,
+            route2,
             expected_output2,
             rendered,
         );
@@ -777,21 +777,21 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
-        let content = engine.get(address).expect("Content could not be found");
+        let route = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
+        let content = engine.get(route).expect("Content could not be found");
 
         let result1 = content.render(&engine.get_render_context(&mime::TEXT_PLAIN)); // Not text/html!
         assert!(
             result1.is_err(),
             "Rendering content at '{}' succeeded when it should have failed",
-            address,
+            route,
         );
 
         let result2 = content.render(&engine.get_render_context(&mime::TEXT_HTML));
         assert!(
             result2.is_ok(),
             "Rendering content at '{}' failed when it should have succeeded",
-            address,
+            route,
         );
     }
 
@@ -803,21 +803,21 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let address = "template";
+        let route = "template";
         let expected_output = format!(
             "this is pwd from subdirectory:\n{}/src/examples/executables/subdirectory\n",
             PROJECT_DIRECTORY
         );
 
-        let content = engine.get(address).expect("Content could not be found");
+        let content = engine.get(route).expect("Content could not be found");
         let rendered = content
             .render(&engine.get_render_context(&mime::TEXT_PLAIN))
-            .expect(&format!("Rendering failed for content at '{}'", address));
+            .expect(&format!("Rendering failed for content at '{}'", route));
         assert_eq!(
             rendered,
             expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            address,
+            route,
             expected_output,
             rendered,
         );
@@ -831,7 +831,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let engine = locked_engine.read().unwrap();
 
-        let addresses = [
+        let routes = [
             "hidden-file",
             ".hidden-file",
             "hidden-directory",
@@ -846,11 +846,11 @@ mod tests {
             ".hidden-directory/.non-hidden-file",
         ];
 
-        for address in addresses.iter() {
+        for route in routes.iter() {
             assert!(
-                engine.get(address).is_none(),
+                engine.get(route).is_none(),
                 "Content was successfully retrieved for hidden item `{}`, but `get` should have returned None",
-                address,
+                route,
             );
         }
     }

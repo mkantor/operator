@@ -7,19 +7,19 @@ use std::sync::{Arc, RwLock};
 
 struct AppData<E: 'static + ContentEngine + Send + Sync> {
     locked_content_engine: Arc<RwLock<E>>,
-    index_address: String,
+    index_route: String,
 }
 
 pub fn run_server<A, E>(
     locked_content_engine: Arc<RwLock<E>>,
-    index_address: &str,
+    index_route: &str,
     socket_address: A,
 ) -> Result<(), io::Error>
 where
     A: 'static + ToSocketAddrs,
     E: 'static + ContentEngine + Send + Sync,
 {
-    let index_address = String::from(index_address);
+    let index_route = String::from(index_route);
 
     log::info!("Initializing HTTP server");
     let mut system = System::new("server");
@@ -28,7 +28,7 @@ where
             App::new()
                 .app_data(AppData {
                     locked_content_engine: locked_content_engine.clone(),
-                    index_address: index_address.clone(),
+                    index_route: index_route.clone(),
                 })
                 .route("/{path:.*}", web::get().to(get::<E>))
         })
@@ -58,12 +58,12 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
-    let address = if path.is_empty() {
-        &app_data.index_address
+    let route = if path.is_empty() {
+        &app_data.index_route
     } else {
         path
     };
-    let result = content_engine.get(address).map(|content| {
+    let result = content_engine.get(route).map(|content| {
         // TODO: Content negotation!
         let render_context = content_engine.get_render_context(&mime::TEXT_HTML);
         content.render(&render_context)
@@ -73,22 +73,19 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
     // site with dynamic state. Maybe make these logs trace level?
     match result {
         Some(Ok(body)) => {
-            log::info!(
-                "Successfully rendered content from address \"/{}\"",
-                address
-            );
+            log::info!("Successfully rendered content from route \"/{}\"", route);
             HttpResponse::Ok()
                 .content_type(mime::TEXT_HTML.essence_str())
                 .body(body)
         }
         Some(Err(error)) => {
-            log::warn!("Failed to render content from address \"/{}\"", address);
+            log::warn!("Failed to render content from route \"/{}\"", route);
             HttpResponse::InternalServerError()
                 .content_type(mime::TEXT_HTML.essence_str())
                 .body(error.to_string())
         }
         None => {
-            log::warn!("No content found at \"/{}\"", address);
+            log::warn!("No content found at \"/{}\"", route);
             HttpResponse::NotFound()
                 .content_type(mime::TEXT_HTML.essence_str())
                 .body("Not found.")

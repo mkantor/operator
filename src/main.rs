@@ -36,14 +36,14 @@ enum SolitonCommand {
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --address=hello --target-media-type=text/plain"
+        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --route=hello --target-media-type=text/plain"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
 
         #[structopt(long)]
-        address: String,
+        route: String,
 
         #[structopt(long)]
         target_media_type: Mime,
@@ -51,14 +51,14 @@ enum SolitonCommand {
 
     /// Serves the content directory over HTTP.
     #[structopt(
-        after_help = "EXAMPLE:\n    mkdir -p site\n    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n    soliton serve --content-directory=site --index-address=home --socket-address=127.0.0.1:8080"
+        after_help = "EXAMPLE:\n    mkdir -p site\n    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n    soliton serve --content-directory=site --index-route=home --socket-address=127.0.0.1:8080"
     )]
     Serve {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
 
         #[structopt(long)]
-        index_address: String,
+        index_route: String,
 
         #[structopt(long)]
         socket_address: SocketAddr,
@@ -111,11 +111,11 @@ fn handle_command<I: io::Read, O: io::Write>(
 
         SolitonCommand::Get {
             content_directory,
-            address,
+            route,
             target_media_type,
         } => cli::get(
             ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
-            &address,
+            &route,
             &target_media_type,
             VERSION,
             output,
@@ -124,11 +124,11 @@ fn handle_command<I: io::Read, O: io::Write>(
 
         SolitonCommand::Serve {
             content_directory,
-            index_address,
+            index_route,
             socket_address,
         } => cli::serve(
             ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
-            &index_address,
+            &index_route,
             socket_address,
             VERSION,
         )
