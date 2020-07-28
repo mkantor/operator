@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_renders_valid_templates() {
+    fn valid_templates_can_be_rendered() {
         for &(template, expected_output) in &VALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_fails_to_render_invalid_templates() {
+    fn invalid_templates_cannot_be_rendered() {
         for &template in &INVALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_can_get_content() {
+    fn content_can_be_retrieved_from_content_directory() {
         let mut output = Vec::new();
         let route = "hello";
         let expected_output = "hello world\n";
@@ -332,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_can_fail_to_get_content_which_does_not_exist() {
+    fn getting_content_which_does_not_exist_is_an_error() {
         let mut output = Vec::new();
         let route = "this-route-does-not-refer-to-any-content";
 
@@ -361,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_provides_target_media_type() {
+    fn target_media_type_is_provided_when_getting_content() {
         let mut output = Vec::new();
         let directory = ContentDirectory::from_root(&example_path("media-types")).unwrap();
         let route = "echo-target-media-type";
