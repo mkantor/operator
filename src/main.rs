@@ -101,7 +101,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             target_media_type,
         } => cli::render(
             ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
-            source_media_type.clone(),
+            source_media_type,
             &target_media_type,
             VERSION,
             input,
