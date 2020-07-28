@@ -64,7 +64,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         path
     };
     let result = content_engine.get(route).map(|content| {
-        // TODO: Content negotation!
+        // TODO: Content negotiation!
         let render_context = content_engine.get_render_context(&mime::TEXT_HTML);
         content.render(&render_context)
     });
