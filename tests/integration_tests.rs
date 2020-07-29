@@ -1,8 +1,13 @@
+use actix_web::client::Client as HttpClient;
+use actix_web::http::StatusCode;
+use actix_web::test::unused_addr;
 use std::env;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time;
 
 const PROJECT_DIRECTORY: &str = env!("CARGO_MANIFEST_DIR");
 
@@ -125,4 +130,53 @@ fn get_subcommand_succeeds() {
         "Executing `{:?}` did not produce the expected output",
         command
     );
+}
+
+#[actix_rt::test]
+async fn serve_subcommand_succeeds() {
+    let server_address = unused_addr();
+
+    let expected_response_body = "hello world\n";
+    let mut command = soliton_command(&[
+        "serve",
+        &format!(
+            "--content-directory={}",
+            &example_path("hello-world").to_str().unwrap()
+        ),
+        &format!("--socket-address={}", server_address),
+        "--index-route=hello",
+    ]);
+    command
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    let mut child = command.spawn().expect("Failed to spawn process");
+
+    let request = HttpClient::new().get(format!("http://{}/", server_address));
+
+    // Give the server a chance to start up before sending the request.
+    thread::sleep(time::Duration::from_millis(100));
+
+    let mut response = request.send().await.expect("Unable to send HTTP request");
+    let response_body = response.body().await.expect("Unable to get response body");
+    let response_content_type = response
+        .headers()
+        .get("content-type")
+        .expect("Response was missing content-type header");
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "Response status was not 200 OK"
+    );
+    assert_eq!(
+        response_content_type, "text/html",
+        "Response content-type was not text/html",
+    );
+    assert_eq!(
+        response_body, expected_response_body,
+        "Response body was incorrect"
+    );
+
+    child.kill().expect("Failed to kill server");
 }
