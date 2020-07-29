@@ -155,7 +155,7 @@ async fn serve_subcommand_succeeds() {
     let request = HttpClient::new().get(format!("http://{}/", server_address));
 
     // Give the server a chance to start up before sending the request.
-    thread::sleep(time::Duration::from_millis(100));
+    thread::sleep(time::Duration::from_millis(200));
 
     let mut response = request.send().await.expect("Unable to send HTTP request");
     let response_body = response.body().await.expect("Unable to get response body");
