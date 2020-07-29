@@ -1,7 +1,16 @@
 use std::env;
 use std::ffi::OsStr;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
+
+const PROJECT_DIRECTORY: &str = env!("CARGO_MANIFEST_DIR");
+
+fn example_path(relative_path: &str) -> PathBuf {
+    [PROJECT_DIRECTORY, "src", "examples", relative_path]
+        .iter()
+        .collect()
+}
 
 fn soliton_command<I, S>(args: I) -> Command
 where
@@ -78,6 +87,37 @@ fn render_subcommand_succeeds() {
         output.status.success(),
         "Executing `{:?}` failed when it should have succeeded",
         command
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("Output was not valid UTF-8"),
+        expected_output,
+        "Executing `{:?}` did not produce the expected output",
+        command
+    );
+}
+
+#[test]
+fn get_subcommand_succeeds() {
+    let expected_output = "hello world\n";
+
+    let mut command = soliton_command(&[
+        "get",
+        &format!(
+            "--content-directory={}",
+            &example_path("hello-world").to_str().unwrap()
+        ),
+        "--route=hello",
+        "--target-media-type=text/html",
+    ]);
+    let output = command.output().expect("Failed to execute process");
+
+    assert!(
+        output.status.success(),
+        "Executing `{:?}` failed when it should have succeeded: {}",
+        command,
+        String::from_utf8(output.stderr).unwrap_or(String::from(
+            "Unable to display error message because stderr was not UTF-8"
+        ))
     );
     assert_eq!(
         String::from_utf8(output.stdout).expect("Output was not valid UTF-8"),
