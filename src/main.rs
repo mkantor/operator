@@ -7,11 +7,12 @@ mod test_lib;
 
 use crate::content_directory::ContentDirectory;
 use crate::lib::*;
+use anyhow::Context;
 use mime::Mime;
 use std::fs;
 use std::io;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use structopt::StructOpt;
 
@@ -100,7 +101,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             source_media_type,
             target_media_type,
         } => cli::render(
-            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
+            get_content_directory(content_directory)?,
             source_media_type,
             &target_media_type,
             VERSION,
@@ -114,7 +115,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             route,
             target_media_type,
         } => cli::get(
-            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
+            get_content_directory(content_directory)?,
             &route,
             &target_media_type,
             VERSION,
@@ -127,11 +128,19 @@ fn handle_command<I: io::Read, O: io::Write>(
             index_route,
             socket_address,
         } => cli::serve(
-            ContentDirectory::from_root(&fs::canonicalize(content_directory)?)?,
+            get_content_directory(content_directory)?,
             &index_route,
             socket_address,
             VERSION,
         )
         .map_err(anyhow::Error::from),
     }
+}
+
+fn get_content_directory<P: AsRef<Path>>(path: P) -> Result<ContentDirectory, anyhow::Error> {
+    let path = path.as_ref();
+    let canonical_path = &fs::canonicalize(path)
+        .with_context(|| format!("Cannot use '{}' as a content directory.", path.display()))?;
+    let content_directory = ContentDirectory::from_root(canonical_path)?;
+    Ok(content_directory)
 }
