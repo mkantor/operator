@@ -674,6 +674,44 @@ mod tests {
     }
 
     #[test]
+    fn source_media_type_of_parent_is_target_media_type_when_there_is_no_parent() {
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+            ContentDirectory::from_root(&example_path("media-types")).unwrap(),
+            VERSION,
+        )
+        .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        // Test both registered an unregistered templates.
+        let test_cases = [
+            (
+                content_engine
+                    .new_template("{{source-media-type-of-parent}}", mime::TEXT_PLAIN)
+                    .expect("Test template was invalid")
+                    .render(content_engine.get_render_context(), &mime::TEXT_PLAIN)
+                    .expect("Failed to render unregistered template"),
+                mime::TEXT_PLAIN.essence_str(),
+            ),
+            (
+                content_engine
+                    .get("echo-source-media-type-of-parent")
+                    .expect("Test template does not exist")
+                    .render(content_engine.get_render_context(), &mime::TEXT_HTML)
+                    .expect("Failed to render registered template"),
+                mime::TEXT_HTML.essence_str(),
+            ),
+        ];
+
+        for (output, expected_output) in test_cases.iter() {
+            assert_eq!(
+                output, expected_output,
+                "Test case did not produce the expected output (\"{}\"), instead got \"{}\"",
+                expected_output, output,
+            );
+        }
+    }
+
+    #[test]
     fn executables_are_given_zero_args() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
         let shared_content_engine =

@@ -359,37 +359,4 @@ mod tests {
             Err(_) => panic!("Wrong type of error was produced, expected ContentNotFound"),
         };
     }
-
-    #[test]
-    fn source_media_type_of_parent_is_target_media_type_when_there_is_no_parent() {
-        let mut output = Vec::new();
-        let directory = ContentDirectory::from_root(&example_path("media-types")).unwrap();
-        let route = "echo-source-media-type-of-parent";
-
-        let media_type = mime::TEXT_HTML;
-
-        let result = get(
-            directory,
-            route,
-            &media_type,
-            SolitonVersion("0.0.0"),
-            &mut output,
-        );
-        assert!(
-            result.is_ok(),
-            "Template rendering failed for content at '{}': {}",
-            route,
-            result.unwrap_err(),
-        );
-
-        let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
-        assert_eq!(
-            output_as_str,
-            media_type.essence_str(),
-            "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            media_type.essence_str(),
-            output_as_str
-        );
-    }
 }
