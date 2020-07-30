@@ -77,7 +77,7 @@ impl StaticContentItem {
 impl Render for StaticContentItem {
     fn render(
         &self,
-        context: RenderContext,
+        _context: RenderContext,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.media_type {
@@ -206,7 +206,7 @@ impl Executable {
 impl Render for Executable {
     fn render(
         &self,
-        context: RenderContext,
+        _context: RenderContext,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.output_media_type {
