@@ -120,7 +120,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         content_engine.get(route).map(|content| {
             // TODO: Content negotiation!
             let render_context = content_engine.get_render_context(target_media_type);
-            content.render(&render_context)
+            content.render(render_context)
         })
     };
 

@@ -20,7 +20,7 @@ const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 pub trait Render {
     fn render<'engine, 'data>(
         &self,
-        context: &RenderContext<'engine, 'data>,
+        context: RenderContext<'engine, 'data>,
     ) -> Result<String, ContentRenderingError>;
 }
 

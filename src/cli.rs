@@ -101,7 +101,7 @@ pub fn render<I: io::Read, O: io::Write>(
 
     let content_item = content_engine.new_template(&template, source_media_type)?;
     let render_context = content_engine.get_render_context(target_media_type);
-    let rendered_output = content_item.render(&render_context)?;
+    let rendered_output = content_item.render(render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
@@ -130,7 +130,7 @@ pub fn get<O: io::Write>(
             route: String::from(route),
         })?;
     let render_context = content_engine.get_render_context(target_media_type);
-    let rendered_output = content_item.render(&render_context)?;
+    let rendered_output = content_item.render(render_context)?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 
