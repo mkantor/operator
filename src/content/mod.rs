@@ -53,6 +53,7 @@ impl<'a> PartialEq<SerializableMediaType<'a>> for Mime {
 }
 
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
+const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-parent";
 
 #[derive(Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -60,6 +61,7 @@ struct RenderData<'a> {
     soliton: SolitonRenderData,
     content: ContentIndex,
     target_media_type: SerializableMediaType<'a>, // Field name must align with TARGET_MEDIA_TYPE_PROPERTY_NAME.
+    source_media_type_of_parent: Option<SerializableMediaType<'a>>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
 }
 
 pub struct RenderContext<'engine, 'data> {

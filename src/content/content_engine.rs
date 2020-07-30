@@ -341,6 +341,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
                 target_media_type: SerializableMediaType {
                     media_type: target_media_type,
                 },
+                source_media_type_of_parent: None,
             },
         }
     }

@@ -15,6 +15,7 @@ impl ContentEngine for MockContentEngine {
                 },
                 content: ContentIndex::Directory(ContentIndexEntries::new()),
                 target_media_type: SerializableMediaType { media_type },
+                source_media_type_of_parent: None,
             },
         }
     }

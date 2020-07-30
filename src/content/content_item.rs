@@ -1,4 +1,4 @@
-use super::{Render, RenderContext, UnregisteredTemplateParseError};
+use super::*;
 use handlebars::{self, Renderable as _};
 use mime::{self, Mime};
 use std::fs;
@@ -115,10 +115,16 @@ impl Render for RegisteredTemplate {
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
+            let render_data = RenderData {
+                source_media_type_of_parent: Some(SerializableMediaType {
+                    media_type: &self.rendered_media_type,
+                }),
+                ..context.data
+            };
             context
                 .content_engine
                 .handlebars_registry()
-                .render(&self.name_in_registry, &context.data)
+                .render(&self.name_in_registry, &render_data)
                 .map_err(ContentRenderingError::from)
         }
     }
@@ -148,7 +154,13 @@ impl Render for UnregisteredTemplate {
                 target_media_type: context.data.target_media_type.media_type.clone(),
             })
         } else {
-            let handlebars_context = handlebars::Context::wraps(&context.data)?;
+            let render_data = RenderData {
+                source_media_type_of_parent: Some(SerializableMediaType {
+                    media_type: &self.rendered_media_type,
+                }),
+                ..context.data
+            };
+            let handlebars_context = handlebars::Context::wraps(&render_data)?;
             let mut handlebars_render_context = handlebars::RenderContext::new(None);
             self.template
                 .renders(
