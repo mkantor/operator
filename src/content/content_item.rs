@@ -75,11 +75,15 @@ impl StaticContentItem {
     }
 }
 impl Render for StaticContentItem {
-    fn render(&self, context: RenderContext) -> Result<String, ContentRenderingError> {
-        if context.data.target_media_type != self.media_type {
+    fn render(
+        &self,
+        context: RenderContext,
+        target_media_type: &Mime,
+    ) -> Result<String, ContentRenderingError> {
+        if target_media_type != &self.media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.media_type.clone(),
-                target_media_type: context.data.target_media_type.media_type.clone(),
+                target_media_type: target_media_type.clone(),
             })
         } else {
             // We clone the file handle and operate on that to avoid taking
@@ -108,11 +112,15 @@ impl RegisteredTemplate {
     }
 }
 impl Render for RegisteredTemplate {
-    fn render(&self, context: RenderContext) -> Result<String, ContentRenderingError> {
-        if context.data.target_media_type != self.rendered_media_type {
+    fn render(
+        &self,
+        context: RenderContext,
+        target_media_type: &Mime,
+    ) -> Result<String, ContentRenderingError> {
+        if target_media_type != &self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
-                target_media_type: context.data.target_media_type.media_type.clone(),
+                target_media_type: target_media_type.clone(),
             })
         } else {
             let render_data = RenderData {
@@ -147,11 +155,15 @@ impl UnregisteredTemplate {
     }
 }
 impl Render for UnregisteredTemplate {
-    fn render(&self, context: RenderContext) -> Result<String, ContentRenderingError> {
-        if context.data.target_media_type != self.rendered_media_type {
+    fn render(
+        &self,
+        context: RenderContext,
+        target_media_type: &Mime,
+    ) -> Result<String, ContentRenderingError> {
+        if target_media_type != &self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
-                target_media_type: context.data.target_media_type.media_type.clone(),
+                target_media_type: target_media_type.clone(),
             })
         } else {
             let render_data = RenderData {
@@ -192,11 +204,15 @@ impl Executable {
     }
 }
 impl Render for Executable {
-    fn render(&self, context: RenderContext) -> Result<String, ContentRenderingError> {
-        if context.data.target_media_type != self.output_media_type {
+    fn render(
+        &self,
+        context: RenderContext,
+        target_media_type: &Mime,
+    ) -> Result<String, ContentRenderingError> {
+        if target_media_type != &self.output_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.output_media_type.clone(),
-                target_media_type: context.data.target_media_type.media_type.clone(),
+                target_media_type: target_media_type.clone(),
             })
         } else {
             let mut command = Command::new(self.program.clone());
@@ -269,7 +285,10 @@ mod tests {
             contents: file,
         };
         let output = static_content
-            .render(MOCK_CONTENT_ENGINE.get_render_context(&static_content.media_type))
+            .render(
+                MOCK_CONTENT_ENGINE.get_render_context(),
+                &static_content.media_type,
+            )
             .expect("Render failed");
 
         assert_eq!(output, String::from("hello world"));
@@ -287,7 +306,7 @@ mod tests {
             contents: file,
         };
         let render_result =
-            static_content.render(MOCK_CONTENT_ENGINE.get_render_context(&target_media_type));
+            static_content.render(MOCK_CONTENT_ENGINE.get_render_context(), &target_media_type);
 
         assert!(render_result.is_err());
     }
@@ -300,7 +319,7 @@ mod tests {
         let executable = Executable::new("pwd", working_directory.clone(), mime::TEXT_PLAIN);
 
         let output = executable
-            .render(MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN))
+            .render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN)
             .expect("Executable failed but it should have succeeded");
         assert_eq!(output, format!("{}\n", working_directory.display()));
     }
@@ -309,7 +328,7 @@ mod tests {
     fn executables_exiting_with_nonzero_are_err() {
         let executable = Executable::new("false", PROJECT_DIRECTORY, mime::TEXT_PLAIN);
 
-        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN));
+        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN);
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"
@@ -321,7 +340,7 @@ mod tests {
         let working_directory = "/hopefully/this/path/does/not/actually/exist/on/your/system";
         let executable = Executable::new("pwd", working_directory, mime::TEXT_PLAIN);
 
-        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(&mime::TEXT_PLAIN));
+        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN);
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"

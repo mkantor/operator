@@ -6,7 +6,7 @@ use mime::Mime;
 
 pub struct MockContentEngine;
 impl ContentEngine for MockContentEngine {
-    fn get_render_context<'a, 'b>(&'a self, media_type: &'b Mime) -> RenderContext<'a, 'b> {
+    fn get_render_context(&self) -> RenderContext {
         RenderContext {
             content_engine: self,
             data: RenderData {
@@ -14,7 +14,6 @@ impl ContentEngine for MockContentEngine {
                     version: SolitonVersion("0.0.0"),
                 },
                 content: ContentIndex::Directory(ContentIndexEntries::new()),
-                target_media_type: SerializableMediaType { media_type },
                 source_media_type_of_parent: None,
             },
         }
