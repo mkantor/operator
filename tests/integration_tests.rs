@@ -152,7 +152,9 @@ async fn serve_subcommand_succeeds() {
         .stderr(Stdio::inherit());
     let mut child = command.spawn().expect("Failed to spawn process");
 
-    let request = HttpClient::new().get(format!("http://{}/", server_address));
+    let request = HttpClient::new()
+        .get(format!("http://{}/", server_address))
+        .header("accept", "text/html;q=0.9, text/plain;q=0.1");
 
     // Give the server a chance to start up before sending the request.
     thread::sleep(time::Duration::from_millis(200));
