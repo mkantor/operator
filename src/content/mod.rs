@@ -2,12 +2,14 @@ mod content_engine;
 mod content_index;
 mod content_item;
 mod handlebars_helpers;
+mod serializable_media_range;
 mod test_lib;
 
 use crate::lib::*;
 use content_index::*;
 use mime::Mime;
-use serde::{Serialize, Serializer};
+use serde::Serialize;
+use serializable_media_range::SerializableMediaRange;
 
 pub use content_engine::{
     ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredTemplateParseError,
@@ -30,29 +32,6 @@ struct SolitonRenderData {
     version: SolitonVersion,
 }
 
-#[derive(PartialEq, Eq)]
-struct SerializableMediaType<'a> {
-    media_type: &'a Mime,
-}
-impl<'a> Serialize for SerializableMediaType<'a> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.media_type.essence_str())
-    }
-}
-impl<'a> PartialEq<Mime> for SerializableMediaType<'a> {
-    fn eq(&self, other: &Mime) -> bool {
-        self.media_type == other
-    }
-}
-impl<'a> PartialEq<SerializableMediaType<'a>> for Mime {
-    fn eq(&self, other: &SerializableMediaType) -> bool {
-        self == other.media_type
-    }
-}
-
 const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-parent";
 
 #[derive(Serialize)]
@@ -60,7 +39,7 @@ const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-pa
 struct RenderData<'a> {
     soliton: SolitonRenderData,
     content: ContentIndex,
-    source_media_type_of_parent: Option<SerializableMediaType<'a>>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
+    source_media_type_of_parent: Option<SerializableMediaRange<'a>>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
 }
 
 pub struct RenderContext<'engine, 'data> {

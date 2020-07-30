@@ -124,9 +124,9 @@ impl Render for RegisteredTemplate {
             })
         } else {
             let render_data = RenderData {
-                source_media_type_of_parent: Some(SerializableMediaType {
-                    media_type: &self.rendered_media_type,
-                }),
+                source_media_type_of_parent: Some(SerializableMediaRange::from(
+                    &self.rendered_media_type,
+                )),
                 ..context.data
             };
             context
@@ -167,9 +167,9 @@ impl Render for UnregisteredTemplate {
             })
         } else {
             let render_data = RenderData {
-                source_media_type_of_parent: Some(SerializableMediaType {
-                    media_type: &self.rendered_media_type,
-                }),
+                source_media_type_of_parent: Some(SerializableMediaRange::from(
+                    &self.rendered_media_type,
+                )),
                 ..context.data
             };
             let handlebars_context = handlebars::Context::wraps(&render_data)?;
