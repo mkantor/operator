@@ -62,21 +62,24 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
-pub trait ContentEngine {
-    fn get_render_context(&self) -> RenderContext;
+pub trait ContentEngine
+where
+    Self: Sized,
+{
+    fn get_render_context(&self) -> RenderContext<Self>;
 
     fn new_template(
         &self,
         template_source: &str,
         media_type: Mime,
-    ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError>;
+    ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError>;
 
-    fn get(&self, route: &str) -> Option<&dyn Render>;
+    fn get(&self, route: &str) -> Option<&RegisteredContent>;
 
     fn handlebars_registry(&self) -> &Handlebars;
 }
 
-enum RegisteredContent {
+pub enum RegisteredContent {
     /// A static (non-template) file.
     StaticContentItem(StaticContentItem),
 
@@ -86,6 +89,20 @@ enum RegisteredContent {
     /// A program that can be executed by the operating system.
     Executable(Executable),
 }
+impl Render for RegisteredContent {
+    fn render<E: ContentEngine>(
+        &self,
+        context: RenderContext<E>,
+        target_media_type: &Mime,
+    ) -> Result<String, ContentRenderingError> {
+        match self {
+            Self::StaticContentItem(renderable) => renderable.render(context, target_media_type),
+            Self::RegisteredTemplate(renderable) => renderable.render(context, target_media_type),
+            Self::Executable(renderable) => renderable.render(context, target_media_type),
+        }
+    }
+}
+
 type ContentRegistry = HashMap<CanonicalRoute, RegisteredContent>;
 
 pub struct FilesystemBasedContentEngine<'engine> {
@@ -330,7 +347,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
 }
 
 impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
-    fn get_render_context(&self) -> RenderContext {
+    fn get_render_context(&self) -> RenderContext<Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
@@ -347,20 +364,12 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
         &self,
         handlebars_source: &str,
         media_type: Mime,
-    ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError> {
-        match UnregisteredTemplate::from_source(handlebars_source, media_type) {
-            Ok(content) => Ok(Box::new(content)),
-            Err(error) => Err(error),
-        }
+    ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
+        UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
 
-    fn get(&self, route: &str) -> Option<&dyn Render> {
-        match self.content_registry.get(&CanonicalRoute::new(route)) {
-            Some(RegisteredContent::StaticContentItem(renderable)) => Some(renderable),
-            Some(RegisteredContent::RegisteredTemplate(renderable)) => Some(renderable),
-            Some(RegisteredContent::Executable(renderable)) => Some(renderable),
-            None => None,
-        }
+    fn get(&self, route: &str) -> Option<&RegisteredContent> {
+        self.content_registry.get(&CanonicalRoute::new(route))
     }
 
     fn handlebars_registry(&self) -> &Handlebars {

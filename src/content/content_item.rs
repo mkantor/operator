@@ -75,9 +75,9 @@ impl StaticContentItem {
     }
 }
 impl Render for StaticContentItem {
-    fn render(
+    fn render<E: ContentEngine>(
         &self,
-        _context: RenderContext,
+        _context: RenderContext<E>,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.media_type {
@@ -112,9 +112,9 @@ impl RegisteredTemplate {
     }
 }
 impl Render for RegisteredTemplate {
-    fn render(
+    fn render<E: ContentEngine>(
         &self,
-        context: RenderContext,
+        context: RenderContext<E>,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.rendered_media_type {
@@ -155,9 +155,9 @@ impl UnregisteredTemplate {
     }
 }
 impl Render for UnregisteredTemplate {
-    fn render(
+    fn render<E: ContentEngine>(
         &self,
-        context: RenderContext,
+        context: RenderContext<E>,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.rendered_media_type {
@@ -204,9 +204,9 @@ impl Executable {
     }
 }
 impl Render for Executable {
-    fn render(
+    fn render<E: ContentEngine>(
         &self,
-        _context: RenderContext,
+        _context: RenderContext<E>,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError> {
         if target_media_type != &self.output_media_type {

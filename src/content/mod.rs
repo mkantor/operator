@@ -12,17 +12,17 @@ use serde::Serialize;
 use serializable_media_range::SerializableMediaRange;
 
 pub use content_engine::{
-    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredTemplateParseError,
-    UnregisteredTemplateParseError,
+    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredContent,
+    RegisteredTemplateParseError, UnregisteredTemplateParseError,
 };
-pub use content_item::ContentRenderingError;
+pub use content_item::{ContentRenderingError, UnregisteredTemplate};
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
 pub trait Render {
-    fn render<'engine, 'data>(
+    fn render<'engine, 'data, E: ContentEngine>(
         &self,
-        context: RenderContext<'engine, 'data>,
+        context: RenderContext<'engine, 'data, E>,
         target_media_type: &Mime,
     ) -> Result<String, ContentRenderingError>;
 }
@@ -42,7 +42,7 @@ struct RenderData<'a> {
     source_media_type_of_parent: Option<SerializableMediaRange<'a>>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
 }
 
-pub struct RenderContext<'engine, 'data> {
-    content_engine: &'engine dyn ContentEngine,
+pub struct RenderContext<'engine, 'data, E: ContentEngine> {
+    content_engine: &'engine E,
     data: RenderData<'data>,
 }

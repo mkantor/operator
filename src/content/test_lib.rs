@@ -6,7 +6,7 @@ use mime::Mime;
 
 pub struct MockContentEngine;
 impl ContentEngine for MockContentEngine {
-    fn get_render_context(&self) -> RenderContext {
+    fn get_render_context(&self) -> RenderContext<Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
@@ -22,10 +22,10 @@ impl ContentEngine for MockContentEngine {
         &self,
         _: &str,
         _: Mime,
-    ) -> Result<Box<dyn Render>, UnregisteredTemplateParseError> {
+    ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
         unimplemented!()
     }
-    fn get(&self, _: &str) -> Option<&dyn Render> {
+    fn get(&self, _: &str) -> Option<&RegisteredContent> {
         unimplemented!()
     }
     fn handlebars_registry(&self) -> &Handlebars {
