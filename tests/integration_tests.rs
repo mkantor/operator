@@ -157,7 +157,9 @@ async fn serve_subcommand_succeeds() {
         .header("accept", "text/html;q=0.9, text/plain;q=0.1");
 
     // Give the server a chance to start up before sending the request.
-    thread::sleep(time::Duration::from_millis(200));
+    // TODO: Would be better to poll by retrying a few times if the connection
+    // is refused.
+    thread::sleep(time::Duration::from_millis(500));
 
     let mut response = request.send().await.expect("Unable to send HTTP request");
     let response_body = response.body().await.expect("Unable to get response body");
