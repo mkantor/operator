@@ -52,13 +52,13 @@ pub enum ContentRenderingError {
     },
 
     #[error(
-        "Unable to satisfy target media type '{}' from source media type '{}'.",
-        .target_media_type,
+        "Unable to satisfy acceptable media ranges {:?} with source media type '{}'.",
+        .acceptable_media_ranges,
         .source_media_type,
     )]
-    MediaTypeError {
+    CannotProvideAcceptableMediaType {
+        acceptable_media_ranges: Vec<Mime>,
         source_media_type: Mime,
-        target_media_type: Mime,
     },
 }
 
@@ -80,13 +80,16 @@ impl Render for StaticContentItem {
         _context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
-            todo!("Content negotiation");
-        });
-        if target_media_type != &self.media_type {
-            Err(ContentRenderingError::MediaTypeError {
+        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
+            ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
                 source_media_type: self.media_type.clone(),
-                target_media_type: target_media_type.clone(),
+            }
+        })?;
+        if target_media_type != &self.media_type {
+            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
+                source_media_type: self.media_type.clone(),
             })
         } else {
             // We clone the file handle and operate on that to avoid taking
@@ -120,13 +123,16 @@ impl Render for RegisteredTemplate {
         context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
-            todo!("Content negotiation");
-        });
-        if target_media_type != &self.rendered_media_type {
-            Err(ContentRenderingError::MediaTypeError {
+        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
+            ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
                 source_media_type: self.rendered_media_type.clone(),
-                target_media_type: target_media_type.clone(),
+            }
+        })?;
+        if target_media_type != &self.rendered_media_type {
+            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
+                source_media_type: self.rendered_media_type.clone(),
             })
         } else {
             let render_data = RenderData {
@@ -166,13 +172,16 @@ impl Render for UnregisteredTemplate {
         context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
-            todo!("Content negotiation");
-        });
-        if target_media_type != &self.rendered_media_type {
-            Err(ContentRenderingError::MediaTypeError {
+        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
+            ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
                 source_media_type: self.rendered_media_type.clone(),
-                target_media_type: target_media_type.clone(),
+            }
+        })?;
+        if target_media_type != &self.rendered_media_type {
+            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
+                source_media_type: self.rendered_media_type.clone(),
             })
         } else {
             let render_data = RenderData {
@@ -218,13 +227,16 @@ impl Render for Executable {
         _context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
-            todo!("Content negotiation");
-        });
-        if target_media_type != &self.output_media_type {
-            Err(ContentRenderingError::MediaTypeError {
+        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
+            ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
                 source_media_type: self.output_media_type.clone(),
-                target_media_type: target_media_type.clone(),
+            }
+        })?;
+        if target_media_type != &self.output_media_type {
+            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
+                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
+                source_media_type: self.output_media_type.clone(),
             })
         } else {
             let mut command = Command::new(self.program.clone());
@@ -288,6 +300,33 @@ mod tests {
     use std::io::Write;
     use tempfile::tempfile;
 
+    enum Renderable {
+        StaticContentItem(StaticContentItem),
+        Executable(Executable),
+        RegisteredTemplate(RegisteredTemplate),
+        UnregisteredTemplate(UnregisteredTemplate),
+    }
+    impl Render for Renderable {
+        fn render<E: ContentEngine>(
+            &self,
+            context: RenderContext<E>,
+            acceptable_media_ranges: &[Mime],
+        ) -> Result<String, ContentRenderingError> {
+            match self {
+                Self::StaticContentItem(renderable) => {
+                    renderable.render(context, acceptable_media_ranges)
+                }
+                Self::Executable(renderable) => renderable.render(context, acceptable_media_ranges),
+                Self::RegisteredTemplate(renderable) => {
+                    renderable.render(context, acceptable_media_ranges)
+                }
+                Self::UnregisteredTemplate(renderable) => {
+                    renderable.render(context, acceptable_media_ranges)
+                }
+            }
+        }
+    }
+
     #[test]
     fn static_content_is_stringified_when_rendered() {
         let mut file = tempfile().expect("Failed to create temporary file");
@@ -298,7 +337,7 @@ mod tests {
         };
         let output = static_content
             .render(
-                MOCK_CONTENT_ENGINE.get_render_context(),
+                MockContentEngine::new().get_render_context(),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Render failed");
@@ -318,11 +357,40 @@ mod tests {
             contents: file,
         };
         let render_result = static_content.render(
-            MOCK_CONTENT_ENGINE.get_render_context(),
+            MockContentEngine::new().get_render_context(),
             &[target_media_type],
         );
 
         assert!(render_result.is_err());
+    }
+
+    #[test]
+    fn rendering_with_empty_acceptable_media_ranges_should_fail() {
+        let mut mock_engine = MockContentEngine::new();
+        mock_engine
+            .register_template("registered-template", "")
+            .unwrap();
+        let empty_file = tempfile().expect("Failed to create temporary file");
+        let renderables = [
+            Renderable::StaticContentItem(StaticContentItem::new(empty_file, mime::TEXT_PLAIN)),
+            Renderable::Executable(Executable::new("true", PROJECT_DIRECTORY, mime::TEXT_PLAIN)),
+            Renderable::RegisteredTemplate(RegisteredTemplate::new(
+                "registered-template",
+                mime::TEXT_PLAIN,
+            )),
+            Renderable::UnregisteredTemplate(
+                UnregisteredTemplate::from_source("", mime::TEXT_PLAIN)
+                    .expect("Failed to create test template"),
+            ),
+        ];
+
+        for renderable in renderables.iter() {
+            let render_result = renderable.render(mock_engine.get_render_context(), &[]);
+            assert!(
+                render_result.is_err(),
+                "Rendering with an empty list of acceptable media types did not fail as expected"
+            )
+        }
     }
 
     #[test]
@@ -334,7 +402,7 @@ mod tests {
 
         let output = executable
             .render(
-                MOCK_CONTENT_ENGINE.get_render_context(),
+                MockContentEngine::new().get_render_context(),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Executable failed but it should have succeeded");
@@ -346,7 +414,7 @@ mod tests {
         let executable = Executable::new("false", PROJECT_DIRECTORY, mime::TEXT_PLAIN);
 
         let result = executable.render(
-            MOCK_CONTENT_ENGINE.get_render_context(),
+            MockContentEngine::new().get_render_context(),
             &[mime::TEXT_PLAIN],
         );
         assert!(
@@ -361,7 +429,7 @@ mod tests {
         let executable = Executable::new("pwd", working_directory, mime::TEXT_PLAIN);
 
         let result = executable.render(
-            MOCK_CONTENT_ENGINE.get_render_context(),
+            MockContentEngine::new().get_render_context(),
             &[mime::TEXT_PLAIN],
         );
         assert!(
