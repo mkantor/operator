@@ -1,5 +1,5 @@
 use super::*;
-use handlebars::{self, Renderable as _};
+use handlebars::{self, Handlebars, Renderable as _};
 use mime::{self, Mime};
 use std::fs;
 use std::io;
@@ -10,6 +10,18 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ContentRenderingError {
+    #[error(transparent)]
+    RenderingFailure(RenderingFailure),
+
+    #[error(
+        "Unable to provide content for any of these media ranges: {}.",
+        media_ranges_to_human_friendly_list(.acceptable_media_ranges).unwrap_or(String::from("none provided")),
+    )]
+    CannotProvideAcceptableMediaType { acceptable_media_ranges: Vec<Mime> },
+}
+
+#[derive(Error, Debug)]
+pub enum RenderingFailure {
     #[error(
         "Rendering failed for template: {}",
         .source
@@ -50,16 +62,6 @@ pub enum ContentRenderingError {
         #[from]
         source: io::Error,
     },
-
-    #[error(
-        "Unable to satisfy acceptable media ranges {:?} with source media type '{}'.",
-        .acceptable_media_ranges,
-        .source_media_type,
-    )]
-    CannotProvideAcceptableMediaType {
-        acceptable_media_ranges: Vec<Mime>,
-        source_media_type: Mime,
-    },
 }
 
 pub struct StaticContentItem {
@@ -73,6 +75,18 @@ impl StaticContentItem {
             media_type,
         }
     }
+
+    fn render_to_native_media_type(&self) -> Result<String, RenderingFailure> {
+        // We clone the file handle and operate on that to avoid taking
+        // self as mut. Note that all clones share a cursor, so seeking
+        // back to the beginning is necessary to ensure we read the
+        // entire file.
+        let mut readable_contents = self.contents.try_clone()?;
+        let mut rendered_content = String::new();
+        readable_contents.seek(SeekFrom::Start(0))?;
+        readable_contents.read_to_string(&mut rendered_content)?;
+        Ok(rendered_content)
+    }
 }
 impl Render for StaticContentItem {
     fn render<E: ContentEngine>(
@@ -80,28 +94,13 @@ impl Render for StaticContentItem {
         _context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
-            ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.media_type.clone(),
+        negotiate_content(acceptable_media_ranges, |target| {
+            if &self.media_type != target {
+                None
+            } else {
+                Some(self.render_to_native_media_type())
             }
-        })?;
-        if target_media_type != &self.media_type {
-            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.media_type.clone(),
-            })
-        } else {
-            // We clone the file handle and operate on that to avoid taking
-            // self as mut. Note that all clones share a cursor, so seeking
-            // back to the beginning is necessary to ensure we read the
-            // entire file.
-            let mut readable_contents = self.contents.try_clone()?;
-            let mut rendered_content = String::new();
-            readable_contents.seek(SeekFrom::Start(0))?;
-            readable_contents.read_to_string(&mut rendered_content)?;
-            Ok(rendered_content)
-        }
+        })
     }
 }
 
@@ -116,6 +115,21 @@ impl RegisteredTemplate {
             rendered_media_type,
         }
     }
+
+    fn render_to_native_media_type(
+        &self,
+        handlebars_registry: &Handlebars,
+        render_data: RenderData,
+    ) -> Result<String, RenderingFailure> {
+        let render_data = RenderData {
+            source_media_type_of_parent: Some(SerializableMediaRange::from(
+                &self.rendered_media_type,
+            )),
+            ..render_data
+        };
+        let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
+        Ok(rendered_content)
+    }
 }
 impl Render for RegisteredTemplate {
     fn render<E: ContentEngine>(
@@ -123,30 +137,16 @@ impl Render for RegisteredTemplate {
         context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
-            ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.rendered_media_type.clone(),
+        negotiate_content(acceptable_media_ranges, |target| {
+            if &self.rendered_media_type != target {
+                None
+            } else {
+                Some(self.render_to_native_media_type(
+                    context.content_engine.handlebars_registry(),
+                    context.data.clone(),
+                ))
             }
-        })?;
-        if target_media_type != &self.rendered_media_type {
-            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.rendered_media_type.clone(),
-            })
-        } else {
-            let render_data = RenderData {
-                source_media_type_of_parent: Some(SerializableMediaRange::from(
-                    &self.rendered_media_type,
-                )),
-                ..context.data
-            };
-            context
-                .content_engine
-                .handlebars_registry()
-                .render(&self.name_in_registry, &render_data)
-                .map_err(ContentRenderingError::from)
-        }
+        })
     }
 }
 
@@ -165,6 +165,27 @@ impl UnregisteredTemplate {
             rendered_media_type,
         })
     }
+
+    fn render_to_native_media_type(
+        &self,
+        handlebars_registry: &Handlebars,
+        render_data: RenderData,
+    ) -> Result<String, RenderingFailure> {
+        let render_data = RenderData {
+            source_media_type_of_parent: Some(SerializableMediaRange::from(
+                &self.rendered_media_type,
+            )),
+            ..render_data
+        };
+        let handlebars_context = handlebars::Context::wraps(&render_data)?;
+        let mut handlebars_render_context = handlebars::RenderContext::new(None);
+        let rendered_content = self.template.renders(
+            handlebars_registry,
+            &handlebars_context,
+            &mut handlebars_render_context,
+        )?;
+        Ok(rendered_content)
+    }
 }
 impl Render for UnregisteredTemplate {
     fn render<E: ContentEngine>(
@@ -172,34 +193,16 @@ impl Render for UnregisteredTemplate {
         context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
-            ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.rendered_media_type.clone(),
-            }
-        })?;
-        if target_media_type != &self.rendered_media_type {
-            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.rendered_media_type.clone(),
-            })
-        } else {
-            let render_data = RenderData {
-                source_media_type_of_parent: Some(SerializableMediaRange::from(
-                    &self.rendered_media_type,
-                )),
-                ..context.data
-            };
-            let handlebars_context = handlebars::Context::wraps(&render_data)?;
-            let mut handlebars_render_context = handlebars::RenderContext::new(None);
-            self.template
-                .renders(
+        negotiate_content(acceptable_media_ranges, |target| {
+            if &self.rendered_media_type != target {
+                None
+            } else {
+                Some(self.render_to_native_media_type(
                     context.content_engine.handlebars_registry(),
-                    &handlebars_context,
-                    &mut handlebars_render_context,
-                )
-                .map_err(ContentRenderingError::from)
-        }
+                    context.data.clone(),
+                ))
+            }
+        })
     }
 }
 
@@ -220,6 +223,56 @@ impl Executable {
             output_media_type,
         }
     }
+
+    fn render_to_native_media_type(&self) -> Result<String, RenderingFailure> {
+        let mut command = Command::new(self.program.clone());
+        command.current_dir(self.working_directory.clone());
+
+        let process::Output {
+            status,
+            stdout,
+            stderr,
+        } = command
+            .output()
+            .map_err(|io_error| RenderingFailure::ExecutableError {
+                message: format!("Unable to execute program: {}", io_error),
+                program: self.program.clone(),
+                working_directory: self.working_directory.clone(),
+            })?;
+
+        if !status.success() {
+            Err(match status.code() {
+                Some(exit_code) => RenderingFailure::ExecutableExitedWithNonzero {
+                    stderr_contents: match String::from_utf8_lossy(&stderr).as_ref() {
+                        "" => None,
+                        message => Some(message.to_string()),
+                    },
+                    program: self.program.clone(),
+                    exit_code,
+                    working_directory: self.working_directory.clone(),
+                },
+                None => RenderingFailure::ExecutableError {
+                    message: String::from(
+                        "Program exited with failure, but its exit code was not available. It may have been killed by a signal."
+                    ),
+                    program: self.program.clone(),
+                    working_directory: self.working_directory.clone(),
+                }
+            })
+        } else {
+            let output = String::from_utf8(stdout).map_err(|utf8_error| {
+                RenderingFailure::ExecutableError {
+                    message: format!(
+                        "Program exited with success, but its output was not valid UTF-8: {}",
+                        utf8_error
+                    ),
+                    program: self.program.clone(),
+                    working_directory: self.working_directory.clone(),
+                }
+            })?;
+            Ok(output)
+        }
+    }
 }
 impl Render for Executable {
     fn render<E: ContentEngine>(
@@ -227,67 +280,63 @@ impl Render for Executable {
         _context: RenderContext<E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
-        let target_media_type = acceptable_media_ranges.first().ok_or_else(|| {
-            ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.output_media_type.clone(),
-            }
-        })?;
-        if target_media_type != &self.output_media_type {
-            Err(ContentRenderingError::CannotProvideAcceptableMediaType {
-                acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-                source_media_type: self.output_media_type.clone(),
-            })
-        } else {
-            let mut command = Command::new(self.program.clone());
-            command.current_dir(self.working_directory.clone());
-
-            let process::Output {
-                status,
-                stdout,
-                stderr,
-            } = command
-                .output()
-                .map_err(|io_error| ContentRenderingError::ExecutableError {
-                    message: format!("Unable to execute program: {}", io_error),
-                    program: self.program.clone(),
-                    working_directory: self.working_directory.clone(),
-                })?;
-
-            if !status.success() {
-                Err(match status.code() {
-                    Some(exit_code) => ContentRenderingError::ExecutableExitedWithNonzero {
-                        stderr_contents: match String::from_utf8_lossy(&stderr).as_ref() {
-                            "" => None,
-                            message => Some(message.to_string()),
-                        },
-                        program: self.program.clone(),
-                        exit_code,
-                        working_directory: self.working_directory.clone(),
-                    },
-                    None => ContentRenderingError::ExecutableError {
-                        message: String::from(
-                            "Program exited with failure, but its exit code was not available. It may have been killed by a signal."
-                        ),
-                        program: self.program.clone(),
-                        working_directory: self.working_directory.clone(),
-                    }
-                })
+        negotiate_content(acceptable_media_ranges, |target| {
+            if &self.output_media_type != target {
+                None
             } else {
-                let output = String::from_utf8(stdout).map_err(|utf8_error| {
-                    ContentRenderingError::ExecutableError {
-                        message: format!(
-                            "Program exited with success, but its output was not valid UTF-8: {}",
-                            utf8_error
-                        ),
-                        program: self.program.clone(),
-                        working_directory: self.working_directory.clone(),
-                    }
-                })?;
-                Ok(output)
+                Some(self.render_to_native_media_type())
             }
-        }
+        })
     }
+}
+
+/// Attempt to render some content into a media type that satisfies one of the
+/// given `acceptable_media_ranges`.
+///
+/// The provided `attempt_render` function may be called multiple times. It
+/// should return `None` if the passed media range cannot be satisfied, or
+/// `Some(Err(_))` if there was another problem. Negotiation will keep trying
+/// media ranges until one can be successfully rendered or all acceptable
+/// ranges are exhausted.
+fn negotiate_content<T, F>(
+    acceptable_media_ranges: &[Mime],
+    attempt_render: F,
+) -> Result<T, ContentRenderingError>
+where
+    F: Fn(&Mime) -> Option<Result<T, RenderingFailure>>,
+{
+    let mut errors = Vec::new();
+    for acceptable_media_range in acceptable_media_ranges {
+        match attempt_render(acceptable_media_range) {
+            Some(Ok(rendered)) => return Ok(rendered),
+            Some(Err(error)) => {
+                log::warn!("Rendering failure: {}", error);
+                errors.push(error)
+            }
+            None => (),
+        };
+    }
+
+    // If there are no errors then we must've gotten all Nones (meaning that
+    // none of the available media types were acceptable). Otherwise, just
+    // use the first error.
+    Err(match errors.into_iter().nth(0) {
+        None => ContentRenderingError::CannotProvideAcceptableMediaType {
+            acceptable_media_ranges: Vec::from(acceptable_media_ranges),
+        },
+        Some(first_error) => ContentRenderingError::RenderingFailure(first_error),
+    })
+}
+
+fn media_ranges_to_human_friendly_list(media_ranges: &[Mime]) -> Option<String> {
+    media_ranges
+        .split_first()
+        .map(|(first_media_range, other_media_ranges)| {
+            other_media_ranges.iter().fold(
+                String::from(first_media_range.essence_str()),
+                |message, media_range| message + ", " + media_range.essence_str(),
+            )
+        })
 }
 
 #[cfg(test)]
@@ -384,11 +433,79 @@ mod tests {
             ),
         ];
 
-        for renderable in renderables.iter() {
+        for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(mock_engine.get_render_context(), &[]);
             assert!(
                 render_result.is_err(),
-                "Rendering with an empty list of acceptable media types did not fail as expected"
+                "Rendering item {} with an empty list of acceptable media types did not fail as expected",
+                index,
+            )
+        }
+    }
+
+    #[test]
+    fn rendering_with_only_unacceptable_media_ranges_should_fail() {
+        let mut mock_engine = MockContentEngine::new();
+        mock_engine
+            .register_template("registered-template", "")
+            .unwrap();
+        let empty_file = tempfile().expect("Failed to create temporary file");
+        let renderables = [
+            Renderable::StaticContentItem(StaticContentItem::new(empty_file, mime::TEXT_PLAIN)),
+            Renderable::Executable(Executable::new("true", PROJECT_DIRECTORY, mime::TEXT_PLAIN)),
+            Renderable::RegisteredTemplate(RegisteredTemplate::new(
+                "registered-template",
+                mime::TEXT_PLAIN,
+            )),
+            Renderable::UnregisteredTemplate(
+                UnregisteredTemplate::from_source("", mime::TEXT_PLAIN)
+                    .expect("Failed to create test template"),
+            ),
+        ];
+
+        for (index, renderable) in renderables.iter().enumerate() {
+            let render_result = renderable.render(
+                mock_engine.get_render_context(),
+                &[mime::IMAGE_GIF, mime::APPLICATION_PDF, mime::TEXT_CSS],
+            );
+            assert!(
+                render_result.is_err(),
+                "Rendering item {} with unacceptable media types did not fail as expected",
+                index,
+            )
+        }
+    }
+
+    #[test]
+    fn rendering_with_acceptable_media_range_that_is_not_most_preferred_should_succeed() {
+        let mut mock_engine = MockContentEngine::new();
+        mock_engine
+            .register_template("registered-template", "")
+            .unwrap();
+        let empty_file = tempfile().expect("Failed to create temporary file");
+        let renderables = [
+            Renderable::StaticContentItem(StaticContentItem::new(empty_file, mime::TEXT_PLAIN)),
+            Renderable::Executable(Executable::new("true", PROJECT_DIRECTORY, mime::TEXT_PLAIN)),
+            Renderable::RegisteredTemplate(RegisteredTemplate::new(
+                "registered-template",
+                mime::TEXT_PLAIN,
+            )),
+            Renderable::UnregisteredTemplate(
+                UnregisteredTemplate::from_source("", mime::TEXT_PLAIN)
+                    .expect("Failed to create test template"),
+            ),
+        ];
+
+        for (index, renderable) in renderables.iter().enumerate() {
+            let render_result = renderable.render(
+                mock_engine.get_render_context(),
+                &[mime::IMAGE_GIF, mime::TEXT_PLAIN, mime::TEXT_CSS],
+            );
+            assert!(
+                render_result.is_ok(),
+                "Rendering item {} with acceptable media type did not succeed as expected: {}",
+                index,
+                render_result.unwrap_err(),
             )
         }
     }

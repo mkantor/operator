@@ -27,14 +27,14 @@ pub trait Render {
     ) -> Result<String, ContentRenderingError>;
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct SolitonRenderData {
     version: SolitonVersion,
 }
 
 const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-parent";
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct RenderData<'a> {
     soliton: SolitonRenderData,

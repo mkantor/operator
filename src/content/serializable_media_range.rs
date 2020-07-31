@@ -1,7 +1,7 @@
 use mime::Mime;
 use serde::{Serialize, Serializer};
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SerializableMediaRange<'a> {
     media_type: &'a Mime,
 }
