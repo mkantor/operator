@@ -78,8 +78,11 @@ impl Render for StaticContentItem {
     fn render<E: ContentEngine>(
         &self,
         _context: RenderContext<E>,
-        target_media_type: &Mime,
+        acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
+        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
+            todo!("Content negotiation");
+        });
         if target_media_type != &self.media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.media_type.clone(),
@@ -115,8 +118,11 @@ impl Render for RegisteredTemplate {
     fn render<E: ContentEngine>(
         &self,
         context: RenderContext<E>,
-        target_media_type: &Mime,
+        acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
+        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
+            todo!("Content negotiation");
+        });
         if target_media_type != &self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
@@ -158,8 +164,11 @@ impl Render for UnregisteredTemplate {
     fn render<E: ContentEngine>(
         &self,
         context: RenderContext<E>,
-        target_media_type: &Mime,
+        acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
+        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
+            todo!("Content negotiation");
+        });
         if target_media_type != &self.rendered_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.rendered_media_type.clone(),
@@ -207,8 +216,11 @@ impl Render for Executable {
     fn render<E: ContentEngine>(
         &self,
         _context: RenderContext<E>,
-        target_media_type: &Mime,
+        acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
+        let target_media_type = acceptable_media_ranges.first().unwrap_or_else(|| {
+            todo!("Content negotiation");
+        });
         if target_media_type != &self.output_media_type {
             Err(ContentRenderingError::MediaTypeError {
                 source_media_type: self.output_media_type.clone(),
@@ -287,7 +299,7 @@ mod tests {
         let output = static_content
             .render(
                 MOCK_CONTENT_ENGINE.get_render_context(),
-                &static_content.media_type,
+                &[mime::TEXT_PLAIN],
             )
             .expect("Render failed");
 
@@ -305,8 +317,10 @@ mod tests {
             media_type: source_media_type,
             contents: file,
         };
-        let render_result =
-            static_content.render(MOCK_CONTENT_ENGINE.get_render_context(), &target_media_type);
+        let render_result = static_content.render(
+            MOCK_CONTENT_ENGINE.get_render_context(),
+            &[target_media_type],
+        );
 
         assert!(render_result.is_err());
     }
@@ -319,7 +333,10 @@ mod tests {
         let executable = Executable::new("pwd", working_directory.clone(), mime::TEXT_PLAIN);
 
         let output = executable
-            .render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN)
+            .render(
+                MOCK_CONTENT_ENGINE.get_render_context(),
+                &[mime::TEXT_PLAIN],
+            )
             .expect("Executable failed but it should have succeeded");
         assert_eq!(output, format!("{}\n", working_directory.display()));
     }
@@ -328,7 +345,10 @@ mod tests {
     fn executables_exiting_with_nonzero_are_err() {
         let executable = Executable::new("false", PROJECT_DIRECTORY, mime::TEXT_PLAIN);
 
-        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN);
+        let result = executable.render(
+            MOCK_CONTENT_ENGINE.get_render_context(),
+            &[mime::TEXT_PLAIN],
+        );
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"
@@ -340,7 +360,10 @@ mod tests {
         let working_directory = "/hopefully/this/path/does/not/actually/exist/on/your/system";
         let executable = Executable::new("pwd", working_directory, mime::TEXT_PLAIN);
 
-        let result = executable.render(MOCK_CONTENT_ENGINE.get_render_context(), &mime::TEXT_PLAIN);
+        let result = executable.render(
+            MOCK_CONTENT_ENGINE.get_render_context(),
+            &[mime::TEXT_PLAIN],
+        );
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"

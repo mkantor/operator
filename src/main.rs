@@ -103,7 +103,7 @@ fn handle_command<I: io::Read, O: io::Write>(
         } => cli::render(
             get_content_directory(content_directory)?,
             source_media_type,
-            &target_media_type,
+            target_media_type,
             VERSION,
             input,
             output,
@@ -117,7 +117,7 @@ fn handle_command<I: io::Read, O: io::Write>(
         } => cli::get(
             get_content_directory(content_directory)?,
             &route,
-            &target_media_type,
+            target_media_type,
             VERSION,
             output,
         )

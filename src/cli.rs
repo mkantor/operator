@@ -83,7 +83,7 @@ pub enum ServeCommandError {
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
     source_media_type: Mime,
-    target_media_type: &Mime,
+    target_media_type: Mime,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -101,7 +101,7 @@ pub fn render<I: io::Read, O: io::Write>(
 
     let content_item = content_engine.new_template(&template, source_media_type)?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, target_media_type)?;
+    let rendered_output = content_item.render(render_context, &[target_media_type])?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
@@ -114,7 +114,7 @@ pub fn render<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &str,
-    target_media_type: &Mime,
+    target_media_type: Mime,
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
@@ -130,7 +130,7 @@ pub fn get<O: io::Write>(
             route: String::from(route),
         })?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, target_media_type)?;
+    let rendered_output = content_item.render(render_context, &[target_media_type])?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 
@@ -191,7 +191,7 @@ mod tests {
                 let result = get(
                     consumable_content_directory,
                     route,
-                    &target_media_type,
+                    target_media_type,
                     SolitonVersion("0.0.0"),
                     &mut output,
                 );
@@ -252,7 +252,7 @@ mod tests {
             let result = render(
                 directory,
                 mime::TEXT_HTML,
-                &mime::TEXT_HTML,
+                mime::TEXT_HTML,
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,
@@ -285,7 +285,7 @@ mod tests {
             let result = render(
                 directory,
                 mime::TEXT_HTML,
-                &mime::TEXT_HTML,
+                mime::TEXT_HTML,
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,
@@ -309,7 +309,7 @@ mod tests {
         let result = get(
             directory,
             route,
-            &mime::TEXT_HTML,
+            mime::TEXT_HTML,
             SolitonVersion("0.0.0"),
             &mut output,
         );
@@ -340,7 +340,7 @@ mod tests {
         let result = get(
             directory,
             route,
-            &mime::TEXT_HTML,
+            mime::TEXT_HTML,
             SolitonVersion("0.0.0"),
             &mut output,
         );

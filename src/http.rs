@@ -98,19 +98,6 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         })
     });
 
-    // FIXME: For now only the most-preferred type is considered. Full content
-    // negotiation is still a work in progress.
-    let preferred_media = parsed_accept_header_value
-        .first()
-        .map(|quality_item| &quality_item.item)
-        .unwrap_or(&mime::STAR_STAR);
-
-    let target_media_type = if is_media_range(preferred_media) {
-        todo!("Support media ranges");
-    } else {
-        preferred_media
-    };
-
     let render_result = {
         let content_engine = app_data
             .shared_content_engine
@@ -118,9 +105,15 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             .expect("RwLock for ContentEngine has been poisoned");
 
         content_engine.get(route).map(|content| {
-            // TODO: Content negotiation!
             let render_context = content_engine.get_render_context();
-            content.render(render_context, target_media_type)
+
+            // TODO: See if I can remove this `clone` and `collect` as I get
+            // further along. Can probably make Render trait more generic.
+            let acceptable_media_ranges = parsed_accept_header_value
+                .iter()
+                .map(|quality_item| quality_item.item.clone())
+                .collect::<Vec<Mime>>();
+            content.render(render_context, &acceptable_media_ranges)
         })
     };
 
@@ -129,8 +122,10 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
     match render_result {
         Some(Ok(body)) => {
             log::info!("Successfully rendered content from route \"/{}\"", route);
+            // FIXME: Need to make `.render()` return the resulting media type.
+            let hardcoded_placeholder_content_type = mime::TEXT_HTML;
             HttpResponse::Ok()
-                .content_type(target_media_type.essence_str())
+                .content_type(hardcoded_placeholder_content_type.essence_str())
                 .body(body)
         }
         Some(Err(error)) => {
@@ -146,8 +141,4 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 .body("Not found.")
         }
     }
-}
-
-fn is_media_range(mime: &Mime) -> bool {
-    mime.type_() == "*" || mime.subtype() == "*"
 }

@@ -23,7 +23,7 @@ pub trait Render {
     fn render<'engine, 'data, E: ContentEngine>(
         &self,
         context: RenderContext<'engine, 'data, E>,
-        target_media_type: &Mime,
+        acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError>;
 }
 
