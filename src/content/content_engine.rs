@@ -78,6 +78,14 @@ where
     fn handlebars_registry(&self) -> &Handlebars;
 }
 
+#[derive(Clone, Hash, Eq, PartialEq, Serialize)]
+pub struct CanonicalRoute(pub String);
+impl CanonicalRoute {
+    pub fn new<C: AsRef<str>>(canonical_route: C) -> Self {
+        CanonicalRoute(String::from(canonical_route.as_ref()))
+    }
+}
+
 pub struct FilesystemBasedContentEngine<'engine> {
     soliton_version: SolitonVersion,
     index: ContentIndex,

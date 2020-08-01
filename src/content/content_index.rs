@@ -1,3 +1,4 @@
+use super::content_engine::CanonicalRoute;
 use crate::content_directory::ContentFile;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -10,19 +11,36 @@ pub struct ContentIndexUpdateError {
     message: String,
 }
 
+/// A hierarchial tree mapping out content in the registry. Does not actually
+/// contain content items, just their routes.
+///
+/// For example, given the following content directory:
+///
+/// ```text
+/// content/
+///   foo.txt
+///   bar.html
+///   bar/
+///     plugh.md.hbs
+///     baz/
+///       quux.gif
+/// ```
+///
+/// The content index would be:
+///
+/// ```yaml
+/// foo: foo
+/// bar: bar
+/// bar/:
+///   plugh: bar/plugh
+///   baz/:
+///     quux: bar/baz/quux
+/// ```
 #[derive(Clone, Serialize)]
 #[serde(untagged)]
 pub enum ContentIndex {
     File(CanonicalRoute),
     Directory(ContentIndexEntries),
-}
-
-#[derive(Clone, Hash, Eq, PartialEq, Serialize)]
-pub struct CanonicalRoute(String);
-impl CanonicalRoute {
-    pub fn new<C: AsRef<str>>(canonical_route: C) -> Self {
-        CanonicalRoute(String::from(canonical_route.as_ref()))
-    }
 }
 
 #[derive(Clone, Serialize)]
@@ -98,5 +116,33 @@ impl ContentIndexEntries {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn index_has_the_correct_structure() {
+        let mut index = ContentIndexEntries::new();
+        index.try_add("foo").unwrap();
+        index.try_add("bar").unwrap();
+        index.try_add("bar/plugh").unwrap();
+        index.try_add("bar/baz/quux").unwrap();
+
+        let actual_json = serde_json::to_value(index).unwrap();
+        let expected_json = json!({
+            "foo": "foo",
+            "bar": "bar",
+            "bar/": {
+              "plugh": "bar/plugh",
+              "baz/": {
+                "quux": "bar/baz/quux"
+              }
+            }
+        });
+        assert_eq!(actual_json, expected_json);
     }
 }

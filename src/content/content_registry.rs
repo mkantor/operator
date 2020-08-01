@@ -1,3 +1,4 @@
+use super::content_engine::CanonicalRoute;
 use super::content_item::*;
 use super::*;
 use std::collections::HashMap;
