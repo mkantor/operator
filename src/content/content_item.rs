@@ -78,7 +78,7 @@ impl StaticContentItem {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<String, RenderingFailure> {
+    fn render_to_native_media_type(&self) -> Result<Media, RenderingFailure> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
@@ -87,7 +87,7 @@ impl StaticContentItem {
         let mut rendered_content = String::new();
         readable_contents.seek(SeekFrom::Start(0))?;
         readable_contents.read_to_string(&mut rendered_content)?;
-        Ok(rendered_content)
+        Ok(Media::new(self.media_type.clone(), rendered_content))
     }
 }
 impl Render for StaticContentItem {
@@ -95,7 +95,7 @@ impl Render for StaticContentItem {
         &self,
         _context: RenderContext<E>,
         acceptable_media_ranges: &[MediaRange],
-    ) -> Result<String, ContentRenderingError> {
+    ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.media_type.is_within_media_range(target) {
                 None
@@ -123,13 +123,16 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData,
-    ) -> Result<String, RenderingFailure> {
+    ) -> Result<Media, RenderingFailure> {
         let render_data = RenderData {
             source_media_type_of_parent: Some(self.rendered_media_type.clone()),
             ..render_data
         };
         let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
-        Ok(rendered_content)
+        Ok(Media::new(
+            self.rendered_media_type.clone(),
+            rendered_content,
+        ))
     }
 }
 impl Render for RegisteredTemplate {
@@ -137,7 +140,7 @@ impl Render for RegisteredTemplate {
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: &[MediaRange],
-    ) -> Result<String, ContentRenderingError> {
+    ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
                 None
@@ -172,7 +175,7 @@ impl UnregisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData,
-    ) -> Result<String, RenderingFailure> {
+    ) -> Result<Media, RenderingFailure> {
         let render_data = RenderData {
             source_media_type_of_parent: Some(self.rendered_media_type.clone()),
             ..render_data
@@ -184,7 +187,10 @@ impl UnregisteredTemplate {
             &handlebars_context,
             &mut handlebars_render_context,
         )?;
-        Ok(rendered_content)
+        Ok(Media::new(
+            self.rendered_media_type.clone(),
+            rendered_content,
+        ))
     }
 }
 impl Render for UnregisteredTemplate {
@@ -192,7 +198,7 @@ impl Render for UnregisteredTemplate {
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: &[MediaRange],
-    ) -> Result<String, ContentRenderingError> {
+    ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
                 None
@@ -232,7 +238,7 @@ impl Executable {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<String, RenderingFailure> {
+    fn render_to_native_media_type(&self) -> Result<Media, RenderingFailure> {
         let mut command = Command::new(self.program.clone());
         command.current_dir(self.working_directory.clone());
 
@@ -278,7 +284,7 @@ impl Executable {
                     working_directory: self.working_directory.clone(),
                 }
             })?;
-            Ok(output)
+            Ok(Media::new(self.output_media_type.clone(), output))
         }
     }
 }
@@ -287,7 +293,7 @@ impl Render for Executable {
         &self,
         _context: RenderContext<E>,
         acceptable_media_ranges: &[MediaRange],
-    ) -> Result<String, ContentRenderingError> {
+    ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.output_media_type.is_within_media_range(target) {
                 None
@@ -369,7 +375,7 @@ mod tests {
             &self,
             context: RenderContext<E>,
             acceptable_media_ranges: &[MediaRange],
-        ) -> Result<String, ContentRenderingError> {
+        ) -> Result<Media, ContentRenderingError> {
             match self {
                 Self::StaticContentItem(renderable) => {
                     renderable.render(context, acceptable_media_ranges)
@@ -433,7 +439,7 @@ mod tests {
             )
             .expect("Render failed");
 
-        assert_eq!(output, String::from("hello world"));
+        assert_eq!(output.content, String::from("hello world"));
     }
 
     #[test]
@@ -496,7 +502,7 @@ mod tests {
                 render_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
                 index,
-                render_result.unwrap_err(),
+                render_result.err().unwrap(),
             )
         }
     }
@@ -518,7 +524,7 @@ mod tests {
                 &[mime::TEXT_PLAIN],
             )
             .expect("Executable failed but it should have succeeded");
-        assert_eq!(output, format!("{}\n", working_directory.display()));
+        assert_eq!(output.content, format!("{}\n", working_directory.display()));
     }
 
     #[test]

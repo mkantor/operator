@@ -1,5 +1,6 @@
 use mime::Mime;
 use serde::{Serialize, Serializer};
+use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -48,12 +49,18 @@ impl FromStr for MediaType {
     }
 }
 
+impl fmt::Display for MediaType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        MediaRange::fmt(&self.0, formatter)
+    }
+}
+
 impl Serialize for MediaType {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.0.essence_str())
+        serializer.serialize_str(&self.to_string())
     }
 }
 

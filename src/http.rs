@@ -119,18 +119,19 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
     // FIXME: Is logging response status problematic? It could leak info on a
     // site with dynamic state. Maybe make these logs trace level?
     match render_result {
-        Some(Ok(body)) => {
+        Some(Ok(Media {
+            content,
+            media_type,
+        })) => {
             log::info!("Successfully rendered content from route \"/{}\"", route);
-            // FIXME: Need to make `.render()` return the resulting media type.
-            let hardcoded_placeholder_content_type = mime::TEXT_HTML;
             HttpResponse::Ok()
-                .content_type(hardcoded_placeholder_content_type.essence_str())
-                .body(body)
+                .content_type(media_type.to_string())
+                .body(content)
         }
         Some(Err(error @ ContentRenderingError::CannotProvideAcceptableMediaType { .. })) => {
             log::warn!("Cannot provide acceptable media: {}", error);
             HttpResponse::NotAcceptable()
-                .content_type(mime::TEXT_PLAIN.essence_str())
+                .content_type("text/plain")
                 .body("Cannot provide an acceptable response.")
         }
         Some(Err(error)) => {
@@ -140,13 +141,13 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 error
             );
             HttpResponse::InternalServerError()
-                .content_type(mime::TEXT_PLAIN.essence_str())
+                .content_type("text/plain")
                 .body("Unable to fulfill request.")
         }
         None => {
             log::warn!("No content found at \"/{}\"", route);
             HttpResponse::NotFound()
-                .content_type(mime::TEXT_PLAIN.essence_str())
+                .content_type("text/plain")
                 .body("Not found.")
         }
     }

@@ -89,7 +89,7 @@ impl Render for RegisteredContent {
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: &[MediaRange],
-    ) -> Result<String, ContentRenderingError> {
+    ) -> Result<Media, ContentRenderingError> {
         match self {
             Self::StaticContentItem(renderable) => {
                 renderable.render(context, acceptable_media_ranges)
@@ -468,12 +468,12 @@ mod tests {
                 .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
                 .expect(&format!("Template rendering failed for `{}`", template,));
             assert_eq!(
-                rendered,
+                rendered.content,
                 expected_output,
                 "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
                 template,
                 expected_output,
-                rendered,
+                rendered.content,
             );
         }
     }
@@ -523,12 +523,12 @@ mod tests {
             .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
-            rendered,
+            rendered.content,
             expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
             template,
             expected_output,
-            rendered,
+            rendered.content,
         );
     }
 
@@ -553,12 +553,12 @@ mod tests {
                 route
             ));
         assert_eq!(
-            rendered,
+            rendered.content,
             expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
             route,
             expected_output,
-            rendered,
+            rendered.content,
         );
     }
 
@@ -600,12 +600,12 @@ mod tests {
             .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
             .expect(&format!("Template rendering failed for `{}`", template));
         assert_eq!(
-            rendered,
+            rendered.content,
             expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
             template,
             expected_output,
-            rendered,
+            rendered.content,
         );
     }
 
@@ -740,7 +740,8 @@ mod tests {
                     )
                     .expect("Test template was invalid")
                     .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
-                    .expect("Failed to render unregistered template"),
+                    .expect("Failed to render unregistered template")
+                    .content,
                 mime::TEXT_PLAIN.essence_str(),
             ),
             (
@@ -748,7 +749,8 @@ mod tests {
                     .get("echo-source-media-type-of-parent")
                     .expect("Test template does not exist")
                     .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
-                    .expect("Failed to render registered template"),
+                    .expect("Failed to render registered template")
+                    .content,
                 mime::TEXT_HTML.essence_str(),
             ),
         ];
@@ -778,7 +780,8 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
-            .expect(&format!("Rendering failed for content at '{}'", route));
+            .expect(&format!("Rendering failed for content at '{}'", route))
+            .content;
         assert_eq!(
             rendered,
             expected_output,
@@ -805,7 +808,8 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
-            .expect(&format!("Rendering failed for content at '{}'", route1));
+            .expect(&format!("Rendering failed for content at '{}'", route1))
+            .content;
         assert_eq!(
             rendered,
             expected_output1,
@@ -826,7 +830,8 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
-            .expect(&format!("Rendering failed for content at '{}'", route2));
+            .expect(&format!("Rendering failed for content at '{}'", route2))
+            .content;
         assert_eq!(
             rendered,
             expected_output2,
@@ -884,7 +889,8 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
-            .expect(&format!("Rendering failed for content at '{}'", route));
+            .expect(&format!("Rendering failed for content at '{}'", route))
+            .content;
         assert_eq!(
             rendered,
             expected_output,
