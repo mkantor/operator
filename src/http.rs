@@ -114,8 +114,6 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         })
     };
 
-    // FIXME: Is logging response status problematic? It could leak info on a
-    // site with dynamic state. Maybe make these logs trace level?
     match render_result {
         Some(Ok(Media {
             content,
