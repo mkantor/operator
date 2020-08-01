@@ -53,8 +53,6 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .get("path")
         .expect("Failed to match request path!");
 
-    log::info!("Getting content for \"/{}\"", path);
-
     let route = if path.is_empty() {
         &app_data.index_route
     } else {
@@ -75,6 +73,16 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 .body("Malformed accept header value.");
         }
     };
+
+    if parsed_accept_header_value.is_empty() {
+        log::info!("Getting content for /{}", path);
+    } else {
+        log::info!(
+            "Getting content for /{} with accept: {}",
+            path,
+            parsed_accept_header_value
+        );
+    }
 
     // Sort in order of descending quality (so the client's most-preferred
     // representation is first).
