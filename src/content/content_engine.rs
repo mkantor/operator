@@ -1,12 +1,12 @@
 use super::content_index::*;
 use super::content_item::*;
+use super::content_registry::*;
 use super::handlebars_helpers::*;
 use super::*;
 use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
-use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -77,32 +77,6 @@ where
 
     fn handlebars_registry(&self) -> &Handlebars;
 }
-
-/// A renderable item from the content directory.
-pub enum RegisteredContent {
-    StaticContentItem(StaticContentItem),
-    RegisteredTemplate(RegisteredTemplate),
-    Executable(Executable),
-}
-impl Render for RegisteredContent {
-    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
-        &self,
-        context: RenderContext<E>,
-        acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
-        match self {
-            Self::StaticContentItem(renderable) => {
-                renderable.render(context, acceptable_media_ranges)
-            }
-            Self::RegisteredTemplate(renderable) => {
-                renderable.render(context, acceptable_media_ranges)
-            }
-            Self::Executable(renderable) => renderable.render(context, acceptable_media_ranges),
-        }
-    }
-}
-
-type ContentRegistry = HashMap<CanonicalRoute, RegisteredContent>;
 
 pub struct FilesystemBasedContentEngine<'engine> {
     soliton_version: SolitonVersion,

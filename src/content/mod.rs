@@ -1,6 +1,7 @@
 mod content_engine;
 mod content_index;
 mod content_item;
+mod content_registry;
 mod handlebars_helpers;
 mod mime;
 mod test_lib;
@@ -12,10 +13,11 @@ use std::fmt;
 
 pub use self::mime::{MediaRange, MediaType};
 pub use content_engine::{
-    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredContent,
-    RegisteredTemplateParseError, UnregisteredTemplateParseError,
+    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredTemplateParseError,
+    UnregisteredTemplateParseError,
 };
 pub use content_item::{ContentRenderingError, UnregisteredTemplate};
+pub use content_registry::RegisteredContent;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
