@@ -44,13 +44,13 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
         })?;
 
         let target_media_type = handlebars_context.data().as_object()
-            .and_then(|object| object.get(SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME))
+            .and_then(|object| object.get(TARGET_MEDIA_TYPE_PROPERTY_NAME))
             .and_then(|value| value.as_str())
             .and_then(|media_type_essence| media_type_essence.parse::<MediaType>().ok())
             .ok_or_else(|| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because a valid target media type could not be found in the handlebars context. The context JSON must contain a top-level property named \"{}\" whose value is a valid media type essence string. The current context is `{}`.",
-                    SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME,
+                    TARGET_MEDIA_TYPE_PROPERTY_NAME,
                     handlebars_context.data()
                 ))
             })?;

@@ -26,7 +26,7 @@ impl<'a> ContentEngine for MockContentEngine<'a> {
                     version: SolitonVersion("0.0.0"),
                 },
                 content: ContentIndex::Directory(ContentIndexEntries::new()),
-                source_media_type_of_parent: None,
+                target_media_type: None,
             },
         }
     }

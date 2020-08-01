@@ -357,7 +357,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
                     version: self.soliton_version,
                 },
                 content: self.index.clone(),
-                source_media_type_of_parent: None,
+                target_media_type: None,
             },
         }
     }
@@ -717,7 +717,7 @@ mod tests {
             (
                 content_engine
                     .new_template(
-                        "{{source-media-type-of-parent}}",
+                        "{{target-media-type}}",
                         MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
                     )
                     .expect("Test template was invalid")
@@ -728,7 +728,7 @@ mod tests {
             ),
             (
                 content_engine
-                    .get("echo-source-media-type-of-parent")
+                    .get("echo-target-media-type")
                     .expect("Test template does not exist")
                     .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
                     .expect("Failed to render registered template")

@@ -120,7 +120,7 @@ impl RegisteredTemplate {
         render_data: RenderData,
     ) -> Result<Media, RenderingFailure> {
         let render_data = RenderData {
-            source_media_type_of_parent: Some(self.rendered_media_type.clone()),
+            target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
         };
         let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
@@ -172,7 +172,7 @@ impl UnregisteredTemplate {
         render_data: RenderData,
     ) -> Result<Media, RenderingFailure> {
         let render_data = RenderData {
-            source_media_type_of_parent: Some(self.rendered_media_type.clone()),
+            target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
         };
         let handlebars_context = handlebars::Context::wraps(&render_data)?;

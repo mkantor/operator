@@ -57,14 +57,14 @@ struct SolitonRenderData {
     version: SolitonVersion,
 }
 
-const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-parent";
+const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct RenderData {
     soliton: SolitonRenderData,
     content: ContentIndex,
-    source_media_type_of_parent: Option<MediaType>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
+    target_media_type: Option<MediaType>, // Field name must align with TARGET_MEDIA_TYPE_PROPERTY_NAME.
 }
 
 pub struct RenderContext<'engine, E: ContentEngine> {
