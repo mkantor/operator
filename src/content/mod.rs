@@ -1,3 +1,4 @@
+mod content_directory;
 mod content_engine;
 mod content_index;
 mod content_item;
@@ -12,6 +13,7 @@ use serde::Serialize;
 use std::fmt;
 
 pub use self::mime::{MediaRange, MediaType};
+pub use content_directory::ContentDirectory;
 pub use content_engine::{
     ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredTemplateParseError,
     UnregisteredTemplateParseError,

@@ -1,12 +1,10 @@
 mod cli;
 mod content;
-mod content_directory;
 mod http;
 mod lib;
 mod test_lib;
 
-use crate::content::{MediaRange, MediaType};
-use crate::content_directory::ContentDirectory;
+use crate::content::{ContentDirectory, MediaRange, MediaType};
 use crate::lib::*;
 use anyhow::Context;
 use std::fs;

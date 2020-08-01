@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::content_directory::ContentDirectory;
+use crate::content::ContentDirectory;
 use std::path::PathBuf;
 
 pub use crate::lib::*;

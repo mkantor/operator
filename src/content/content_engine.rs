@@ -1,9 +1,9 @@
+use super::content_directory::{ContentDirectory, ContentFile};
 use super::content_index::*;
 use super::content_item::*;
 use super::content_registry::*;
 use super::handlebars_helpers::*;
 use super::*;
-use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
