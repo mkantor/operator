@@ -154,7 +154,10 @@ async fn serve_subcommand_succeeds() {
 
     let request = HttpClient::new()
         .get(format!("http://{}/", server_address))
-        .header("accept", "text/html;q=0.9, text/plain;q=0.1");
+        .header(
+            "accept",
+            "application/msword, text/html;q=0.9, text/plain;q=0.1",
+        );
 
     // Give the server a chance to start up before sending the request.
     // TODO: Would be better to poll by retrying a few times if the connection
