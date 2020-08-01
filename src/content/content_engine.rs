@@ -79,14 +79,10 @@ where
     fn handlebars_registry(&self) -> &Handlebars;
 }
 
+/// A renderable item from the content directory.
 pub enum RegisteredContent {
-    /// A static (non-template) file.
     StaticContentItem(StaticContentItem),
-
-    /// A named template that exists in the registry.
     RegisteredTemplate(RegisteredTemplate),
-
-    /// A program that can be executed by the operating system.
     Executable(Executable),
 }
 impl Render for RegisteredContent {

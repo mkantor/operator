@@ -64,6 +64,7 @@ pub enum RenderingFailure {
     },
 }
 
+/// A static file from the content directory (such as an image or a text file).
 pub struct StaticContentItem {
     contents: fs::File,
     media_type: Mime,
@@ -104,6 +105,7 @@ impl Render for StaticContentItem {
     }
 }
 
+/// A handlebars template that came from the content directory.
 pub struct RegisteredTemplate {
     name_in_registry: String,
     rendered_media_type: Mime,
@@ -150,6 +152,7 @@ impl Render for RegisteredTemplate {
     }
 }
 
+/// An anonymous handlebars template that is not from the content directory.
 pub struct UnregisteredTemplate {
     template: handlebars::Template,
     rendered_media_type: Mime,
@@ -206,6 +209,14 @@ impl Render for UnregisteredTemplate {
     }
 }
 
+/// A program that can be run by the operating system, e.g. a shell script.
+///
+/// If the executed program terminates with a nonzero exit code, rendering
+/// output is the contents of standard output. Otherwise a rendering failure
+/// occurs.
+///
+/// Currently the render context is not accessible from the program. A future
+/// version could provide it via environment variables or some other mechanism.
 pub struct Executable {
     program: String,
     working_directory: PathBuf,
