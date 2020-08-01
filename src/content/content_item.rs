@@ -486,7 +486,13 @@ mod tests {
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
                 index,
                 render_result.err().unwrap(),
-            )
+            );
+            assert!(
+                render_result.unwrap().media_type
+                    == MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+                "Rendering item {} did not produce expected media type",
+                index,
+            );
         }
     }
 
