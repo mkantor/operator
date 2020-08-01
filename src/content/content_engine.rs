@@ -85,10 +85,10 @@ pub enum RegisteredContent {
     Executable(Executable),
 }
 impl Render for RegisteredContent {
-    fn render<E: ContentEngine>(
+    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
-        acceptable_media_ranges: &[MediaRange],
+        acceptable_media_ranges: A,
     ) -> Result<Media, ContentRenderingError> {
         match self {
             Self::StaticContentItem(renderable) => {

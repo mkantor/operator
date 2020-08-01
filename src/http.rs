@@ -105,14 +105,12 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
 
         content_engine.get(route).map(|content| {
             let render_context = content_engine.get_render_context();
-
-            // TODO: See if I can remove this `clone` and `collect` as I get
-            // further along. Can probably make Render trait more generic.
-            let acceptable_media_ranges = parsed_accept_header_value
-                .iter()
-                .map(|quality_item| quality_item.item.clone())
-                .collect::<Vec<MediaRange>>();
-            content.render(render_context, &acceptable_media_ranges)
+            content.render(
+                render_context,
+                parsed_accept_header_value
+                    .iter()
+                    .map(|quality_item| &quality_item.item),
+            )
         })
     };
 

@@ -12,13 +12,8 @@ pub enum ContentRenderingError {
     #[error(transparent)]
     RenderingFailure(RenderingFailure),
 
-    #[error(
-        "Unable to provide content for any of these media ranges: {}.",
-        media_ranges_to_human_friendly_list(.acceptable_media_ranges).unwrap_or(String::from("none provided")),
-    )]
-    CannotProvideAcceptableMediaType {
-        acceptable_media_ranges: Vec<MediaRange>,
-    },
+    #[error("Unable to provide an acceptable media type.")]
+    CannotProvideAcceptableMediaType,
 }
 
 #[derive(Error, Debug)]
@@ -91,10 +86,10 @@ impl StaticContentItem {
     }
 }
 impl Render for StaticContentItem {
-    fn render<E: ContentEngine>(
+    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         _context: RenderContext<E>,
-        acceptable_media_ranges: &[MediaRange],
+        acceptable_media_ranges: A,
     ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.media_type.is_within_media_range(target) {
@@ -136,10 +131,10 @@ impl RegisteredTemplate {
     }
 }
 impl Render for RegisteredTemplate {
-    fn render<E: ContentEngine>(
+    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
-        acceptable_media_ranges: &[MediaRange],
+        acceptable_media_ranges: A,
     ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
@@ -194,10 +189,10 @@ impl UnregisteredTemplate {
     }
 }
 impl Render for UnregisteredTemplate {
-    fn render<E: ContentEngine>(
+    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
-        acceptable_media_ranges: &[MediaRange],
+        acceptable_media_ranges: A,
     ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
@@ -289,10 +284,10 @@ impl Executable {
     }
 }
 impl Render for Executable {
-    fn render<E: ContentEngine>(
+    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         _context: RenderContext<E>,
-        acceptable_media_ranges: &[MediaRange],
+        acceptable_media_ranges: A,
     ) -> Result<Media, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.output_media_type.is_within_media_range(target) {
@@ -312,12 +307,13 @@ impl Render for Executable {
 /// `Some(Err(_))` if there was another problem. Negotiation will keep trying
 /// media ranges until one can be successfully rendered or all acceptable
 /// ranges are exhausted.
-fn negotiate_content<T, F>(
-    acceptable_media_ranges: &[MediaRange],
+fn negotiate_content<'a, T, F, A>(
+    acceptable_media_ranges: A,
     attempt_render: F,
 ) -> Result<T, ContentRenderingError>
 where
     F: Fn(&MediaRange) -> Option<Result<T, RenderingFailure>>,
+    A: IntoIterator<Item = &'a MediaRange>,
 {
     let mut errors = Vec::new();
     for acceptable_media_range in acceptable_media_ranges {
@@ -335,22 +331,9 @@ where
     // none of the available media types were acceptable). Otherwise, just
     // use the first error.
     Err(match errors.into_iter().nth(0) {
-        None => ContentRenderingError::CannotProvideAcceptableMediaType {
-            acceptable_media_ranges: Vec::from(acceptable_media_ranges),
-        },
+        None => ContentRenderingError::CannotProvideAcceptableMediaType,
         Some(first_error) => ContentRenderingError::RenderingFailure(first_error),
     })
-}
-
-fn media_ranges_to_human_friendly_list(media_ranges: &[MediaRange]) -> Option<String> {
-    media_ranges
-        .split_first()
-        .map(|(first_media_range, other_media_ranges)| {
-            other_media_ranges.iter().fold(
-                String::from(first_media_range.essence_str()),
-                |message, media_range| message + ", " + media_range.essence_str(),
-            )
-        })
 }
 
 #[cfg(test)]
@@ -371,10 +354,10 @@ mod tests {
         UnregisteredTemplate(UnregisteredTemplate),
     }
     impl Render for Renderable {
-        fn render<E: ContentEngine>(
+        fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
             &self,
             context: RenderContext<E>,
-            acceptable_media_ranges: &[MediaRange],
+            acceptable_media_ranges: A,
         ) -> Result<Media, ContentRenderingError> {
             match self {
                 Self::StaticContentItem(renderable) => {

@@ -38,11 +38,14 @@ impl fmt::Display for Media {
 }
 
 pub trait Render {
-    fn render<'engine, E: ContentEngine>(
+    fn render<'engine, 'accept, E, A>(
         &self,
         context: RenderContext<'engine, E>,
-        acceptable_media_ranges: &[MediaRange],
-    ) -> Result<Media, ContentRenderingError>;
+        acceptable_media_ranges: A,
+    ) -> Result<Media, ContentRenderingError>
+    where
+        E: ContentEngine,
+        A: IntoIterator<Item = &'accept MediaRange>;
 }
 
 #[derive(Clone, Serialize)]
