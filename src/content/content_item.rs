@@ -125,7 +125,7 @@ impl RegisteredTemplate {
     ) -> Result<String, RenderingFailure> {
         let render_data = RenderData {
             source_media_type_of_parent: Some(SerializableMediaRange::from(
-                &self.rendered_media_type,
+                self.rendered_media_type.clone(),
             )),
             ..render_data
         };
@@ -176,7 +176,7 @@ impl UnregisteredTemplate {
     ) -> Result<String, RenderingFailure> {
         let render_data = RenderData {
             source_media_type_of_parent: Some(SerializableMediaRange::from(
-                &self.rendered_media_type,
+                self.rendered_media_type.clone(),
             )),
             ..render_data
         };

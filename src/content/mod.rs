@@ -20,9 +20,9 @@ pub use content_item::{ContentRenderingError, UnregisteredTemplate};
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
 pub trait Render {
-    fn render<'engine, 'data, E: ContentEngine>(
+    fn render<'engine, E: ContentEngine>(
         &self,
-        context: RenderContext<'engine, 'data, E>,
+        context: RenderContext<'engine, E>,
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError>;
 }
@@ -36,13 +36,13 @@ const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-pa
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct RenderData<'a> {
+struct RenderData {
     soliton: SolitonRenderData,
     content: ContentIndex,
-    source_media_type_of_parent: Option<SerializableMediaRange<'a>>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
+    source_media_type_of_parent: Option<SerializableMediaRange>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
 }
 
-pub struct RenderContext<'engine, 'data, E: ContentEngine> {
+pub struct RenderContext<'engine, E: ContentEngine> {
     content_engine: &'engine E,
-    data: RenderData<'data>,
+    data: RenderData,
 }

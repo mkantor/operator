@@ -2,17 +2,17 @@ use mime::Mime;
 use serde::{Serialize, Serializer};
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct SerializableMediaRange<'a> {
-    media_type: &'a Mime,
+pub struct SerializableMediaRange {
+    media_type: Mime,
 }
 
-impl<'a> From<&'a Mime> for SerializableMediaRange<'a> {
-    fn from(media_type: &'a Mime) -> Self {
+impl From<Mime> for SerializableMediaRange {
+    fn from(media_type: Mime) -> Self {
         SerializableMediaRange { media_type }
     }
 }
 
-impl<'a> Serialize for SerializableMediaRange<'a> {
+impl Serialize for SerializableMediaRange {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -21,14 +21,14 @@ impl<'a> Serialize for SerializableMediaRange<'a> {
     }
 }
 
-impl<'a> PartialEq<Mime> for SerializableMediaRange<'a> {
+impl PartialEq<Mime> for SerializableMediaRange {
     fn eq(&self, other: &Mime) -> bool {
-        self.media_type == other
+        &self.media_type == other
     }
 }
 
-impl<'a> PartialEq<SerializableMediaRange<'a>> for Mime {
+impl PartialEq<SerializableMediaRange> for Mime {
     fn eq(&self, other: &SerializableMediaRange) -> bool {
-        self == other.media_type
+        self == &other.media_type
     }
 }
