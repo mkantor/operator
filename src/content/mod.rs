@@ -2,15 +2,14 @@ mod content_engine;
 mod content_index;
 mod content_item;
 mod handlebars_helpers;
-mod serializable_media_range;
+mod mime;
 mod test_lib;
 
 use crate::lib::*;
 use content_index::*;
-use mime::Mime;
 use serde::Serialize;
-use serializable_media_range::SerializableMediaRange;
 
+pub use self::mime::{MediaRange, MediaType};
 pub use content_engine::{
     ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, RegisteredContent,
     RegisteredTemplateParseError, UnregisteredTemplateParseError,
@@ -23,7 +22,7 @@ pub trait Render {
     fn render<'engine, E: ContentEngine>(
         &self,
         context: RenderContext<'engine, E>,
-        acceptable_media_ranges: &[Mime],
+        acceptable_media_ranges: &[MediaRange],
     ) -> Result<String, ContentRenderingError>;
 }
 
@@ -39,7 +38,7 @@ const SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME: &str = "source-media-type-of-pa
 struct RenderData {
     soliton: SolitonRenderData,
     content: ContentIndex,
-    source_media_type_of_parent: Option<SerializableMediaRange>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
+    source_media_type_of_parent: Option<MediaType>, // Field name must align with SOURCE_MEDIA_TYPE_OF_PARENT_PROPERTY_NAME.
 }
 
 pub struct RenderContext<'engine, E: ContentEngine> {

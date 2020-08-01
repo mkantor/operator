@@ -2,7 +2,6 @@ use crate::content::*;
 use crate::content_directory::ContentDirectory;
 use crate::http;
 use crate::lib::*;
-use mime::Mime;
 use std::io;
 use std::net::ToSocketAddrs;
 use thiserror::Error;
@@ -82,8 +81,7 @@ pub enum ServeCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
-    source_media_type: Mime,
-    target_media_type: Mime,
+    media_type: MediaType,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -99,9 +97,9 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let content_item = content_engine.new_template(&template, source_media_type)?;
+    let content_item = content_engine.new_template(&template, media_type.clone())?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, &[target_media_type])?;
+    let rendered_output = content_item.render(render_context, &[media_type.as_media_range()])?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
@@ -114,7 +112,7 @@ pub fn render<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &str,
-    target_media_type: Mime,
+    accept: MediaRange,
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
@@ -130,7 +128,7 @@ pub fn get<O: io::Write>(
             route: String::from(route),
         })?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, &[target_media_type])?;
+    let rendered_output = content_item.render(render_context, &[accept])?;
     write!(output, "{}", rendered_output)
         .map_err(|source| GetCommandError::WriteError { source })?;
 
@@ -251,8 +249,7 @@ mod tests {
             let directory = arbitrary_content_directory_with_valid_content();
             let result = render(
                 directory,
-                mime::TEXT_HTML,
-                mime::TEXT_HTML,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,
@@ -284,8 +281,7 @@ mod tests {
             let directory = arbitrary_content_directory_with_valid_content();
             let result = render(
                 directory,
-                mime::TEXT_HTML,
-                mime::TEXT_HTML,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
                 SolitonVersion("0.0.0"),
                 &mut input,
                 &mut output,

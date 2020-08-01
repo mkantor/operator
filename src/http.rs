@@ -2,7 +2,6 @@ use crate::content::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
-use mime::Mime;
 use std::cmp::Ordering;
 use std::io;
 use std::net::ToSocketAddrs;
@@ -112,7 +111,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             let acceptable_media_ranges = parsed_accept_header_value
                 .iter()
                 .map(|quality_item| quality_item.item.clone())
-                .collect::<Vec<Mime>>();
+                .collect::<Vec<MediaRange>>();
             content.render(render_context, &acceptable_media_ranges)
         })
     };

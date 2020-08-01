@@ -5,10 +5,10 @@ mod http;
 mod lib;
 mod test_lib;
 
+use crate::content::{MediaRange, MediaType};
 use crate::content_directory::ContentDirectory;
 use crate::lib::*;
 use anyhow::Context;
-use mime::Mime;
 use std::fs;
 use std::io;
 use std::net::SocketAddr;
@@ -22,22 +22,19 @@ const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 enum SolitonCommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null --source-media-type=text/plain --target-media-type=text/plain"
+        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null --media-type=text/plain"
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
 
         #[structopt(long)]
-        source_media_type: Mime,
-
-        #[structopt(long)]
-        target_media_type: Mime,
+        media_type: MediaType,
     },
 
     /// Gets content from the content directory.
     #[structopt(
-        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --route=hello --target-media-type=text/plain"
+        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --route=hello --accept=text/*"
     )]
     Get {
         #[structopt(long, parse(from_os_str))]
@@ -47,7 +44,7 @@ enum SolitonCommand {
         route: String,
 
         #[structopt(long)]
-        target_media_type: Mime,
+        accept: MediaRange,
     },
 
     /// Serves the content directory over HTTP.
@@ -98,12 +95,10 @@ fn handle_command<I: io::Read, O: io::Write>(
     match command {
         SolitonCommand::Render {
             content_directory,
-            source_media_type,
-            target_media_type,
+            media_type,
         } => cli::render(
             get_content_directory(content_directory)?,
-            source_media_type,
-            target_media_type,
+            media_type,
             VERSION,
             input,
             output,
@@ -113,11 +108,11 @@ fn handle_command<I: io::Read, O: io::Write>(
         SolitonCommand::Get {
             content_directory,
             route,
-            target_media_type,
+            accept,
         } => cli::get(
             get_content_directory(content_directory)?,
             &route,
-            target_media_type,
+            accept,
             VERSION,
             output,
         )

@@ -2,7 +2,6 @@
 
 use crate::content::*;
 use handlebars::Handlebars;
-use mime::Mime;
 
 pub struct MockContentEngine<'a>(Handlebars<'a>);
 impl<'a> MockContentEngine<'a> {
@@ -34,7 +33,7 @@ impl<'a> ContentEngine for MockContentEngine<'a> {
     fn new_template(
         &self,
         _: &str,
-        _: Mime,
+        _: MediaType,
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
         unimplemented!("a")
     }

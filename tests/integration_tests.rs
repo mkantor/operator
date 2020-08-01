@@ -72,8 +72,7 @@ fn render_subcommand_succeeds() {
     let mut command = soliton_command(&[
         "render",
         "--content-directory=/dev/null",
-        "--source-media-type=text/plain",
-        "--target-media-type=text/plain",
+        "--media-type=text/plain",
     ]);
     command
         .stdin(Stdio::piped())
@@ -112,7 +111,7 @@ fn get_subcommand_succeeds() {
             &example_path("hello-world").to_str().unwrap()
         ),
         "--route=hello",
-        "--target-media-type=text/html",
+        "--accept=text/*",
     ]);
     let output = command.output().expect("Failed to execute process");
 

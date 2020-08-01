@@ -5,7 +5,6 @@ use super::*;
 use crate::content_directory::{ContentDirectory, ContentFile};
 use crate::lib::*;
 use handlebars::{self, Handlebars};
-use mime::{self, Mime};
 use mime_guess::MimeGuess;
 use std::collections::HashMap;
 use std::io;
@@ -71,7 +70,7 @@ where
     fn new_template(
         &self,
         template_source: &str,
-        media_type: Mime,
+        media_type: MediaType,
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError>;
 
     fn get(&self, route: &str) -> Option<&RegisteredContent>;
@@ -89,7 +88,7 @@ impl Render for RegisteredContent {
     fn render<E: ContentEngine>(
         &self,
         context: RenderContext<E>,
-        acceptable_media_ranges: &[Mime],
+        acceptable_media_ranges: &[MediaRange],
     ) -> Result<String, ContentRenderingError> {
         match self {
             Self::StaticContentItem(renderable) => {
@@ -166,7 +165,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
 
                     let canonical_route =
                         CanonicalRoute::new(entry.relative_path_without_extensions());
-                    let media_type =
+                    let mime =
                         MimeGuess::from_ext(single_extension)
                             .first()
                             .ok_or_else(|| ContentLoadingError::UnknownFileType {
@@ -176,6 +175,11 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                                     single_extension,
                                 ),
                             })?;
+                    let media_type = MediaType::from_media_range(mime).ok_or_else(|| {
+                        ContentLoadingError::Bug {
+                            message: String::from("Mime guess was not a concrete media type!"),
+                        }
+                    })?;
                     let content_item = RegisteredContent::StaticContentItem(
                         StaticContentItem::new(entry.file_contents(), media_type),
                     );
@@ -210,7 +214,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                             let canonical_route =
                                 CanonicalRoute::new(entry.relative_path_without_extensions());
 
-                            let media_type = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
+                            let mime = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
                                 ContentLoadingError::UnknownFileType {
                                     message: format!(
                                         "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
@@ -219,6 +223,14 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                                     ),
                                 }
                             })?;
+                            let media_type =
+                                MediaType::from_media_range(mime).ok_or_else(|| {
+                                    ContentLoadingError::Bug {
+                                        message: String::from(
+                                            "Mime guess was not a concrete media type!",
+                                        ),
+                                    }
+                                })?;
                             let mut contents = entry.file_contents();
 
                             handlebars_registry
@@ -264,7 +276,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
 
                             let canonical_route =
                                 CanonicalRoute::new(entry.relative_path_without_extensions());
-                            let media_type =
+                            let mime =
                                 MimeGuess::from_ext(first_extension)
                                     .first()
                                     .ok_or_else(|| ContentLoadingError::UnknownFileType {
@@ -274,6 +286,14 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                                             first_extension,
                                         ),
                                     })?;
+                            let media_type =
+                                MediaType::from_media_range(mime).ok_or_else(|| {
+                                    ContentLoadingError::Bug {
+                                        message: String::from(
+                                            "Mime guess was not a concrete media type!",
+                                        ),
+                                    }
+                                })?;
 
                             // The working directory for the executable is the
                             // immediate parent directory it resides in (which
@@ -363,7 +383,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
     fn new_template(
         &self,
         handlebars_source: &str,
-        media_type: Mime,
+        media_type: MediaType,
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
@@ -381,6 +401,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
 mod tests {
     use super::*;
     use crate::test_lib::*;
+    use ::mime;
 
     const VERSION: SolitonVersion = SolitonVersion("0.0.0");
 
@@ -438,7 +459,10 @@ mod tests {
 
         for &(template, expected_output) in &VALID_TEMPLATES {
             let renderable = content_engine
-                .new_template(template, mime::TEXT_HTML)
+                .new_template(
+                    template,
+                    MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+                )
                 .expect("Template could not be parsed");
             let rendered = renderable
                 .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
@@ -464,7 +488,10 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         for &template in &INVALID_TEMPLATES {
-            let result = content_engine.new_template(template, mime::TEXT_HTML);
+            let result = content_engine.new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            );
 
             assert!(
                 result.is_err(),
@@ -487,7 +514,10 @@ mod tests {
             "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
         let renderable = content_engine
-            .new_template(template, mime::TEXT_HTML)
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
             .expect("Template could not be parsed");
         let rendered = renderable
             .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
@@ -561,7 +591,10 @@ mod tests {
         let expected_output = "i got stuff: b\n";
 
         let renderable = content_engine
-            .new_template(template, mime::TEXT_HTML)
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
             .expect("Template could not be parsed");
         let rendered = renderable
             .render(content_engine.get_render_context(), &[mime::TEXT_HTML])
@@ -594,7 +627,10 @@ mod tests {
 
         for template in templates.iter() {
             let renderable = content_engine
-                .new_template(template, mime::TEXT_HTML)
+                .new_template(
+                    template,
+                    MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+                )
                 .expect("Template could not be parsed");
             let result = renderable.render(content_engine.get_render_context(), &[mime::TEXT_HTML]);
             assert!(
@@ -642,7 +678,10 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let template = content_engine
-            .new_template("<p>hi</p>", mime::TEXT_HTML)
+            .new_template(
+                "<p>hi</p>",
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
             .expect("Template could not be created");
         let result = template.render(content_engine.get_render_context(), &[mime::TEXT_PLAIN]);
 
@@ -691,11 +730,14 @@ mod tests {
         .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        // Test both registered an unregistered templates.
+        // Test both registered and unregistered templates.
         let test_cases = [
             (
                 content_engine
-                    .new_template("{{source-media-type-of-parent}}", mime::TEXT_PLAIN)
+                    .new_template(
+                        "{{source-media-type-of-parent}}",
+                        MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+                    )
                     .expect("Test template was invalid")
                     .render(content_engine.get_render_context(), &[mime::TEXT_PLAIN])
                     .expect("Failed to render unregistered template"),
