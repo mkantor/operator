@@ -96,7 +96,7 @@ impl Render for StaticContentItem {
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
-            if &self.media_type != target {
+            if !media_type_is_within_range(&self.media_type, target) {
                 None
             } else {
                 Some(self.render_to_native_media_type())
@@ -140,7 +140,7 @@ impl Render for RegisteredTemplate {
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
-            if &self.rendered_media_type != target {
+            if !media_type_is_within_range(&self.rendered_media_type, target) {
                 None
             } else {
                 Some(self.render_to_native_media_type(
@@ -197,7 +197,7 @@ impl Render for UnregisteredTemplate {
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
-            if &self.rendered_media_type != target {
+            if !media_type_is_within_range(&self.rendered_media_type, target) {
                 None
             } else {
                 Some(self.render_to_native_media_type(
@@ -292,7 +292,7 @@ impl Render for Executable {
         acceptable_media_ranges: &[Mime],
     ) -> Result<String, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
-            if &self.output_media_type != target {
+            if !media_type_is_within_range(&self.output_media_type, target) {
                 None
             } else {
                 Some(self.render_to_native_media_type())
@@ -337,6 +337,16 @@ where
         },
         Some(first_error) => ContentRenderingError::RenderingFailure(first_error),
     })
+}
+
+fn media_type_is_within_range(media_type: &Mime, media_range: &Mime) -> bool {
+    if media_range == &mime::STAR_STAR {
+        true
+    } else if media_range.subtype() == "*" {
+        media_type.type_() == media_range.type_()
+    } else {
+        media_type == media_range
+    }
 }
 
 fn media_ranges_to_human_friendly_list(media_ranges: &[Mime]) -> Option<String> {

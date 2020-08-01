@@ -156,7 +156,7 @@ async fn serve_subcommand_succeeds() {
         .get(format!("http://{}/", server_address))
         .header(
             "accept",
-            "application/msword, text/html;q=0.9, text/plain;q=0.1",
+            "application/msword, text/*;q=0.9, image/gif;q=0.1",
         );
 
     // Give the server a chance to start up before sending the request.
