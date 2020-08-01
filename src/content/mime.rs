@@ -27,7 +27,7 @@ impl MediaType {
         }
     }
 
-    pub fn as_media_range(self) -> MediaRange {
+    pub fn into_media_range(self) -> MediaRange {
         self.0
     }
 }

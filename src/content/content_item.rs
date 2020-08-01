@@ -330,7 +330,7 @@ where
     // If there are no errors then we must've gotten all Nones (meaning that
     // none of the available media types were acceptable). Otherwise, just
     // use the first error.
-    Err(match errors.into_iter().nth(0) {
+    Err(match errors.into_iter().next() {
         None => ContentRenderingError::CannotProvideAcceptableMediaType,
         Some(first_error) => ContentRenderingError::RenderingFailure(first_error),
     })

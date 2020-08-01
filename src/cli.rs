@@ -98,7 +98,7 @@ pub fn render<I: io::Read, O: io::Write>(
 
     let content_item = content_engine.new_template(&template, media_type.clone())?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, &[media_type.as_media_range()])?;
+    let rendered_output = content_item.render(render_context, &[media_type.into_media_range()])?;
     write!(output, "{}", rendered_output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
 
