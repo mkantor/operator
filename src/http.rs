@@ -2,6 +2,7 @@ use crate::content::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use mime_guess::MimeGuess;
 use std::cmp::Ordering;
 use std::io;
 use std::net::ToSocketAddrs;
@@ -53,10 +54,32 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .get("path")
         .expect("Failed to match request path!");
 
-    let route = if path.is_empty() {
-        &app_data.index_route
+    let (route, media_range_from_url) = if path.is_empty() {
+        // Default to the index route.
+        (app_data.index_route.as_str(), None)
     } else {
-        path
+        // If the path has an extension which maps to a media range, use it as
+        // the most-acceptable media range (give it a higher quality value than
+        // everything in the accept header).
+        //
+        // This somewhat-unusual feature exists because there is not a great
+        // way to link to particular representations of resources on the web
+        // without putting something in the URL, and it's awfully convenient
+        // for mere humans to be able to do this (compare "to get my resume in
+        // PDF format, visit http://mysite.com/resume.pdf" to "...first install
+        // this browser extension that lets you customize HTTP headers, then
+        // set the accept header to application/pdf, then visit
+        // http://mysite.com/resume").
+        let media_range_from_url = MimeGuess::from_path(path).first();
+        let route = if media_range_from_url.is_some() {
+            // Drop the extension from the path.
+            path.rsplitn(2, '.').last().expect(
+                "Calling rsplitn(2, ..) on a non-empty string returned an empty iterator. This should be impossible!"
+            )
+        } else {
+            path
+        };
+        (route, media_range_from_url)
     };
 
     let mut parsed_accept_header_value = match header::Accept::parse(&request) {
@@ -105,6 +128,12 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         })
     });
 
+    let acceptable_media_ranges = media_range_from_url.iter().chain(
+        parsed_accept_header_value
+            .iter()
+            .map(|quality_item| &quality_item.item),
+    );
+
     let render_result = {
         let content_engine = app_data
             .shared_content_engine
@@ -113,12 +142,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
 
         content_engine.get(route).map(|content| {
             let render_context = content_engine.get_render_context();
-            content.render(
-                render_context,
-                parsed_accept_header_value
-                    .iter()
-                    .map(|quality_item| &quality_item.item),
-            )
+            content.render(render_context, acceptable_media_ranges)
         })
     };
 
@@ -154,5 +178,208 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 .content_type("text/plain")
                 .body("Not found.")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_lib::*;
+    use actix_web::body::Body;
+    use actix_web::http::StatusCode;
+    use actix_web::test::TestRequest;
+    use std::path::Path;
+
+    fn test_request(content_directory_path: &Path, url_path: &'static str) -> TestRequest {
+        let directory = ContentDirectory::from_root(&content_directory_path).unwrap();
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+            directory,
+            SolitonVersion("0.0.0"),
+        )
+        .expect("Content engine could not be created");
+
+        TestRequest::default()
+            .app_data(AppData {
+                shared_content_engine: shared_content_engine,
+                index_route: String::new(),
+            })
+            .param("path", url_path)
+    }
+
+    #[actix_rt::test]
+    async fn content_may_be_not_found() {
+        let request =
+            test_request(&example_path("empty"), "nothing/exists/at/this/path").to_http_request();
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_rt::test]
+    async fn content_can_be_retrieved_with_exact_media_type() {
+        let request = test_request(&example_path("hello-world"), "hello")
+            .header("accept", "text/html")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"hello world\n"),
+            "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn content_can_be_retrieved_with_media_range() {
+        let request = test_request(&example_path("hello-world"), "hello")
+            .header("accept", "text/*")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"hello world\n"),
+            "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn content_can_be_retrieved_with_star_star_media_range() {
+        let request = test_request(&example_path("hello-world"), "hello")
+            .header("accept", "*/*")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"hello world\n"),
+            "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn content_can_be_retrieved_with_elaborate_accept_header() {
+        let request = test_request(&example_path("hello-world"), "hello")
+            .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"hello world\n"),
+            "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn content_cannot_be_retrieved_if_no_acceptable_media_type() {
+        let request = test_request(&example_path("hello-world"), "hello")
+            .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_ACCEPTABLE,
+            "Response status was not 406 Not Acceptable"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn extension_on_url_adds_acceptable_media_type() {
+        // Note .html extension on URL path, but no text/html (nor any other
+        // workable media range) in the accept header.
+        let request = test_request(&example_path("hello-world"), "hello.html")
+            .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
     }
 }
