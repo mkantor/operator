@@ -725,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn source_media_type_of_parent_is_target_media_type_when_there_is_no_parent() {
+    fn target_media_type_is_correct_for_templates_rendered_directly() {
         let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
             ContentDirectory::from_root(&example_path("media-types")).unwrap(),
             VERSION,
