@@ -30,7 +30,7 @@ enum SolitonCommand {
         media_type: MediaType,
     },
 
-    /// Gets content from the content directory.
+    /// Renders a file from the content directory.
     #[structopt(
         after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --route=hello --accept=text/*"
     )]
