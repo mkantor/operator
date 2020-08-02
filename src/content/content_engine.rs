@@ -103,7 +103,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
             .filter(|entry| !entry.is_hidden());
 
         let (routes, content_registry, handlebars_registry) =
-            Self::create_registries(content_item_entries)?;
+            Self::set_up_registries(content_item_entries)?;
 
         let content_engine = FilesystemBasedContentEngine {
             soliton_version,
@@ -124,207 +124,29 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         Ok(shared_content_engine)
     }
 
-    fn create_registries<'a, E: IntoIterator<Item = ContentFile>>(
+    fn set_up_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
     ) -> Result<(ContentIndexEntries, ContentRegistry, Handlebars<'a>), ContentLoadingError> {
         let mut routes = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         let mut content_registry = ContentRegistry::new();
         for entry in content_item_entries {
-            match entry.extensions() {
-                [single_extension] => {
-                    if entry.is_executable() {
-                        return Err(ContentLoadingError::ContentFileNameError {
-                            message: format!(
-                                "The content file '{}' is executable, but only has one extension ('{}'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
-                                entry.relative_path(),
-                                single_extension,
-                            ),
-                        });
-                    }
-
-                    routes.try_add(entry.relative_path_without_extensions())?;
-
-                    let canonical_route =
-                        CanonicalRoute::new(entry.relative_path_without_extensions());
-                    let mime =
-                        MimeGuess::from_ext(single_extension)
-                            .first()
-                            .ok_or_else(|| ContentLoadingError::UnknownFileType {
-                                message: format!(
-                                    "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
-                                    entry.relative_path(),
-                                    single_extension,
-                                ),
-                            })?;
-                    let media_type = MediaType::from_media_range(mime).ok_or_else(|| {
-                        ContentLoadingError::Bug {
-                            message: String::from("Mime guess was not a concrete media type!"),
-                        }
-                    })?;
-                    let content_item = RegisteredContent::StaticContentItem(
-                        StaticContentItem::new(entry.file_contents(), media_type),
-                    );
-                    let was_duplicate = content_registry
-                        .insert(canonical_route, content_item)
-                        .is_some();
-                    if was_duplicate {
-                        return Err(ContentLoadingError::Bug {
-                            message: String::from(
-                                "There were two or more content files with the same route.",
-                            ),
-                        });
-                    }
-                }
-
-                [first_extension, second_extension] => {
-                    match [first_extension.as_str(), second_extension.as_str()] {
-                        [first_extension, HANDLEBARS_FILE_EXTENSION] => {
-                            if entry.is_executable() {
-                                return Err(ContentLoadingError::ContentFileNameError {
-                                    message: format!(
-                                        "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), but it is also executable. It must be one or the other.",
-                                        entry.relative_path(),
-                                        HANDLEBARS_FILE_EXTENSION,
-                                    ),
-                                });
-                            }
-                            routes.try_add(entry.relative_path_without_extensions())?;
-
-                            let route_string =
-                                String::from(entry.relative_path_without_extensions());
-                            let canonical_route =
-                                CanonicalRoute::new(entry.relative_path_without_extensions());
-
-                            let mime = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
-                                ContentLoadingError::UnknownFileType {
-                                    message: format!(
-                                        "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
-                                        entry.relative_path(),
-                                        first_extension,
-                                    ),
-                                }
-                            })?;
-                            let media_type =
-                                MediaType::from_media_range(mime).ok_or_else(|| {
-                                    ContentLoadingError::Bug {
-                                        message: String::from(
-                                            "Mime guess was not a concrete media type!",
-                                        ),
-                                    }
-                                })?;
-                            let mut contents = entry.file_contents();
-
-                            handlebars_registry
-                                .register_template_source(&route_string, &mut contents)
-                                .map_err(|template_render_error| match template_render_error {
-                                    handlebars::TemplateFileError::TemplateError(source) => {
-                                        ContentLoadingError::TemplateParseError(
-                                            RegisteredTemplateParseError { source },
-                                        )
-                                    }
-                                    handlebars::TemplateFileError::IOError(
-                                        source,
-                                        original_name,
-                                    ) => {
-                                        // Handlebars-rust will use an empty string when the error does not
-                                        // correspond to a specific path.
-                                        let name = if original_name.is_empty() {
-                                            None
-                                        } else {
-                                            Some(original_name)
-                                        };
-                                        ContentLoadingError::IOError { source, name }
-                                    }
-                                })?;
-
-                            let content_item = RegisteredContent::RegisteredTemplate(
-                                RegisteredTemplate::new(route_string, media_type),
-                            );
-                            let was_duplicate = content_registry
-                                .insert(canonical_route, content_item)
-                                .is_some();
-                            if was_duplicate {
-                                return Err(ContentLoadingError::Bug {
-                                    message: String::from(
-                                        "There were two or more content files with the same route.",
-                                    ),
-                                });
-                            }
-                        }
-
-                        [first_extension, _arbitrary_second_extension] if entry.is_executable() => {
-                            routes.try_add(entry.relative_path_without_extensions())?;
-
-                            let canonical_route =
-                                CanonicalRoute::new(entry.relative_path_without_extensions());
-                            let mime =
-                                MimeGuess::from_ext(first_extension)
-                                    .first()
-                                    .ok_or_else(|| ContentLoadingError::UnknownFileType {
-                                        message: format!(
-                                            "The first filename extension for the executable at '{}' ('{}') does not map to any known media type.",
-                                            entry.relative_path(),
-                                            first_extension,
-                                        ),
-                                    })?;
-                            let media_type =
-                                MediaType::from_media_range(mime).ok_or_else(|| {
-                                    ContentLoadingError::Bug {
-                                        message: String::from(
-                                            "Mime guess was not a concrete media type!",
-                                        ),
-                                    }
-                                })?;
-
-                            // The working directory for the executable is the
-                            // immediate parent directory it resides in (which
-                            // may be a child of the content directory).
-                            let working_directory = Path::new(entry.absolute_path()).parent().ok_or_else(|| {
-                                // This indicates a bug because it can only
-                                // occur if `entry.absolute_path()` is the
-                                // filesystem root, but we should have already
-                                // verified that `entry` is a file (not a
-                                // directory). If it's the filesystem root then
-                                // it is a directory.
-                                ContentLoadingError::Bug {
-                                    message: format!(
-                                        "Failed to get a parent directory for the executable at '{}'.",
-                                        entry.absolute_path(),
-                                    ),
-                                }
-                            })?;
-                            let content_item = RegisteredContent::Executable(Executable::new(
-                                entry.absolute_path(),
-                                working_directory,
-                                media_type,
-                            ));
-
-                            let was_duplicate = content_registry
-                                .insert(canonical_route, content_item)
-                                .is_some();
-                            if was_duplicate {
-                                return Err(ContentLoadingError::Bug {
-                                    message: String::from(
-                                        "There were two or more content files with the same route.",
-                                    ),
-                                });
-                            }
-                        }
-
-                        [first_unsupported_extension, second_unsupported_extension] => {
-                            return Err(ContentLoadingError::ContentFileNameError {
-                                message: format!(
-                                    "The content file '{}' has two extensions ('{}.{}'), but is neither a handlebars template nor an executable.",
-                                    entry.relative_path(),
-                                    first_unsupported_extension,
-                                    second_unsupported_extension
-                                ),
-                            });
-                        }
-                    }
-                }
-
+            let extensions = entry.extensions().to_owned();
+            match extensions.as_slice() {
+                [single_extension] => Self::register_file_with_one_extension(
+                    entry,
+                    single_extension,
+                    &mut routes,
+                    &mut content_registry,
+                )?,
+                [first_extension, second_extension] => Self::register_file_with_two_extensions(
+                    entry,
+                    first_extension,
+                    second_extension,
+                    &mut routes,
+                    &mut content_registry,
+                    &mut handlebars_registry,
+                )?,
                 [_, _, _, ..] => {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
@@ -345,6 +167,205 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         }
 
         Ok((routes, content_registry, handlebars_registry))
+    }
+
+    /// Content files with one extension indicate static content (e.g. an image
+    /// or plain text file). They must not have the executable bit set.
+    fn register_file_with_one_extension(
+        file: ContentFile,
+        extension: &str,
+        routes: &mut ContentIndexEntries,
+        content_registry: &mut ContentRegistry,
+    ) -> Result<(), ContentLoadingError> {
+        if file.is_executable() {
+            return Err(ContentLoadingError::ContentFileNameError {
+                message: format!(
+                    "The content file '{}' is executable, but only has one extension ('{}'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
+                    file.relative_path(),
+                    extension,
+                ),
+            });
+        }
+
+        routes.try_add(file.relative_path_without_extensions())?;
+
+        let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
+        let mime =
+            MimeGuess::from_ext(extension)
+                .first()
+                .ok_or_else(|| ContentLoadingError::UnknownFileType {
+                    message: format!(
+                        "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
+                        file.relative_path(),
+                        extension,
+                    ),
+                })?;
+        let media_type =
+            MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
+                message: String::from("Mime guess was not a concrete media type!"),
+            })?;
+        let content_item = RegisteredContent::StaticContentItem(StaticContentItem::new(
+            file.file_contents(),
+            media_type,
+        ));
+        let was_duplicate = content_registry
+            .insert(canonical_route, content_item)
+            .is_some();
+        if was_duplicate {
+            return Err(ContentLoadingError::Bug {
+                message: String::from("There were two or more content files with the same route."),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Content files with two extensions are either templates or executables
+    /// (depending on the final extension and whether the executable bit is
+    /// set). In both cases the first extension indicates the media type that
+    /// will be produced when the content is rendered.
+    fn register_file_with_two_extensions(
+        file: ContentFile,
+        first_extension: &str,
+        second_extension: &str,
+        routes: &mut ContentIndexEntries,
+        content_registry: &mut ContentRegistry,
+        handlebars_registry: &mut Handlebars,
+    ) -> Result<(), ContentLoadingError> {
+        match [first_extension, second_extension] {
+            [first_extension, HANDLEBARS_FILE_EXTENSION] => {
+                if file.is_executable() {
+                    return Err(ContentLoadingError::ContentFileNameError {
+                        message: format!(
+                            "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), but it is also executable. It must be one or the other.",
+                            file.relative_path(),
+                            HANDLEBARS_FILE_EXTENSION,
+                        ),
+                    });
+                }
+                routes.try_add(file.relative_path_without_extensions())?;
+
+                let route_string = String::from(file.relative_path_without_extensions());
+                let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
+
+                let mime = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
+                    ContentLoadingError::UnknownFileType {
+                        message: format!(
+                            "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
+                            file.relative_path(),
+                            first_extension,
+                        ),
+                    }
+                })?;
+                let media_type =
+                    MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
+                        message: String::from("Mime guess was not a concrete media type!"),
+                    })?;
+                let mut contents = file.file_contents();
+
+                handlebars_registry
+                    .register_template_source(&route_string, &mut contents)
+                    .map_err(|template_render_error| match template_render_error {
+                        handlebars::TemplateFileError::TemplateError(source) => {
+                            ContentLoadingError::TemplateParseError(RegisteredTemplateParseError {
+                                source,
+                            })
+                        }
+                        handlebars::TemplateFileError::IOError(source, original_name) => {
+                            // Handlebars-rust will use an empty string when the
+                            // error does not correspond to a specific path.
+                            let name = if original_name.is_empty() {
+                                None
+                            } else {
+                                Some(original_name)
+                            };
+                            ContentLoadingError::IOError { source, name }
+                        }
+                    })?;
+
+                let content_item = RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
+                    route_string,
+                    media_type,
+                ));
+                let was_duplicate = content_registry
+                    .insert(canonical_route, content_item)
+                    .is_some();
+                if was_duplicate {
+                    return Err(ContentLoadingError::Bug {
+                        message: String::from(
+                            "There were two or more content files with the same route.",
+                        ),
+                    });
+                }
+            }
+
+            [first_extension, _arbitrary_second_extension] if file.is_executable() => {
+                routes.try_add(file.relative_path_without_extensions())?;
+
+                let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
+                let mime =
+                    MimeGuess::from_ext(first_extension)
+                        .first()
+                        .ok_or_else(|| ContentLoadingError::UnknownFileType {
+                            message: format!(
+                                "The first filename extension for the executable at '{}' ('{}') does not map to any known media type.",
+                                file.relative_path(),
+                                first_extension,
+                            ),
+                        })?;
+                let media_type =
+                    MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
+                        message: String::from("Mime guess was not a concrete media type!"),
+                    })?;
+
+                // The working directory for the executable is the immediate
+                // parent directory it resides in (which may be a child of the
+                // content directory).
+                let working_directory =
+                    Path::new(file.absolute_path()).parent().ok_or_else(|| {
+                        // This indicates a bug because it can only occur if
+                        // `entry.absolute_path()` is the filesystem root, but
+                        // we should have already verified that `entry` is a
+                        // file (not a directory). If it's the filesystem root
+                        // then it is a directory.
+                        ContentLoadingError::Bug {
+                            message: format!(
+                                "Failed to get a parent directory for the executable at '{}'.",
+                                file.absolute_path(),
+                            ),
+                        }
+                    })?;
+                let content_item = RegisteredContent::Executable(Executable::new(
+                    file.absolute_path(),
+                    working_directory,
+                    media_type,
+                ));
+
+                let was_duplicate = content_registry
+                    .insert(canonical_route, content_item)
+                    .is_some();
+                if was_duplicate {
+                    return Err(ContentLoadingError::Bug {
+                        message: String::from(
+                            "There were two or more content files with the same route.",
+                        ),
+                    });
+                }
+            }
+
+            [first_unsupported_extension, second_unsupported_extension] => {
+                return Err(ContentLoadingError::ContentFileNameError {
+                    message: format!(
+                        "The content file '{}' has two extensions ('{}.{}'), but is neither a handlebars template nor an executable.",
+                        file.relative_path(),
+                        first_unsupported_extension,
+                        second_unsupported_extension
+                    ),
+                });
+            }
+        };
+
+        Ok(())
     }
 }
 
