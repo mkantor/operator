@@ -97,8 +97,10 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         }
     };
 
+    // If the accept header value is empty, allow any media type.
     if parsed_accept_header_value.is_empty() {
         log::info!("Getting content for /{}", path);
+        parsed_accept_header_value = header::Accept(vec![header::qitem(mime::STAR_STAR)]);
     } else {
         log::info!(
             "Getting content for /{} with accept: {}",
@@ -312,6 +314,36 @@ mod tests {
         let request = test_request(&example_path("hello-world"), "hello")
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "text/html",
+            "Response content-type was not text/html",
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"hello world\n"),
+            "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn content_can_be_retrieved_with_missing_accept_header() {
+        let request = test_request(&example_path("hello-world"), "hello").to_http_request();
 
         let response = get::<FilesystemBasedContentEngine>(request).await;
         let response_body = response
