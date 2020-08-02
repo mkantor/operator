@@ -32,13 +32,13 @@ impl<'a> ContentEngine for MockContentEngine<'a> {
     }
     fn new_template(
         &self,
-        _: &str,
-        _: MediaType,
+        handlebars_source: &str,
+        media_type: MediaType,
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
-        unimplemented!("a")
+        UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
     fn get(&self, _: &str) -> Option<&RegisteredContent> {
-        unimplemented!("b")
+        None
     }
     fn handlebars_registry(&self) -> &Handlebars {
         &self.0
