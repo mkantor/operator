@@ -151,7 +151,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             content,
             media_type,
         })) => {
-            log::info!("Successfully rendered content from route \"/{}\"", route);
+            log::info!("Successfully rendered content from route /{}", route);
             HttpResponse::Ok()
                 .content_type(media_type.to_string())
                 .body(content)
@@ -163,17 +163,13 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 .body("Cannot provide an acceptable response.")
         }
         Some(Err(error)) => {
-            log::warn!(
-                "Failed to render content from route \"/{}\": {}",
-                route,
-                error
-            );
+            log::warn!("Failed to render content from route /{}: {}", route, error);
             HttpResponse::InternalServerError()
                 .content_type("text/plain")
                 .body("Unable to fulfill request.")
         }
         None => {
-            log::warn!("No content found at \"/{}\"", route);
+            log::warn!("No content found at /{}", route);
             HttpResponse::NotFound()
                 .content_type("text/plain")
                 .body("Not found.")
