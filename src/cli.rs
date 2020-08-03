@@ -98,10 +98,11 @@ pub fn render<I: io::Read, O: io::Write>(
 
     let content_item = content_engine.new_template(&template, media_type.clone())?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, &[media_type.into_media_range()])?;
-    write!(output, "{}", rendered_output)
-        .map_err(|source| RenderCommandError::WriteError { source })?;
+    let mut rendered_output =
+        content_item.render(render_context, &[media_type.into_media_range()])?;
 
+    io::copy(&mut rendered_output.content, output)
+        .map_err(|source| RenderCommandError::WriteError { source })?;
     output
         .flush()
         .map_err(|source| RenderCommandError::WriteError { source })
@@ -127,10 +128,10 @@ pub fn get<O: io::Write>(
             route: String::from(route),
         })?;
     let render_context = content_engine.get_render_context();
-    let rendered_output = content_item.render(render_context, &[accept])?;
-    write!(output, "{}", rendered_output)
-        .map_err(|source| GetCommandError::WriteError { source })?;
+    let mut rendered_output = content_item.render(render_context, &[accept])?;
 
+    io::copy(&mut rendered_output.content, output)
+        .map_err(|source| GetCommandError::WriteError { source })?;
     output
         .flush()
         .map_err(|source| GetCommandError::WriteError { source })
@@ -155,7 +156,9 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
     use mime_guess::MimeGuess;
+    use std::collections::hash_map::DefaultHasher;
     use std::collections::{BTreeMap, HashMap};
+    use std::hash::Hasher;
     use std::str;
 
     /// Attempts to render all non-hidden files in ContentDirectory, returning
@@ -193,9 +196,17 @@ mod tests {
                     &mut output,
                 );
 
+                let hash = {
+                    let mut hasher = DefaultHasher::new();
+                    hasher.write(&output);
+                    hasher.finish()
+                };
+
                 let output_or_error_message = match result {
-                    Ok(()) => String::from_utf8(output)
-                        .map_err(|error| format!("Output was not valid UTF-8: {:?}", error))?,
+                    Ok(()) => match String::from_utf8(output) {
+                        Ok(string) => string,
+                        Err(_) => format!("binary data with hash {:x}", hash),
+                    },
                     Err(error) => {
                         let anyhow_error = anyhow::Error::from(error);
                         let causes = anyhow_error.chain().map(|error| error.to_string());

@@ -44,3 +44,21 @@ impl<'a> ContentEngine for MockContentEngine<'a> {
         &self.0
     }
 }
+
+pub fn media_to_string(media: &mut Media<impl Read>) -> String {
+    let mut string = String::new();
+    media
+        .content
+        .read_to_string(&mut string)
+        .expect("Failed to read media into a string");
+    string
+}
+
+pub fn media_to_bytes(media: &mut Media<impl Read>) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    media
+        .content
+        .read_to_end(&mut bytes)
+        .expect("Failed to read media");
+    bytes
+}

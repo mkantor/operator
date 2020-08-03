@@ -57,7 +57,7 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
 
         let context = content_engine.get_render_context();
 
-        let rendered = content_item
+        let mut rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|soliton_render_error| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the content item being retrieved (\"{}\") could not be rendered: {}",
@@ -66,7 +66,11 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
                 ))
             })?;
 
-        output.write(rendered.content.as_ref())?;
+        let mut rendered_content_as_string = String::new();
+        rendered
+            .content
+            .read_to_string(&mut rendered_content_as_string)?;
+        output.write(&rendered_content_as_string)?;
         Ok(())
     }
 }

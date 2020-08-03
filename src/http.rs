@@ -4,7 +4,7 @@ use actix_web::http::header::{self, Header};
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use mime_guess::MimeGuess;
 use std::cmp::Ordering;
-use std::io;
+use std::io::{self, Read};
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
@@ -150,13 +150,24 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
 
     match render_result {
         Some(Ok(Media {
-            content,
+            mut content,
             media_type,
         })) => {
-            log::info!("Successfully rendered content from route /{}", route);
-            HttpResponse::Ok()
-                .content_type(media_type.to_string())
-                .body(content)
+            let mut response_bytes = Vec::new();
+            match content.read_to_end(&mut response_bytes) {
+                Ok(_) => {
+                    log::info!("Successfully rendered content from route /{}", route);
+                    HttpResponse::Ok()
+                        .content_type(media_type.to_string())
+                        .body(response_bytes)
+                }
+                Err(error) => {
+                    log::error!("Failed to read content for /{}: {}", route, error);
+                    HttpResponse::InternalServerError()
+                        .content_type("text/plain")
+                        .body("Unable to fulfill request.")
+                }
+            }
         }
         Some(Err(error @ ContentRenderingError::CannotProvideAcceptableMediaType { .. })) => {
             log::warn!("Cannot provide acceptable media: {}", error);
@@ -368,6 +379,47 @@ mod tests {
             response_body,
             &Body::from_slice(b"hello world\n"),
             "Response body was incorrect"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn multimedia_content_can_be_retrieved() {
+        let request = test_request(&example_path("multimedia"), "dramatic-prairie-dog")
+            .header("accept", "video/*")
+            .to_http_request();
+
+        let response: HttpResponse = get::<FilesystemBasedContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+        let response_content_type = response
+            .headers()
+            .get("content-type")
+            .expect("Response was missing content-type header");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200 OK"
+        );
+        assert_eq!(
+            response_content_type, "video/mp4",
+            "Response content-type was not video/mp4",
+        );
+
+        let response_bytes = match response_body {
+            Body::None => vec![],
+            Body::Empty => vec![],
+            Body::Bytes(bytes) => bytes.to_vec(),
+            Body::Message(_) => {
+                unimplemented!("can't get bytes from response with generic message body")
+            }
+        };
+        assert_eq!(
+            response_bytes.len(),
+            198946,
+            "Response body did not have the expected size",
         );
     }
 

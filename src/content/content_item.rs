@@ -1,10 +1,9 @@
 use super::*;
 use handlebars::{self, Handlebars, Renderable as _};
-use std::fs;
-use std::io;
-use std::io::{Read, Seek, SeekFrom};
+use std::fs::{self, File};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
+use std::process::{ChildStdout, Command, Stdio};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -73,24 +72,23 @@ impl StaticContentItem {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<Media, RenderingFailure> {
+    fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailure> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
         // entire file.
-        let mut readable_contents = self.contents.try_clone()?;
-        let mut rendered_content = String::new();
-        readable_contents.seek(SeekFrom::Start(0))?;
-        readable_contents.read_to_string(&mut rendered_content)?;
-        Ok(Media::new(self.media_type.clone(), rendered_content))
+        let mut file = self.contents.try_clone()?;
+        file.seek(SeekFrom::Start(0))?;
+        Ok(Media::new(self.media_type.clone(), file))
     }
 }
 impl Render for StaticContentItem {
+    type Output = File;
     fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         _context: RenderContext<E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
+    ) -> Result<Media<Self::Output>, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.media_type.is_within_media_range(target) {
                 None
@@ -118,7 +116,7 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData,
-    ) -> Result<Media, RenderingFailure> {
+    ) -> Result<Media<Cursor<String>>, RenderingFailure> {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
@@ -126,16 +124,17 @@ impl RegisteredTemplate {
         let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
         Ok(Media::new(
             self.rendered_media_type.clone(),
-            rendered_content,
+            Cursor::new(rendered_content),
         ))
     }
 }
 impl Render for RegisteredTemplate {
+    type Output = Cursor<String>;
     fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
+    ) -> Result<Media<Self::Output>, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
                 None
@@ -170,7 +169,7 @@ impl UnregisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData,
-    ) -> Result<Media, RenderingFailure> {
+    ) -> Result<Media<Cursor<String>>, RenderingFailure> {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
@@ -184,16 +183,17 @@ impl UnregisteredTemplate {
         )?;
         Ok(Media::new(
             self.rendered_media_type.clone(),
-            rendered_content,
+            Cursor::new(rendered_content),
         ))
     }
 }
 impl Render for UnregisteredTemplate {
+    type Output = Cursor<String>;
     fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
+    ) -> Result<Media<Self::Output>, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.rendered_media_type.is_within_media_range(target) {
                 None
@@ -233,33 +233,57 @@ impl Executable {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<Media, RenderingFailure> {
+    fn render_to_native_media_type(&self) -> Result<Media<ChildStdout>, RenderingFailure> {
         let mut command = Command::new(self.program.clone());
-        command.current_dir(self.working_directory.clone());
 
-        let process::Output {
-            status,
-            stdout,
-            stderr,
-        } = command
-            .output()
+        let mut child = command
+            .current_dir(self.working_directory.clone())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|io_error| RenderingFailure::ExecutableError {
                 message: format!("Unable to execute program: {}", io_error),
                 program: self.program.clone(),
                 working_directory: self.working_directory.clone(),
             })?;
 
-        if !status.success() {
-            Err(match status.code() {
-                Some(exit_code) => RenderingFailure::ExecutableExitedWithNonzero {
-                    stderr_contents: match String::from_utf8_lossy(&stderr).as_ref() {
-                        "" => None,
-                        message => Some(message.to_string()),
-                    },
-                    program: self.program.clone(),
-                    exit_code,
-                    working_directory: self.working_directory.clone(),
-                },
+        let exit_status = child
+            .wait()
+            .map_err(|error| RenderingFailure::ExecutableError {
+                message: format!("Could not get exit status from program: {}", error),
+                program: self.program.clone(),
+                working_directory: self.working_directory.clone(),
+            })?;
+
+        let stdout = child
+            .stdout
+            .ok_or_else(|| RenderingFailure::ExecutableError {
+                message: String::from("Could not capture stdout from program."),
+                program: self.program.clone(),
+                working_directory: self.working_directory.clone(),
+            })?;
+
+        if !exit_status.success() {
+            Err(match exit_status.code() {
+                Some(exit_code) => {
+                    let stderr_contents = {
+                        child.stderr.and_then(|mut stderr| {
+                            let mut error_message = String::new();
+                            match stderr.read_to_string(&mut error_message) {
+                                Err(_) | Ok(0) => None,
+                                Ok(_) => Some(error_message),
+                            }
+                        })
+                    };
+                    RenderingFailure::ExecutableExitedWithNonzero {
+                        stderr_contents,
+                        program: self.program.clone(),
+                        exit_code,
+                        working_directory: self.working_directory.clone(),
+                    }
+                }
+
                 None => RenderingFailure::ExecutableError {
                     message: String::from(
                         "Program exited with failure, but its exit code was not available. It may have been killed by a signal."
@@ -269,26 +293,17 @@ impl Executable {
                 }
             })
         } else {
-            let output = String::from_utf8(stdout).map_err(|utf8_error| {
-                RenderingFailure::ExecutableError {
-                    message: format!(
-                        "Program exited with success, but its output was not valid UTF-8: {}",
-                        utf8_error
-                    ),
-                    program: self.program.clone(),
-                    working_directory: self.working_directory.clone(),
-                }
-            })?;
-            Ok(Media::new(self.output_media_type.clone(), output))
+            Ok(Media::new(self.output_media_type.clone(), stdout))
         }
     }
 }
 impl Render for Executable {
+    type Output = ChildStdout;
     fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         _context: RenderContext<E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
+    ) -> Result<Media<Self::Output>, ContentRenderingError> {
         negotiate_content(acceptable_media_ranges, |target| {
             if !&self.output_media_type.is_within_media_range(target) {
                 None
@@ -345,6 +360,7 @@ mod tests {
     use ::mime;
     use std::fs;
     use std::io::Write;
+    use std::str;
     use tempfile::tempfile;
 
     enum Renderable {
@@ -353,30 +369,41 @@ mod tests {
         RegisteredTemplate(RegisteredTemplate),
         UnregisteredTemplate(UnregisteredTemplate),
     }
+    impl Renderable {
+        fn box_media<'o, O: Read + 'o>(media: Media<O>) -> Media<Box<dyn Read + 'o>> {
+            Media {
+                content: Box::new(media.content),
+                media_type: media.media_type,
+            }
+        }
+    }
     impl Render for Renderable {
+        type Output = Box<dyn Read>;
         fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
             &self,
             context: RenderContext<E>,
             acceptable_media_ranges: A,
-        ) -> Result<Media, ContentRenderingError> {
+        ) -> Result<Media<Self::Output>, ContentRenderingError> {
             match self {
-                Self::StaticContentItem(renderable) => {
-                    renderable.render(context, acceptable_media_ranges)
-                }
-                Self::Executable(renderable) => renderable.render(context, acceptable_media_ranges),
-                Self::RegisteredTemplate(renderable) => {
-                    renderable.render(context, acceptable_media_ranges)
-                }
-                Self::UnregisteredTemplate(renderable) => {
-                    renderable.render(context, acceptable_media_ranges)
-                }
+                Self::StaticContentItem(renderable) => renderable
+                    .render(context, acceptable_media_ranges)
+                    .map(Renderable::box_media),
+                Self::Executable(renderable) => renderable
+                    .render(context, acceptable_media_ranges)
+                    .map(Renderable::box_media),
+                Self::RegisteredTemplate(renderable) => renderable
+                    .render(context, acceptable_media_ranges)
+                    .map(Renderable::box_media),
+                Self::UnregisteredTemplate(renderable) => renderable
+                    .render(context, acceptable_media_ranges)
+                    .map(Renderable::box_media),
             }
         }
     }
 
     /// Test fixtures. All of these will render to an empty string with media
     /// type text/plain.
-    fn example_renderables() -> (impl ContentEngine, Vec<impl Render>) {
+    fn example_renderables() -> (impl ContentEngine, Vec<Renderable>) {
         let text_plain_type = MediaType::from_media_range(mime::TEXT_PLAIN).unwrap();
         let mut content_engine = MockContentEngine::new();
         content_engine
@@ -415,14 +442,36 @@ mod tests {
             media_type: MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             contents: file,
         };
-        let output = static_content
+        let mut output = static_content
             .render(
                 MockContentEngine::new().get_render_context(),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Render failed");
 
-        assert_eq!(output.content, String::from("hello world"));
+        assert_eq!(media_to_string(&mut output), String::from("hello world"));
+    }
+
+    #[test]
+    fn static_content_can_be_arbitrary_bytes() {
+        let non_utf8_bytes = &[0xfe, 0xfe, 0xff, 0xff];
+        assert!(str::from_utf8(non_utf8_bytes).is_err());
+
+        let mut file = tempfile().expect("Failed to create temporary file");
+        file.write(non_utf8_bytes)
+            .expect("Failed to write to temporary file");
+        let static_content = StaticContentItem {
+            media_type: MediaType::from_media_range(mime::APPLICATION_OCTET_STREAM).unwrap(),
+            contents: file,
+        };
+        let mut output = static_content
+            .render(
+                MockContentEngine::new().get_render_context(),
+                &[mime::APPLICATION_OCTET_STREAM],
+            )
+            .expect("Render failed");
+
+        assert_eq!(media_to_bytes(&mut output), non_utf8_bytes);
     }
 
     #[test]
@@ -506,14 +555,17 @@ mod tests {
             working_directory.clone(),
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
-
-        let output = executable
+        let mut output = executable
             .render(
                 MockContentEngine::new().get_render_context(),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Executable failed but it should have succeeded");
-        assert_eq!(output.content, format!("{}\n", working_directory.display()));
+
+        assert_eq!(
+            media_to_string(&mut output),
+            format!("{}\n", working_directory.display())
+        );
     }
 
     #[test]

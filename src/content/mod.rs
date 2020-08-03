@@ -10,7 +10,7 @@ mod test_lib;
 use crate::lib::*;
 use content_index::*;
 use serde::Serialize;
-use std::fmt;
+use std::io::Read;
 
 pub use self::mime::{MediaRange, MediaType};
 pub use content_directory::ContentDirectory;
@@ -23,33 +23,30 @@ pub use content_registry::RegisteredContent;
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
-pub struct Media {
+pub struct Media<O: Read> {
     pub media_type: MediaType,
-    pub content: String,
+    pub content: O,
 }
-impl Media {
-    fn new(media_type: MediaType, content: String) -> Self {
+impl<O: Read> Media<O> {
+    fn new(media_type: MediaType, content: O) -> Self {
         Self {
-            content,
             media_type,
+            content,
         }
-    }
-}
-impl fmt::Display for Media {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.content)
     }
 }
 
 pub trait Render {
+    type Output;
     fn render<'engine, 'accept, E, A>(
         &self,
         context: RenderContext<'engine, E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError>
+    ) -> Result<Media<Self::Output>, ContentRenderingError>
     where
         E: ContentEngine,
-        A: IntoIterator<Item = &'accept MediaRange>;
+        A: IntoIterator<Item = &'accept MediaRange>,
+        Self::Output: Read;
 }
 
 #[derive(Clone, Serialize)]

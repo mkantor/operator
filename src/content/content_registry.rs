@@ -10,21 +10,31 @@ pub enum RegisteredContent {
     Executable(Executable),
 }
 impl Render for RegisteredContent {
+    type Output = Box<dyn Read>;
     fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
         &self,
         context: RenderContext<E>,
         acceptable_media_ranges: A,
-    ) -> Result<Media, ContentRenderingError> {
+    ) -> Result<Media<Self::Output>, ContentRenderingError> {
         match self {
-            Self::StaticContentItem(renderable) => {
-                renderable.render(context, acceptable_media_ranges)
-            }
-            Self::RegisteredTemplate(renderable) => {
-                renderable.render(context, acceptable_media_ranges)
-            }
-            Self::Executable(renderable) => renderable.render(context, acceptable_media_ranges),
+            Self::StaticContentItem(renderable) => renderable
+                .render(context, acceptable_media_ranges)
+                .map(box_media),
+            Self::RegisteredTemplate(renderable) => renderable
+                .render(context, acceptable_media_ranges)
+                .map(box_media),
+            Self::Executable(renderable) => renderable
+                .render(context, acceptable_media_ranges)
+                .map(box_media),
         }
     }
 }
 
 pub type ContentRegistry = HashMap<CanonicalRoute, RegisteredContent>;
+
+fn box_media<'o, O: Read + 'o>(media: Media<O>) -> Media<Box<dyn Read + 'o>> {
+    Media {
+        content: Box::new(media.content),
+        media_type: media.media_type,
+    }
+}
