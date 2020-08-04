@@ -170,7 +170,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             }
         }
         Some(Err(error @ ContentRenderingError::CannotProvideAcceptableMediaType { .. })) => {
-            log::warn!("Cannot provide acceptable media: {}", error);
+            log::warn!("Cannot provide an acceptable response: {}", error);
             HttpResponse::NotAcceptable()
                 .content_type("text/plain")
                 .body("Cannot provide an acceptable response.")

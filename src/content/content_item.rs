@@ -11,7 +11,7 @@ pub enum ContentRenderingError {
     #[error(transparent)]
     RenderingFailure(RenderingFailure),
 
-    #[error("Unable to provide the requested content in an acceptable media type.")]
+    #[error("The requested content cannot be rendered as an acceptable media type.")]
     CannotProvideAcceptableMediaType,
 }
 
