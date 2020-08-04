@@ -49,7 +49,9 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
             .and_then(|media_type_essence| media_type_essence.parse::<MediaType>().ok())
             .ok_or_else(|| {
                 handlebars::RenderError::new(format!(
-                    "The `get` helper call failed because a valid target media type could not be found in the handlebars context. The context JSON must contain a top-level property named \"{}\" whose value is a valid media type essence string. The current context is `{}`.",
+                    "The `get` helper call failed because a valid target media type could not be found \
+                    in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
+                    whose value is a valid media type essence string. The current context is `{}`.",
                     TARGET_MEDIA_TYPE_PROPERTY_NAME,
                     handlebars_context.data()
                 ))
@@ -60,7 +62,8 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
         let mut rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|soliton_render_error| {
                 handlebars::RenderError::new(format!(
-                    "The `get` helper call failed because the content item being retrieved (\"{}\") could not be rendered: {}",
+                    "The `get` helper call failed because the content item being retrieved (\"{}\") \
+                    could not be rendered: {}",
                     route,
                     soliton_render_error
                 ))

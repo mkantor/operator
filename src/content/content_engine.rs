@@ -180,7 +180,10 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         if file.is_executable() {
             return Err(ContentLoadingError::ContentFileNameError {
                 message: format!(
-                    "The content file '{}' is executable, but only has one extension ('{}'). Executables must have two extensions: the first indicates the media type if its output and the second is arbitrary, but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
+                    "The content file '{}' is executable, but only has one extension ('{}'). \
+                    Executables must have two extensions: \
+                    the first indicates the media type of its output, and the second is arbitrary \
+                    but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
                     file.relative_path(),
                     extension,
                 ),
@@ -237,7 +240,8 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 if file.is_executable() {
                     return Err(ContentLoadingError::ContentFileNameError {
                         message: format!(
-                            "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), but it is also executable. It must be one or the other.",
+                            "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), \
+                            but it is also executable. It must be one or the other.",
                             file.relative_path(),
                             HANDLEBARS_FILE_EXTENSION,
                         ),
@@ -251,7 +255,8 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 let mime = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
                     ContentLoadingError::UnknownFileType {
                         message: format!(
-                            "The first filename extension for the template at '{}' ('{}') does not map to any known media type.",
+                            "The first filename extension for the template at '{}' ('{}') \
+                            does not map to any known media type.",
                             file.relative_path(),
                             first_extension,
                         ),
@@ -356,7 +361,8 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
             [first_unsupported_extension, second_unsupported_extension] => {
                 return Err(ContentLoadingError::ContentFileNameError {
                     message: format!(
-                        "The content file '{}' has two extensions ('{}.{}'), but is neither a handlebars template nor an executable.",
+                        "The content file '{}' has two extensions ('{}.{}'), but is \
+                        neither a handlebars template nor an executable.",
                         file.relative_path(),
                         first_unsupported_extension,
                         second_unsupported_extension

@@ -286,7 +286,8 @@ impl Executable {
 
                 None => RenderingFailure::ExecutableError {
                     message: String::from(
-                        "Program exited with failure, but its exit code was not available. It may have been killed by a signal."
+                        "Program exited with failure, but its exit code was not available. \
+                        It may have been killed by a signal."
                     ),
                     program: self.program.clone(),
                     working_directory: self.working_directory.clone(),
