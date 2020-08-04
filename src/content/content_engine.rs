@@ -236,6 +236,9 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
         handlebars_registry: &mut Handlebars,
     ) -> Result<(), ContentLoadingError> {
         match [first_extension, second_extension] {
+            // Handlebars templates are named like foo.html.hbs and do not
+            // have the executable bit set. When rendered they are evaluated by
+            // soliton.
             [first_extension, HANDLEBARS_FILE_EXTENSION] => {
                 if file.is_executable() {
                     return Err(ContentLoadingError::ContentFileNameError {
@@ -252,16 +255,16 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 let route_string = String::from(file.relative_path_without_extensions());
                 let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
 
-                let mime = MimeGuess::from_ext(first_extension).first().ok_or_else(|| {
-                    ContentLoadingError::UnknownFileType {
+                let mime = MimeGuess::from_ext(first_extension)
+                    .first()
+                    .ok_or_else(|| ContentLoadingError::UnknownFileType {
                         message: format!(
                             "The first filename extension for the template at '{}' ('{}') \
                             does not map to any known media type.",
                             file.relative_path(),
                             first_extension,
                         ),
-                    }
-                })?;
+                    })?;
                 let media_type =
                     MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
                         message: String::from("Mime guess was not a concrete media type!"),
@@ -304,6 +307,9 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
                 }
             }
 
+            // Executable programs are named like foo.html.py and must have the
+            // executable bit set in their file permissions. When rendered they
+            // will executed by the OS in a separate process.
             [first_extension, _arbitrary_second_extension] if file.is_executable() => {
                 routes.try_add(file.relative_path_without_extensions())?;
 
