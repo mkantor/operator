@@ -1,7 +1,7 @@
 use crate::content::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use mime_guess::MimeGuess;
 use std::cmp::Ordering;
 use std::io::{self, Read};
@@ -69,6 +69,21 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         .get("path")
         .expect("Failed to match request path!");
 
+    let http_version = match request.version() {
+        http::Version::HTTP_09 => "HTTP/0.9",
+        http::Version::HTTP_10 => "HTTP/1.0",
+        http::Version::HTTP_11 => "HTTP/1.1",
+        http::Version::HTTP_2 => "HTTP/2.0",
+        http::Version::HTTP_3 => "HTTP/3.0",
+        _ => "HTTP",
+    };
+    log::info!(
+        "Handling request {} {} {}",
+        http_version,
+        request.method(),
+        request.uri()
+    );
+
     let (route, media_range_from_url) = if path.is_empty() {
         // Default to the index route.
         (app_data.index_route.as_str(), None)
@@ -126,7 +141,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             let mut response_bytes = Vec::new();
             match content.read_to_end(&mut response_bytes) {
                 Ok(_) => {
-                    log::info!("Successfully rendered content from route /{}", route);
+                    log::info!("Successfully rendered /{} as {}", route, media_type);
                     HttpResponse::Ok()
                         .content_type(media_type.to_string())
                         .body(response_bytes)
