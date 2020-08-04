@@ -44,6 +44,21 @@ where
     result
 }
 
+/// Use the URL path, app data, and accept header to render some content for
+/// the HTTP response.
+///
+/// Content negotiation is performed based on media types (just the accept
+/// header; not accept-language, etc) and content is only rendered as media
+/// types the client asked for.
+///
+/// If the path has an extension which maps to a media range it will be
+/// considered for content negotiation instead of the accept header. This
+/// feature exists because there is not a great way to link to particular
+/// representations of resources on the web without putting something in the
+/// URL, and it's awfully convenient for humans (compare "to get my resume in
+/// PDF format, visit http://mysite.com/resume.pdf" to "...first install this
+/// browser extension that lets you customize HTTP headers, then set the accept
+/// header to application/pdf, then visit http://mysite.com/resume").
 async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> HttpResponse {
     let app_data = request
         .app_data::<AppData<E>>()
@@ -58,18 +73,6 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         // Default to the index route.
         (app_data.index_route.as_str(), None)
     } else {
-        // If the path has an extension which maps to a media range, use it as
-        // the most-acceptable media range (give it a higher quality value than
-        // everything in the accept header).
-        //
-        // This somewhat-unusual feature exists because there is not a great
-        // way to link to particular representations of resources on the web
-        // without putting something in the URL, and it's awfully convenient
-        // for mere humans to be able to do this (compare "to get my resume in
-        // PDF format, visit http://mysite.com/resume.pdf" to "...first install
-        // this browser extension that lets you customize HTTP headers, then
-        // set the accept header to application/pdf, then visit
-        // http://mysite.com/resume").
         let media_range_from_url = MimeGuess::from_path(path).first();
         let route = if media_range_from_url.is_some() {
             // Drop the extension from the path.
@@ -82,59 +85,26 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         (route, media_range_from_url)
     };
 
-    let mut parsed_accept_header_value = match header::Accept::parse(&request) {
-        Ok(accept_value) => accept_value,
-        Err(error) => {
-            log::warn!(
-                "Malformed accept header value `{:?}` in request for \"/{}\": {}",
-                request.headers().get("accept"),
-                route,
-                error
-            );
-            return HttpResponse::BadRequest()
-                .content_type(mime::TEXT_PLAIN.essence_str())
-                .body("Malformed accept header value.");
-        }
+    // Use the media type from the URL path extension if there was one,
+    // otherwise use the accept header.
+    let mut parsed_accept_header_value = header::Accept::parse(&request);
+    let acceptable_media_ranges = match media_range_from_url {
+        Some(ref media_range_from_url) => vec![media_range_from_url],
+        None => match parsed_accept_header_value {
+            Ok(ref mut accept_value) => acceptable_media_ranges_from_accept_header(accept_value),
+            Err(error) => {
+                log::warn!(
+                    "Malformed accept header value `{:?}` in request for \"/{}\": {}",
+                    request.headers().get("accept"),
+                    route,
+                    error
+                );
+                return HttpResponse::BadRequest()
+                    .content_type(mime::TEXT_PLAIN.essence_str())
+                    .body("Malformed accept header value.");
+            }
+        },
     };
-
-    // If the accept header value is empty, allow any media type.
-    if parsed_accept_header_value.is_empty() {
-        log::info!("Getting content for /{}", path);
-        parsed_accept_header_value = header::Accept(vec![header::qitem(mime::STAR_STAR)]);
-    } else {
-        log::info!(
-            "Getting content for /{} with accept: {}",
-            path,
-            parsed_accept_header_value
-        );
-    }
-
-    // Sort in order of descending quality (so the client's most-preferred
-    // representation is first).
-    //
-    // Note that QualityItem only implements PartialOrd, not Ord. I thought
-    // that might be because the parser lossily converts decimal strings into
-    // integers (for the `q` parameter), but it turns out the implementation
-    // actually never returns None (as of actix-web v3.0.0). If that ever
-    // changes and there is some scenario where a pair of items from the
-    // accept header can't be ordered then soliton will give them equal
-    // preference. ¯\_(ツ)_/¯
-    parsed_accept_header_value.sort_by(|a, b| {
-        b.partial_cmp(a).unwrap_or_else(|| {
-            log::warn!(
-                "Accept header items `{}` and `{}` could not be ordered by quality",
-                a,
-                b
-            );
-            Ordering::Equal
-        })
-    });
-
-    let acceptable_media_ranges = media_range_from_url.iter().chain(
-        parsed_accept_header_value
-            .iter()
-            .map(|quality_item| &quality_item.item),
-    );
 
     let render_result = {
         let content_engine = app_data
@@ -187,6 +157,41 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
                 .content_type("text/plain")
                 .body("Not found.")
         }
+    }
+}
+
+fn acceptable_media_ranges_from_accept_header<'a>(
+    accept_value: &'a mut header::Accept,
+) -> Vec<&'a MediaRange> {
+    // If the accept header value is empty, allow any media type.
+    if accept_value.is_empty() {
+        vec![&mime::STAR_STAR]
+    } else {
+        // Sort in order of descending quality (so the client's most-preferred
+        // representation is first).
+        //
+        // Note that QualityItem only implements PartialOrd, not Ord. I thought
+        // that might be because the parser lossily converts decimal strings into
+        // integers (for the `q` parameter), but it turns out the implementation
+        // actually never returns None (as of actix-web v3.0.0). If that ever
+        // changes and there is some scenario where a pair of items from the
+        // accept header can't be ordered then soliton will give them equal
+        // preference. ¯\_(ツ)_/¯
+        accept_value.sort_by(|a, b| {
+            b.partial_cmp(a).unwrap_or_else(|| {
+                log::warn!(
+                    "Accept header items `{}` and `{}` could not be ordered by quality",
+                    a,
+                    b
+                );
+                Ordering::Equal
+            })
+        });
+
+        accept_value
+            .iter()
+            .map(|quality_item| &quality_item.item)
+            .collect::<Vec<&'a MediaRange>>()
     }
 }
 
@@ -439,7 +444,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn extension_on_url_adds_acceptable_media_type() {
+    async fn extension_on_url_takes_precedence_over_accept_header() {
         // Note .html extension on URL path, but no text/html (nor any other
         // workable media range) in the accept header.
         let request = test_request(&example_path("hello-world"), "hello.html")
@@ -460,6 +465,24 @@ mod tests {
         assert_eq!(
             response_content_type, "text/html",
             "Response content-type was not text/html",
+        );
+    }
+
+    #[actix_rt::test]
+    async fn if_url_has_extension_accept_header_is_ignored() {
+        // URL path extension has the wrong media type, but accept header has
+        // the correct one. Should be HTTP 406 because the accept header is not
+        // considered when there is an extension.
+        let request = test_request(&example_path("hello-world"), "hello.doc")
+            .header("accept", "text/html")
+            .to_http_request();
+
+        let response = get::<FilesystemBasedContentEngine>(request).await;
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_ACCEPTABLE,
+            "Response status was not 406 Not Acceptable"
         );
     }
 }
