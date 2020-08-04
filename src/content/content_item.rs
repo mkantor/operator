@@ -445,7 +445,7 @@ mod tests {
         };
         let mut output = static_content
             .render(
-                MockContentEngine::new().get_render_context(),
+                MockContentEngine::new().get_render_context(""),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Render failed");
@@ -467,7 +467,7 @@ mod tests {
         };
         let mut output = static_content
             .render(
-                MockContentEngine::new().get_render_context(),
+                MockContentEngine::new().get_render_context(""),
                 &[mime::APPLICATION_OCTET_STREAM],
             )
             .expect("Render failed");
@@ -487,7 +487,7 @@ mod tests {
             contents: file,
         };
         let render_result = static_content.render(
-            MockContentEngine::new().get_render_context(),
+            MockContentEngine::new().get_render_context(""),
             &[target_media_type],
         );
 
@@ -498,7 +498,7 @@ mod tests {
     fn rendering_with_empty_acceptable_media_ranges_should_fail() {
         let (mock_engine, renderables) = example_renderables();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result = renderable.render(mock_engine.get_render_context(), &[]);
+            let render_result = renderable.render(mock_engine.get_render_context(""), &[]);
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with an empty list of acceptable media types did not fail as expected",
@@ -512,7 +512,7 @@ mod tests {
         let (mock_engine, renderables) = example_renderables();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.get_render_context(),
+                mock_engine.get_render_context(""),
                 &[mime::IMAGE_GIF, mime::APPLICATION_PDF, mime::TEXT_CSS],
             );
             assert!(
@@ -528,7 +528,7 @@ mod tests {
         let (mock_engine, renderables) = example_renderables();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.get_render_context(),
+                mock_engine.get_render_context(""),
                 &[mime::IMAGE_GIF, mime::TEXT_PLAIN, mime::TEXT_CSS],
             );
             assert!(
@@ -558,7 +558,7 @@ mod tests {
         );
         let mut output = executable
             .render(
-                MockContentEngine::new().get_render_context(),
+                MockContentEngine::new().get_render_context(""),
                 &[mime::TEXT_PLAIN],
             )
             .expect("Executable failed but it should have succeeded");
@@ -578,7 +578,7 @@ mod tests {
         );
 
         let result = executable.render(
-            MockContentEngine::new().get_render_context(),
+            MockContentEngine::new().get_render_context(""),
             &[mime::TEXT_PLAIN],
         );
         assert!(
@@ -597,7 +597,7 @@ mod tests {
         );
 
         let result = executable.render(
-            MockContentEngine::new().get_render_context(),
+            MockContentEngine::new().get_render_context(""),
             &[mime::TEXT_PLAIN],
         );
         assert!(

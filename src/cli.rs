@@ -97,7 +97,7 @@ pub fn render<I: io::Read, O: io::Write>(
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
     let content_item = content_engine.new_template(&template, media_type.clone())?;
-    let render_context = content_engine.get_render_context();
+    let render_context = content_engine.get_render_context("");
     let mut rendered_output =
         content_item.render(render_context, &[media_type.into_media_range()])?;
 
@@ -127,7 +127,7 @@ pub fn get<O: io::Write>(
         .ok_or(GetCommandError::ContentNotFound {
             route: String::from(route),
         })?;
-    let render_context = content_engine.get_render_context();
+    let render_context = content_engine.get_render_context(route);
     let mut rendered_output = content_item.render(render_context, &[accept])?;
 
     io::copy(&mut rendered_output.content, output)

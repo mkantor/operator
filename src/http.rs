@@ -128,7 +128,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             .expect("RwLock for ContentEngine has been poisoned");
 
         content_engine.get(route).map(|content| {
-            let render_context = content_engine.get_render_context();
+            let render_context = content_engine.get_render_context(route);
             content.render(render_context, acceptable_media_ranges)
         })
     };

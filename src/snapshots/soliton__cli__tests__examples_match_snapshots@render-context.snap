@@ -1,0 +1,9 @@
+---
+source: src/cli.rs
+expression: contents
+input_file: src/examples/render-context
+---
+a: "a\n"
+request-route: request-route
+request-route-wrapper: "request-route from this file: request-route-wrapper\nrequest-route from file included via partial: request-route-wrapper\nrequest-route from file included via get helper: request-route-wrapper"
+with-empty-context: "this with normal context: [object]\n\n"

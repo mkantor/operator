@@ -54,6 +54,8 @@ struct SolitonRenderData {
     version: SolitonVersion,
 }
 
+// These must match up with serialized property names in RenderData.
+const REQUEST_ROUTE_PROPERTY_NAME: &str = "request-route";
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 #[derive(Clone, Serialize)]
@@ -61,7 +63,8 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 struct RenderData {
     soliton: SolitonRenderData,
     content: ContentIndex,
-    target_media_type: Option<MediaType>, // Field name must align with TARGET_MEDIA_TYPE_PROPERTY_NAME.
+    request_route: String,
+    target_media_type: Option<MediaType>,
 }
 
 pub struct RenderContext<'engine, E: ContentEngine> {

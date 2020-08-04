@@ -1,7 +1,0 @@
----
-source: src/cli.rs
-expression: contents
-input_file: src/examples/changing-context
----
-a: "a\n"
-with: "this with normal context: [object]\n\n"

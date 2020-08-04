@@ -43,8 +43,14 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
             ))
         })?;
 
-        let target_media_type = handlebars_context.data().as_object()
-            .and_then(|object| object.get(TARGET_MEDIA_TYPE_PROPERTY_NAME))
+        let current_render_data = handlebars_context.data().as_object().ok_or_else(|| {
+            handlebars::RenderError::new(format!(
+                "The `get` helper call failed because the context JSON was not an object. It is `{}`.",
+                handlebars_context.data()
+            ))
+        })?;
+
+        let target_media_type = current_render_data.get(TARGET_MEDIA_TYPE_PROPERTY_NAME)
             .and_then(|value| value.as_str())
             .and_then(|media_type_essence| media_type_essence.parse::<MediaType>().ok())
             .ok_or_else(|| {
@@ -57,7 +63,19 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
                 ))
             })?;
 
-        let context = content_engine.get_render_context();
+        let request_route = current_render_data.get(REQUEST_ROUTE_PROPERTY_NAME)
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the request route could not be found \
+                    in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
+                    whose value is a string. The current context is `{}`.",
+                    REQUEST_ROUTE_PROPERTY_NAME,
+                    handlebars_context.data()
+                ))
+            })?;
+
+        let context = content_engine.get_render_context(request_route);
 
         let mut rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|soliton_render_error| {

@@ -29,7 +29,7 @@ pub fn example_content_directories() -> Vec<ContentDirectory> {
         example_content_directory("static-content"),
         example_content_directory("media-types"),
         example_content_directory("multimedia"),
-        example_content_directory("changing-context"),
+        example_content_directory("render-context"),
         example_content_directory("executables"),
         example_content_directory("hidden-content"),
         example_content_directory("invalid-templates"),
