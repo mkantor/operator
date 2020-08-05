@@ -25,16 +25,21 @@ impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
             .read()
             .expect("RwLock for ContentEngine has been poisoned");
 
-        let route = helper
+        let path_and_json = helper
             .param(0)
-            .ok_or_else(|| handlebars::RenderError::new(
-                "The `get` helper requires an argument (the route of the content item to get).",
-            ))?
-            .value()
-            .as_str()
-            .ok_or_else(|| handlebars::RenderError::new(
-                "The `get` helper's first argument must be a string (the route of the content item to get).",
-            ))?;
+            .ok_or_else(|| {
+                handlebars::RenderError::new(
+                    "The `get` helper requires an argument (the route of the content item to get).",
+                )
+            })?
+            .value();
+        let route = path_and_json.as_str().ok_or_else(|| {
+            handlebars::RenderError::new(format!(
+                "The `get` helper's first argument must be a string (the route of the content \
+                    item to get), but it was `{}`.",
+                path_and_json,
+            ))
+        })?;
 
         let content_item = content_engine.get(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(

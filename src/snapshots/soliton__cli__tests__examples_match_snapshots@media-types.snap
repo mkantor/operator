@@ -7,8 +7,8 @@ cannot-become-html: ""
 echo-target-media-type: text/html
 html-variation: ""
 includes-echo-target-media-type: text/html
-nesting/html-that-includes-txt: "Error: Unable to render content. Rendering failed for template: Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get). Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get)."
+nesting/html-that-includes-txt: "Error: Unable to render content. Rendering failed for template: Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`. Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`."
 nesting/just-html: "<marquee>wowowow</marquee>\n"
-nesting/txt-that-includes-html: "Error: Unable to render content. Rendering failed for template: Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get). Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get)."
+nesting/txt-that-includes-html: "Error: Unable to render content. Rendering failed for template: Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`. Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`."
 template-cannot-become-html: ""
 template-html-variation: ""
