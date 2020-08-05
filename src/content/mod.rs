@@ -61,8 +61,9 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 struct RenderData {
+    #[serde(rename = "/")]
+    index: ContentIndex,
     soliton: SolitonRenderData,
-    content: ContentIndex,
     request_route: String,
     target_media_type: Option<MediaType>,
 }

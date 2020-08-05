@@ -389,7 +389,7 @@ impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
                 soliton: SolitonRenderData {
                     version: self.soliton_version,
                 },
-                content: self.index.clone(),
+                index: self.index.clone(),
                 request_route: String::from(request_route),
                 target_media_type: None,
             },
@@ -529,7 +529,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let template = "this is partial: {{> (content.abc)}}";
+        let template = "this is partial: {{> ([/].abc)}}";
         let expected_output =
             "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
@@ -611,7 +611,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let template = "i got stuff: {{get content.b}}";
+        let template = "i got stuff: {{get [/].b}}";
         let expected_output = "i got stuff: b\n";
 
         let renderable = content_engine

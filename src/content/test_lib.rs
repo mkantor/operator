@@ -25,7 +25,7 @@ impl<'a> ContentEngine for MockContentEngine<'a> {
                 soliton: SolitonRenderData {
                     version: SolitonVersion("0.0.0"),
                 },
-                content: ContentIndex::Directory(ContentIndexEntries::new()),
+                index: ContentIndex::Directory(ContentIndexEntries::new()),
                 request_route: String::from(request_route),
                 target_media_type: None,
             },
