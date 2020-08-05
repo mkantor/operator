@@ -73,6 +73,9 @@ pub enum ServeCommandError {
         source: ContentLoadingError,
     },
 
+    #[error("Index route does not exist.")]
+    IndexRouteMissing,
+
     #[error("Failed to run server.")]
     ServerError { source: io::Error },
 }
@@ -147,8 +150,20 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     let shared_content_engine =
         FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
 
-    http::run_server(shared_content_engine, index_route, socket_address)
-        .map_err(|source| ServeCommandError::ServerError { source })
+    let index_exists = {
+        shared_content_engine
+            .read()
+            .expect("RwLock for ContentEngine has been poisoned")
+            .get(index_route)
+            .is_some()
+    };
+
+    if !index_exists {
+        Err(ServeCommandError::IndexRouteMissing)
+    } else {
+        http::run_server(shared_content_engine, index_route, socket_address)
+            .map_err(|source| ServeCommandError::ServerError { source })
+    }
 }
 
 #[cfg(test)]
