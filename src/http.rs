@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use std::io::{self, Read};
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 struct AppData<E: 'static + ContentEngine + Send + Sync> {
     shared_content_engine: Arc<RwLock<E>>,
@@ -121,6 +122,7 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
         },
     };
 
+    let started_rendering = Instant::now();
     let render_result = {
         let content_engine = app_data
             .shared_content_engine
@@ -141,7 +143,13 @@ async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> 
             let mut response_bytes = Vec::new();
             match content.read_to_end(&mut response_bytes) {
                 Ok(_) => {
-                    log::info!("Successfully rendered /{} as {}", route, media_type);
+                    let render_duration = started_rendering.elapsed();
+                    log::info!(
+                        "Successfully rendered /{} as {} in {}ms",
+                        route,
+                        media_type,
+                        render_duration.as_millis()
+                    );
                     HttpResponse::Ok()
                         .content_type(media_type.to_string())
                         .body(response_bytes)
