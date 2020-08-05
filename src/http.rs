@@ -3,25 +3,32 @@ use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use mime_guess::MimeGuess;
+use serde::Serialize;
 use std::cmp::Ordering;
 use std::io::{self, Read};
+use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-struct AppData<E: 'static + ContentEngine + Send + Sync> {
-    shared_content_engine: Arc<RwLock<E>>,
+struct AppData<
+    ServerInfo: Clone + Serialize,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+> {
+    shared_content_engine: Arc<RwLock<Engine>>,
     index_route: String,
+    server_info_type: PhantomData<ServerInfo>,
 }
 
-pub fn run_server<A, E>(
-    shared_content_engine: Arc<RwLock<E>>,
+pub fn run_server<ServerInfo, SocketAddress, Engine>(
+    shared_content_engine: Arc<RwLock<Engine>>,
     index_route: &str,
-    socket_address: A,
+    socket_address: SocketAddress,
 ) -> Result<(), io::Error>
 where
-    A: 'static + ToSocketAddrs,
-    E: 'static + ContentEngine + Send + Sync,
+    ServerInfo: 'static + Clone + Serialize,
+    SocketAddress: 'static + ToSocketAddrs,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let index_route = String::from(index_route);
 
@@ -33,8 +40,9 @@ where
                 .app_data(AppData {
                     shared_content_engine: shared_content_engine.clone(),
                     index_route: index_route.clone(),
+                    server_info_type: PhantomData,
                 })
-                .route("/{path:.*}", web::get().to(get::<E>))
+                .route("/{path:.*}", web::get().to(get::<ServerInfo, Engine>))
         })
         .bind(socket_address)?
         .run()
@@ -60,9 +68,13 @@ where
 /// PDF format, visit http://mysite.com/resume.pdf" to "...first install this
 /// browser extension that lets you customize HTTP headers, then set the accept
 /// header to application/pdf, then visit http://mysite.com/resume").
-async fn get<E: 'static + ContentEngine + Send + Sync>(request: HttpRequest) -> HttpResponse {
+async fn get<ServerInfo, Engine>(request: HttpRequest) -> HttpResponse
+where
+    ServerInfo: 'static + Clone + Serialize,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+{
     let app_data = request
-        .app_data::<AppData<E>>()
+        .app_data::<AppData<ServerInfo, Engine>>()
         .expect("App data was not of the expected type!");
 
     let path = request
@@ -229,16 +241,15 @@ mod tests {
 
     fn test_request(content_directory_path: &Path, url_path: &'static str) -> TestRequest {
         let directory = ContentDirectory::from_root(&content_directory_path).unwrap();
-        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
-            directory,
-            SolitonVersion("0.0.0"),
-        )
-        .expect("Content engine could not be created");
+        let shared_content_engine =
+            FilesystemBasedContentEngine::from_content_directory(directory, ())
+                .expect("Content engine could not be created");
 
         TestRequest::default()
             .app_data(AppData {
                 shared_content_engine: shared_content_engine,
                 index_route: String::new(),
+                server_info_type: PhantomData,
             })
             .param("path", url_path)
     }
@@ -247,7 +258,7 @@ mod tests {
     async fn content_may_be_not_found() {
         let request =
             test_request(&example_path("empty"), "nothing/exists/at/this/path").to_http_request();
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
@@ -258,7 +269,7 @@ mod tests {
             .header("accept", "text/html")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -290,7 +301,7 @@ mod tests {
             .header("accept", "text/*")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -322,7 +333,7 @@ mod tests {
             .header("accept", "*/*")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -354,7 +365,7 @@ mod tests {
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -384,7 +395,7 @@ mod tests {
     async fn content_can_be_retrieved_with_missing_accept_header() {
         let request = test_request(&example_path("hello-world"), "hello").to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -416,7 +427,7 @@ mod tests {
             .header("accept", "video/*")
             .to_http_request();
 
-        let response: HttpResponse = get::<FilesystemBasedContentEngine>(request).await;
+        let response: HttpResponse = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
             .body()
             .as_ref()
@@ -457,7 +468,7 @@ mod tests {
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
 
         assert_eq!(
             response.status(),
@@ -474,7 +485,7 @@ mod tests {
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -500,7 +511,7 @@ mod tests {
             .header("accept", "text/html")
             .to_http_request();
 
-        let response = get::<FilesystemBasedContentEngine>(request).await;
+        let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
 
         assert_eq!(
             response.status(),

@@ -88,8 +88,12 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let shared_content_engine =
-        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        content_directory,
+        SolitonInfo {
+            version: soliton_version,
+        },
+    )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -119,8 +123,12 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let shared_content_engine =
-        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        content_directory,
+        SolitonInfo {
+            version: soliton_version,
+        },
+    )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -147,8 +155,12 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     socket_address: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
-    let shared_content_engine =
-        FilesystemBasedContentEngine::from_content_directory(content_directory, soliton_version)?;
+    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        content_directory,
+        SolitonInfo {
+            version: soliton_version,
+        },
+    )?;
 
     let index_exists = {
         shared_content_engine

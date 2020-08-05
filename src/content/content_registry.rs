@@ -11,11 +11,17 @@ pub enum RegisteredContent {
 }
 impl Render for RegisteredContent {
     type Output = Box<dyn Read>;
-    fn render<'a, E: ContentEngine, A: IntoIterator<Item = &'a MediaRange>>(
+    fn render<'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<E>,
-        acceptable_media_ranges: A,
-    ) -> Result<Media<Self::Output>, ContentRenderingError> {
+        context: RenderContext<ServerInfo, Engine>,
+        acceptable_media_ranges: Accept,
+    ) -> Result<Media<Self::Output>, ContentRenderingError>
+    where
+        ServerInfo: Clone + Serialize,
+        Engine: ContentEngine<ServerInfo>,
+        Accept: IntoIterator<Item = &'accept MediaRange>,
+        Self::Output: Read,
+    {
         match self {
             Self::StaticContentItem(renderable) => renderable
                 .render(context, acceptable_media_ranges)

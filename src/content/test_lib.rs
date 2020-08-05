@@ -17,14 +17,12 @@ impl<'a> MockContentEngine<'a> {
             .register_template_string(template_name, template_contents)
     }
 }
-impl<'a> ContentEngine for MockContentEngine<'a> {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<Self> {
+impl<'a> ContentEngine<()> for MockContentEngine<'a> {
+    fn get_render_context(&self, request_route: &str) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
-                soliton: SolitonRenderData {
-                    version: SolitonVersion("0.0.0"),
-                },
+                server_info: (),
                 index: ContentIndex::Directory(ContentIndexEntries::new()),
                 request_route: String::from(request_route),
                 target_media_type: None,

@@ -7,7 +7,6 @@ mod handlebars_helpers;
 mod mime;
 mod test_lib;
 
-use crate::lib::*;
 use content_index::*;
 use serde::Serialize;
 use std::io::Read;
@@ -38,20 +37,16 @@ impl<O: Read> Media<O> {
 
 pub trait Render {
     type Output;
-    fn render<'engine, 'accept, E, A>(
+    fn render<'engine, 'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<'engine, E>,
-        acceptable_media_ranges: A,
+        context: RenderContext<'engine, ServerInfo, Engine>,
+        acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, ContentRenderingError>
     where
-        E: ContentEngine,
-        A: IntoIterator<Item = &'accept MediaRange>,
+        ServerInfo: Clone + Serialize,
+        Engine: ContentEngine<ServerInfo>,
+        Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: Read;
-}
-
-#[derive(Clone, Serialize)]
-struct SolitonRenderData {
-    version: SolitonVersion,
 }
 
 // These must match up with serialized property names in RenderData.
@@ -60,15 +55,16 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct RenderData {
+struct RenderData<ServerInfo: Clone + Serialize> {
     #[serde(rename = "/")]
     index: ContentIndex,
-    soliton: SolitonRenderData,
+    server_info: ServerInfo,
     request_route: String,
     target_media_type: Option<MediaType>,
 }
 
-pub struct RenderContext<'engine, E: ContentEngine> {
-    content_engine: &'engine E,
-    data: RenderData,
+pub struct RenderContext<'engine, ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>>
+{
+    content_engine: &'engine Engine,
+    data: RenderData<ServerInfo>,
 }

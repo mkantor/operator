@@ -4,7 +4,6 @@ use super::content_item::*;
 use super::content_registry::*;
 use super::handlebars_helpers::*;
 use super::*;
-use crate::lib::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
 use std::io;
@@ -61,11 +60,12 @@ pub enum ContentLoadingError {
     Bug { message: String },
 }
 
-pub trait ContentEngine
+pub trait ContentEngine<ServerInfo>
 where
     Self: Sized,
+    ServerInfo: Clone + Serialize,
 {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<Self>;
+    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self>;
 
     fn new_template(
         &self,
@@ -86,17 +86,20 @@ impl CanonicalRoute {
     }
 }
 
-pub struct FilesystemBasedContentEngine<'engine> {
-    soliton_version: SolitonVersion,
+pub struct FilesystemBasedContentEngine<'engine, ServerInfo: Clone + Serialize> {
+    server_info: ServerInfo,
     index: ContentIndex,
     content_registry: ContentRegistry,
     handlebars_registry: Handlebars<'engine>,
 }
 
-impl<'engine> FilesystemBasedContentEngine<'engine> {
+impl<'engine, ServerInfo> FilesystemBasedContentEngine<'engine, ServerInfo>
+where
+    ServerInfo: 'static + Clone + Serialize + Send + Sync,
+{
     pub fn from_content_directory(
         content_directory: ContentDirectory,
-        soliton_version: SolitonVersion,
+        server_info: ServerInfo,
     ) -> Result<Arc<RwLock<Self>>, ContentLoadingError> {
         let content_item_entries = content_directory
             .into_iter()
@@ -106,7 +109,7 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
             Self::set_up_registries(content_item_entries)?;
 
         let content_engine = FilesystemBasedContentEngine {
-            soliton_version,
+            server_info,
             index: ContentIndex::Directory(routes),
             content_registry,
             handlebars_registry,
@@ -381,14 +384,14 @@ impl<'engine> FilesystemBasedContentEngine<'engine> {
     }
 }
 
-impl<'engine> ContentEngine for FilesystemBasedContentEngine<'engine> {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<Self> {
+impl<'engine, ServerInfo: Clone + Serialize> ContentEngine<ServerInfo>
+    for FilesystemBasedContentEngine<'engine, ServerInfo>
+{
+    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
-                soliton: SolitonRenderData {
-                    version: self.soliton_version,
-                },
+                server_info: self.server_info.clone(),
                 index: self.index.clone(),
                 request_route: String::from(request_route),
                 target_media_type: None,

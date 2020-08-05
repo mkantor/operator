@@ -1,17 +1,26 @@
 use crate::content::*;
 use handlebars::{self, Handlebars};
+use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
-pub struct GetHelper<E: ContentEngine> {
-    content_engine: Arc<RwLock<E>>,
+pub struct GetHelper<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>> {
+    content_engine: Arc<RwLock<Engine>>,
+    server_info_type: PhantomData<ServerInfo>,
 }
-impl<E: ContentEngine> GetHelper<E> {
-    pub fn new(content_engine: Arc<RwLock<E>>) -> Self {
-        Self { content_engine }
+impl<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>>
+    GetHelper<ServerInfo, Engine>
+{
+    pub fn new(content_engine: Arc<RwLock<Engine>>) -> Self {
+        Self {
+            content_engine,
+            server_info_type: PhantomData,
+        }
     }
 }
 
-impl<E: ContentEngine> handlebars::HelperDef for GetHelper<E> {
+impl<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>> handlebars::HelperDef
+    for GetHelper<ServerInfo, Engine>
+{
     fn call<'registry: 'context, 'context>(
         &self,
         helper: &handlebars::Helper<'registry, 'context>,
