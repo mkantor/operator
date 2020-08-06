@@ -6,6 +6,7 @@ use super::handlebars_helpers::*;
 use super::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
+use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -47,6 +48,12 @@ pub enum ContentLoadingError {
     #[error("Content file name is not supported: {}", .message)]
     ContentFileNameError { message: String },
 
+    #[error("There are multiple content files for route /{} with the same media type ({}).", .route, .media_type)]
+    DuplicateContent {
+        route: String,
+        media_type: MediaType,
+    },
+
     #[error("Content file has an unknown media type: {}", .message)]
     UnknownFileType { message: String },
 
@@ -73,7 +80,7 @@ where
         media_type: MediaType,
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError>;
 
-    fn get(&self, route: &str) -> Option<&RegisteredContent>;
+    fn get(&self, route: &str) -> Option<&ContentRepresentations>;
 
     fn handlebars_registry(&self) -> &Handlebars;
 }
@@ -83,6 +90,11 @@ pub struct CanonicalRoute(pub String);
 impl CanonicalRoute {
     pub fn new<C: AsRef<str>>(canonical_route: C) -> Self {
         CanonicalRoute(String::from(canonical_route.as_ref()))
+    }
+}
+impl AsRef<str> for CanonicalRoute {
+    fn as_ref(&self) -> &str {
+        &self.0
     }
 }
 
@@ -193,8 +205,6 @@ where
             });
         }
 
-        routes.try_add(file.relative_path_without_extensions())?;
-
         let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
         let mime =
             MimeGuess::from_ext(extension)
@@ -210,20 +220,19 @@ where
             MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
                 message: String::from("Mime guess was not a concrete media type!"),
             })?;
-        let content_item = RegisteredContent::StaticContentItem(StaticContentItem::new(
-            file.file_contents(),
-            media_type,
-        ));
-        let was_duplicate = content_registry
-            .insert(canonical_route, content_item)
-            .is_some();
-        if was_duplicate {
-            return Err(ContentLoadingError::Bug {
-                message: String::from("There were two or more content files with the same route."),
-            });
-        }
 
-        Ok(())
+        Self::register_content(
+            content_registry,
+            routes,
+            canonical_route,
+            media_type.clone(),
+            || {
+                RegisteredContent::StaticContentItem(StaticContentItem::new(
+                    file.file_contents(),
+                    media_type,
+                ))
+            },
+        )
     }
 
     /// Content files with two extensions are either templates or executables
@@ -238,6 +247,7 @@ where
         content_registry: &mut ContentRegistry,
         handlebars_registry: &mut Handlebars,
     ) -> Result<(), ContentLoadingError> {
+        let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
         match [first_extension, second_extension] {
             // Handlebars templates are named like foo.html.hbs and do not
             // have the executable bit set. When rendered they are evaluated by
@@ -253,10 +263,6 @@ where
                         ),
                     });
                 }
-                routes.try_add(file.relative_path_without_extensions())?;
-
-                let route_string = String::from(file.relative_path_without_extensions());
-                let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
 
                 let mime = MimeGuess::from_ext(first_extension)
                     .first()
@@ -274,8 +280,9 @@ where
                     })?;
                 let mut contents = file.file_contents();
 
+                let template_name = canonical_route.0.clone();
                 handlebars_registry
-                    .register_template_source(&route_string, &mut contents)
+                    .register_template_source(&template_name, &mut contents)
                     .map_err(|template_render_error| match template_render_error {
                         handlebars::TemplateFileError::TemplateError(source) => {
                             ContentLoadingError::TemplateParseError(RegisteredTemplateParseError {
@@ -294,29 +301,24 @@ where
                         }
                     })?;
 
-                let content_item = RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
-                    route_string,
-                    media_type,
-                ));
-                let was_duplicate = content_registry
-                    .insert(canonical_route, content_item)
-                    .is_some();
-                if was_duplicate {
-                    return Err(ContentLoadingError::Bug {
-                        message: String::from(
-                            "There were two or more content files with the same route.",
-                        ),
-                    });
-                }
+                Self::register_content(
+                    content_registry,
+                    routes,
+                    canonical_route,
+                    media_type.clone(),
+                    || {
+                        RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
+                            template_name,
+                            media_type,
+                        ))
+                    },
+                )
             }
 
             // Executable programs are named like foo.html.py and must have the
             // executable bit set in their file permissions. When rendered they
             // will executed by the OS in a separate process.
             [first_extension, _arbitrary_second_extension] if file.is_executable() => {
-                routes.try_add(file.relative_path_without_extensions())?;
-
-                let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
                 let mime =
                     MimeGuess::from_ext(first_extension)
                         .first()
@@ -349,26 +351,24 @@ where
                             ),
                         }
                     })?;
-                let content_item = RegisteredContent::Executable(Executable::new(
-                    file.absolute_path(),
-                    working_directory,
-                    media_type,
-                ));
 
-                let was_duplicate = content_registry
-                    .insert(canonical_route, content_item)
-                    .is_some();
-                if was_duplicate {
-                    return Err(ContentLoadingError::Bug {
-                        message: String::from(
-                            "There were two or more content files with the same route.",
-                        ),
-                    });
-                }
+                Self::register_content(
+                    content_registry,
+                    routes,
+                    canonical_route,
+                    media_type.clone(),
+                    || {
+                        RegisteredContent::Executable(Executable::new(
+                            file.absolute_path(),
+                            working_directory,
+                            media_type,
+                        ))
+                    },
+                )
             }
 
             [first_unsupported_extension, second_unsupported_extension] => {
-                return Err(ContentLoadingError::ContentFileNameError {
+                Err(ContentLoadingError::ContentFileNameError {
                     message: format!(
                         "The content file '{}' has two extensions ('{}.{}'), but is \
                         neither a handlebars template nor an executable.",
@@ -376,11 +376,35 @@ where
                         first_unsupported_extension,
                         second_unsupported_extension
                     ),
-                });
+                })
             }
-        };
+        }
+    }
 
-        Ok(())
+    fn register_content<F>(
+        content_registry: &mut ContentRegistry,
+        content_index: &mut ContentIndexEntries,
+        route: CanonicalRoute,
+        media_type: MediaType,
+        f: F,
+    ) -> Result<(), ContentLoadingError>
+    where
+        F: FnOnce() -> RegisteredContent,
+    {
+        content_index.try_add(&route)?;
+        let representations = content_registry
+            .entry(route.clone())
+            .or_insert(HashMap::new());
+        if representations.contains_key(&media_type) {
+            Err(ContentLoadingError::DuplicateContent {
+                route: route.0.clone(),
+                media_type,
+            })
+        } else {
+            let content_item = f();
+            representations.insert(media_type, content_item);
+            Ok(())
+        }
     }
 }
 
@@ -407,7 +431,7 @@ impl<'engine, ServerInfo: Clone + Serialize> ContentEngine<ServerInfo>
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
 
-    fn get(&self, route: &str) -> Option<&RegisteredContent> {
+    fn get(&self, route: &str) -> Option<&ContentRepresentations> {
         self.content_registry.get(&CanonicalRoute::new(route))
     }
 
@@ -431,6 +455,7 @@ mod tests {
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         let content_directories_with_valid_contents = vec![
+            example_content_directory("alternative-representations"),
             example_content_directory("hello-world"),
             example_content_directory("partials"),
             example_content_directory("empty"),

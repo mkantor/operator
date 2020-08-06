@@ -39,7 +39,7 @@ pub struct ContentIndexUpdateError {
 #[derive(Clone, Serialize)]
 #[serde(untagged)]
 pub enum ContentIndex {
-    File(CanonicalRoute),
+    Resource(CanonicalRoute),
     Directory(ContentIndexEntries),
 }
 
@@ -77,13 +77,13 @@ impl ContentIndexEntries {
 
                     node = match next_node {
                         ContentIndex::Directory(branch) => branch,
-                        ContentIndex::File(CanonicalRoute(conficting_route)) => {
+                        ContentIndex::Resource(CanonicalRoute(conficting_route)) => {
                             // Each component in dirname_components represents
                             // a directory along the path
                             return Err(ContentIndexUpdateError {
                             failed_route: String::from(canonical_route.as_ref()),
                               message: format!(
-                                "There is already a file at '{}', but that needs to be a directory to accommodate the new route.",
+                                "There is already a resource at '{}', but that needs to be a directory to accommodate the new route.",
                                 conficting_route,
                               )
                             });
@@ -91,25 +91,25 @@ impl ContentIndexEntries {
                     };
                 }
 
-                // Use the last path component to insert a file in the index.
+                // Use the last path component to insert a resource.
                 match node.0.get(basename) {
-                    Some(existing_entry) => {
-                        let entry_description = match existing_entry {
-                            ContentIndex::Directory(..) => "directory",
-                            ContentIndex::File(..) => "file",
-                        };
-                        Err(ContentIndexUpdateError {
-                            failed_route: String::from(canonical_route.as_ref()),
-                            message: format!(
-                                "There is already a {} at '{}'.",
-                                entry_description,
-                                canonical_route.as_ref(),
-                            ),
-                        })
+                    Some(ContentIndex::Directory(..)) => Err(ContentIndexUpdateError {
+                        failed_route: String::from(canonical_route.as_ref()),
+                        message: format!(
+                            "There is already a directory at '{}'.",
+                            canonical_route.as_ref(),
+                        ),
+                    }),
+                    Some(ContentIndex::Resource(..)) => {
+                        // This route already exists, no need to do anything.
+                        // This can happen when there are alternative
+                        // representations for the same content, e.g. foo.html
+                        // next to foo.pdf.
+                        Ok(())
                     }
                     None => {
                         node.0.entry(String::from(basename)).or_insert_with(|| {
-                            ContentIndex::File(CanonicalRoute::new(canonical_route))
+                            ContentIndex::Resource(CanonicalRoute::new(canonical_route))
                         });
                         Ok(())
                     }
@@ -130,6 +130,8 @@ mod tests {
         index.try_add("foo").unwrap();
         index.try_add("bar").unwrap();
         index.try_add("bar/plugh").unwrap();
+        index.try_add("bar/baz/quux").unwrap();
+        // Adding the same route twice should have no effect.
         index.try_add("bar/baz/quux").unwrap();
 
         let actual_json = serde_json::to_value(index).unwrap();

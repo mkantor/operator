@@ -18,7 +18,7 @@ pub use content_engine::{
     UnregisteredTemplateParseError,
 };
 pub use content_item::{ContentRenderingError, UnregisteredTemplate};
-pub use content_registry::RegisteredContent;
+pub use content_registry::{ContentRepresentations, RegisteredContent};
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 

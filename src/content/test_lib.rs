@@ -36,7 +36,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
     ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
-    fn get(&self, _: &str) -> Option<&RegisteredContent> {
+    fn get(&self, _: &str) -> Option<&ContentRepresentations> {
         None
     }
     fn handlebars_registry(&self) -> &Handlebars {

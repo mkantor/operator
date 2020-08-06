@@ -1,0 +1,12 @@
+---
+source: src/cli.rs
+expression: contents
+input_file: src/examples/alternative-representations
+---
+foo.html: "<em>foo</em>"
+foo.json.sh: "{\"value\":\"foo\"}\n"
+foo.txt.hbs: foo
+hampster.gif: binary data with hash f12321a776395884
+hampster.jpg: binary data with hash 8937766eff0b533b
+hampster.pdf: binary data with hash 2ecb0a0fe0f87553
+hampster.png: binary data with hash 655a38e4eafa8ca3

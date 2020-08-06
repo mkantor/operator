@@ -23,22 +23,26 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
 
 pub fn example_content_directories() -> Vec<ContentDirectory> {
     vec![
-        example_content_directory("hello-world"),
-        example_content_directory("partials"),
+        example_content_directory("alternative-representations"),
         example_content_directory("empty"),
-        example_content_directory("static-content"),
+        example_content_directory("executables"),
+        example_content_directory("hello-world"),
+        example_content_directory("hidden-content"),
         example_content_directory("media-types"),
         example_content_directory("multimedia"),
+        example_content_directory("partials"),
         example_content_directory("render-context"),
-        example_content_directory("executables"),
-        example_content_directory("hidden-content"),
-        example_content_directory("invalid-templates"),
-        example_content_directory("invalid-unsupported-static-file"),
+        example_content_directory("static-content"),
+        example_content_directory("invalid-duplicate-media-type-1"),
+        example_content_directory("invalid-duplicate-media-type-2"),
+        example_content_directory("invalid-duplicate-media-type-3"),
         example_content_directory("invalid-single-extension-executable"),
-        example_content_directory("invalid-two-extensions-not-template-or-executable"),
         example_content_directory("invalid-template-that-is-executable"),
-        example_content_directory("invalid-three-extensions-not-executable"),
+        example_content_directory("invalid-templates"),
         example_content_directory("invalid-three-extensions-executable"),
+        example_content_directory("invalid-three-extensions-not-executable"),
+        example_content_directory("invalid-two-extensions-not-template-or-executable"),
+        example_content_directory("invalid-unsupported-static-file"),
     ]
 }
 

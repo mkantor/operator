@@ -13,6 +13,9 @@ pub enum ContentRenderingError {
 
     #[error("The requested content cannot be rendered as an acceptable media type.")]
     CannotProvideAcceptableMediaType,
+
+    #[error("You've encountered a bug! This should never happen: {}", .message)]
+    Bug { message: String },
 }
 
 #[derive(Error, Debug)]
@@ -72,7 +75,7 @@ impl StaticContentItem {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailure> {
+    pub(super) fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailure> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
@@ -118,7 +121,7 @@ impl RegisteredTemplate {
         }
     }
 
-    fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
+    pub(super) fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo>,
@@ -177,7 +180,7 @@ impl UnregisteredTemplate {
         })
     }
 
-    fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
+    pub(super) fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo>,
@@ -251,7 +254,9 @@ impl Executable {
         }
     }
 
-    fn render_to_native_media_type(&self) -> Result<Media<ChildStdout>, RenderingFailure> {
+    pub(super) fn render_to_native_media_type(
+        &self,
+    ) -> Result<Media<ChildStdout>, RenderingFailure> {
         let mut command = Command::new(self.program.clone());
 
         let mut child = command

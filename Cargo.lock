@@ -1659,6 +1659,7 @@ dependencies = [
  "handlebars",
  "insta",
  "log",
+ "maplit",
  "mime",
  "mime_guess",
  "serde",

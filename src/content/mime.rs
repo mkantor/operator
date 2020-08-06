@@ -6,7 +6,7 @@ use thiserror::Error;
 
 pub type MediaRange = Mime;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct MediaType(MediaRange);
 impl MediaType {
     pub fn from_media_range(media_range: MediaRange) -> Option<MediaType> {
@@ -49,9 +49,15 @@ impl FromStr for MediaType {
     }
 }
 
+impl fmt::Debug for MediaType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, formatter)
+    }
+}
+
 impl fmt::Display for MediaType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        MediaRange::fmt(&self.0, formatter)
+        fmt::Display::fmt(&self.0, formatter)
     }
 }
 
