@@ -1,5 +1,4 @@
-use super::content_directory::ContentFile;
-use super::content_engine::CanonicalRoute;
+use super::content_registry::Route;
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -36,26 +35,23 @@ pub struct ContentIndexUpdateError {
 ///   baz/:
 ///     quux: bar/baz/quux
 /// ```
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum ContentIndex {
-    Resource(CanonicalRoute),
+    Resource(Route),
     Directory(ContentIndexEntries),
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ContentIndexEntries(HashMap<String, ContentIndex>);
 impl ContentIndexEntries {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
-    pub fn try_add<C: AsRef<str>>(
-        &mut self,
-        canonical_route: C,
-    ) -> Result<(), ContentIndexUpdateError> {
+    pub fn try_add(&mut self, route: &Route) -> Result<(), ContentIndexUpdateError> {
         let (dirname_components, basename) = {
-            let mut path_components = canonical_route.as_ref().split(ContentFile::PATH_SEPARATOR);
+            let mut path_components = route.as_ref().split(Route::PATH_SEPARATOR);
             let basename = path_components.next_back();
             (path_components, basename)
         };
@@ -77,15 +73,15 @@ impl ContentIndexEntries {
 
                     node = match next_node {
                         ContentIndex::Directory(branch) => branch,
-                        ContentIndex::Resource(CanonicalRoute(conficting_route)) => {
+                        ContentIndex::Resource(conficting_route) => {
                             // Each component in dirname_components represents
                             // a directory along the path
                             return Err(ContentIndexUpdateError {
-                            failed_route: String::from(canonical_route.as_ref()),
-                              message: format!(
-                                "There is already a resource at '{}', but that needs to be a directory to accommodate the new route.",
-                                conficting_route,
-                              )
+                                failed_route: String::from(route.as_ref()),
+                                message: format!(
+                                    "There is already a resource at '{}', but that needs to be a directory to accommodate the new route.",
+                                    conficting_route.as_ref(),
+                                )
                             });
                         }
                     };
@@ -94,11 +90,8 @@ impl ContentIndexEntries {
                 // Use the last path component to insert a resource.
                 match node.0.get(basename) {
                     Some(ContentIndex::Directory(..)) => Err(ContentIndexUpdateError {
-                        failed_route: String::from(canonical_route.as_ref()),
-                        message: format!(
-                            "There is already a directory at '{}'.",
-                            canonical_route.as_ref(),
-                        ),
+                        failed_route: String::from(route.as_ref()),
+                        message: format!("There is already a directory at '{}'.", route.as_ref(),),
                     }),
                     Some(ContentIndex::Resource(..)) => {
                         // This route already exists, no need to do anything.
@@ -108,9 +101,9 @@ impl ContentIndexEntries {
                         Ok(())
                     }
                     None => {
-                        node.0.entry(String::from(basename)).or_insert_with(|| {
-                            ContentIndex::Resource(CanonicalRoute::new(canonical_route))
-                        });
+                        node.0
+                            .entry(String::from(basename))
+                            .or_insert_with(|| ContentIndex::Resource(Route::new(route)));
                         Ok(())
                     }
                 }
@@ -127,12 +120,12 @@ mod tests {
     #[test]
     fn index_has_the_correct_structure() {
         let mut index = ContentIndexEntries::new();
-        index.try_add("foo").unwrap();
-        index.try_add("bar").unwrap();
-        index.try_add("bar/plugh").unwrap();
-        index.try_add("bar/baz/quux").unwrap();
+        index.try_add(&Route::new("foo")).unwrap();
+        index.try_add(&Route::new("bar")).unwrap();
+        index.try_add(&Route::new("bar/plugh")).unwrap();
+        index.try_add(&Route::new("bar/baz/quux")).unwrap();
         // Adding the same route twice should have no effect.
-        index.try_add("bar/baz/quux").unwrap();
+        index.try_add(&Route::new("bar/baz/quux")).unwrap();
 
         let actual_json = serde_json::to_value(index).unwrap();
         let expected_json = json!({

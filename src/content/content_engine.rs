@@ -86,19 +86,6 @@ where
     fn handlebars_registry(&self) -> &Handlebars;
 }
 
-#[derive(Clone, Hash, Eq, PartialEq, Serialize)]
-pub struct CanonicalRoute(pub String);
-impl CanonicalRoute {
-    pub fn new<C: AsRef<str>>(canonical_route: C) -> Self {
-        CanonicalRoute(String::from(canonical_route.as_ref()))
-    }
-}
-impl AsRef<str> for CanonicalRoute {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
 pub struct FilesystemBasedContentEngine<'engine, ServerInfo: Clone + Serialize> {
     server_info: ServerInfo,
     index: ContentIndex,
@@ -118,12 +105,12 @@ where
             .into_iter()
             .filter(|entry| !entry.is_hidden());
 
-        let (routes, content_registry, handlebars_registry) =
+        let (index_entries, content_registry, handlebars_registry) =
             Self::set_up_registries(content_item_entries)?;
 
         let content_engine = FilesystemBasedContentEngine {
             server_info,
-            index: ContentIndex::Directory(routes),
+            index: ContentIndex::Directory(index_entries),
             content_registry,
             handlebars_registry,
         };
@@ -143,7 +130,7 @@ where
     fn set_up_registries<'a, E: IntoIterator<Item = ContentFile>>(
         content_item_entries: E,
     ) -> Result<(ContentIndexEntries, ContentRegistry, Handlebars<'a>), ContentLoadingError> {
-        let mut routes = ContentIndexEntries::new();
+        let mut index = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         let mut content_registry = ContentRegistry::new();
         for entry in content_item_entries {
@@ -152,14 +139,14 @@ where
                 [single_extension] => Self::register_file_with_one_extension(
                     entry,
                     single_extension,
-                    &mut routes,
+                    &mut index,
                     &mut content_registry,
                 )?,
                 [first_extension, second_extension] => Self::register_file_with_two_extensions(
                     entry,
                     first_extension,
                     second_extension,
-                    &mut routes,
+                    &mut index,
                     &mut content_registry,
                     &mut handlebars_registry,
                 )?,
@@ -182,7 +169,7 @@ where
             }
         }
 
-        Ok((routes, content_registry, handlebars_registry))
+        Ok((index, content_registry, handlebars_registry))
     }
 
     /// Content files with one extension indicate static content (e.g. an image
@@ -190,7 +177,7 @@ where
     fn register_file_with_one_extension(
         file: ContentFile,
         extension: &str,
-        routes: &mut ContentIndexEntries,
+        index: &mut ContentIndexEntries,
         content_registry: &mut ContentRegistry,
     ) -> Result<(), ContentLoadingError> {
         if file.is_executable() {
@@ -206,7 +193,7 @@ where
             });
         }
 
-        let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
+        let route = Route::new(file.relative_path_without_extensions());
         let mime =
             MimeGuess::from_ext(extension)
                 .first()
@@ -222,18 +209,12 @@ where
                 message: String::from("Mime guess was not a concrete media type!"),
             })?;
 
-        Self::register_content(
-            content_registry,
-            routes,
-            canonical_route,
-            media_type.clone(),
-            || {
-                RegisteredContent::StaticContentItem(StaticContentItem::new(
-                    file.file_contents(),
-                    media_type,
-                ))
-            },
-        )
+        Self::register_content(content_registry, index, route, media_type.clone(), || {
+            RegisteredContent::StaticContentItem(StaticContentItem::new(
+                file.file_contents(),
+                media_type,
+            ))
+        })
     }
 
     /// Content files with two extensions are either templates or executables
@@ -244,11 +225,11 @@ where
         file: ContentFile,
         first_extension: &str,
         second_extension: &str,
-        routes: &mut ContentIndexEntries,
+        index: &mut ContentIndexEntries,
         content_registry: &mut ContentRegistry,
         handlebars_registry: &mut Handlebars,
     ) -> Result<(), ContentLoadingError> {
-        let canonical_route = CanonicalRoute::new(file.relative_path_without_extensions());
+        let route = Route::new(file.relative_path_without_extensions());
         match [first_extension, second_extension] {
             // Handlebars templates are named like foo.html.hbs and do not
             // have the executable bit set. When rendered they are evaluated by
@@ -281,7 +262,7 @@ where
                     })?;
                 let mut contents = file.file_contents();
 
-                let template_name = canonical_route.0.clone();
+                let template_name = String::from(route.as_ref());
                 handlebars_registry
                     .register_template_source(&template_name, &mut contents)
                     .map_err(|template_render_error| match template_render_error {
@@ -302,18 +283,12 @@ where
                         }
                     })?;
 
-                Self::register_content(
-                    content_registry,
-                    routes,
-                    canonical_route,
-                    media_type.clone(),
-                    || {
-                        RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
-                            template_name,
-                            media_type,
-                        ))
-                    },
-                )
+                Self::register_content(content_registry, index, route, media_type.clone(), || {
+                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
+                        template_name,
+                        media_type,
+                    ))
+                })
             }
 
             // Executable programs are named like foo.html.py and must have the
@@ -353,19 +328,13 @@ where
                         }
                     })?;
 
-                Self::register_content(
-                    content_registry,
-                    routes,
-                    canonical_route,
-                    media_type.clone(),
-                    || {
-                        RegisteredContent::Executable(Executable::new(
-                            file.absolute_path(),
-                            working_directory,
-                            media_type,
-                        ))
-                    },
-                )
+                Self::register_content(content_registry, index, route, media_type.clone(), || {
+                    RegisteredContent::Executable(Executable::new(
+                        file.absolute_path(),
+                        working_directory,
+                        media_type,
+                    ))
+                })
             }
 
             [first_unsupported_extension, second_unsupported_extension] => {
@@ -385,7 +354,7 @@ where
     fn register_content<F>(
         content_registry: &mut ContentRegistry,
         content_index: &mut ContentIndexEntries,
-        route: CanonicalRoute,
+        route: Route,
         media_type: MediaType,
         create_content: F,
     ) -> Result<(), ContentLoadingError>
@@ -401,7 +370,7 @@ where
             Entry::Occupied(entry) => {
                 let (media_type, _) = entry.remove_entry();
                 Err(ContentLoadingError::DuplicateContent {
-                    route: route.0,
+                    route: String::from(route.as_ref()),
                     media_type,
                 })
             }
@@ -437,7 +406,7 @@ impl<'engine, ServerInfo: Clone + Serialize> ContentEngine<ServerInfo>
     }
 
     fn get(&self, route: &str) -> Option<&ContentRepresentations> {
-        self.content_registry.get(&CanonicalRoute::new(route))
+        self.content_registry.get(&Route::new(route))
     }
 
     fn handlebars_registry(&self) -> &Handlebars {

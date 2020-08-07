@@ -1,7 +1,24 @@
-use super::content_engine::CanonicalRoute;
 use super::content_item::*;
 use super::*;
 use std::collections::HashMap;
+
+pub type ContentRegistry = HashMap<Route, ContentRepresentations>;
+pub type ContentRepresentations = HashMap<MediaType, RegisteredContent>;
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
+pub struct Route(String);
+impl Route {
+    pub const PATH_SEPARATOR: char = '/';
+
+    pub fn new<C: AsRef<str>>(route: C) -> Self {
+        Route(String::from(route.as_ref()))
+    }
+}
+impl AsRef<str> for Route {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
 
 /// A renderable item from the content directory.
 pub enum RegisteredContent {
@@ -9,9 +26,6 @@ pub enum RegisteredContent {
     RegisteredTemplate(RegisteredTemplate),
     Executable(Executable),
 }
-
-pub type ContentRepresentations = HashMap<MediaType, RegisteredContent>;
-pub type ContentRegistry = HashMap<CanonicalRoute, ContentRepresentations>;
 
 impl Render for ContentRepresentations {
     type Output = Box<dyn Read>;
