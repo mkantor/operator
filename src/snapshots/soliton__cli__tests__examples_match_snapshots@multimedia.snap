@@ -3,5 +3,5 @@ source: src/cli.rs
 expression: contents
 input_file: src/examples/multimedia
 ---
-dramatic-prairie-dog: binary data with hash 993ffd47041700b
-wilhelm-scream: binary data with hash 9eb0b3ab8b7a0069
+dramatic-prairie-dog.mp4: binary data with hash 993ffd47041700b
+wilhelm-scream.ogg: binary data with hash 9eb0b3ab8b7a0069

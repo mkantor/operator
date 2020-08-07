@@ -3,10 +3,10 @@ source: src/cli.rs
 expression: contents
 input_file: src/examples/executables
 ---
-cat: ""
-count-cli-args: "0\n"
-error: "Error: Unable to render content. Executable '$PROJECT_DIRECTORY/src/examples/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/executables' exited with code 1: boom!\n"
-ls: "cat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\npwd.txt.sh\nrandom-SKIP-SNAPSHOT.bin.sh\nsubdirectory\nsystem-info-SKIP-SNAPSHOT.html.sh\ntemplate.txt.hbs\n"
-pwd: "$PROJECT_DIRECTORY/src/examples/executables\n"
-subdirectory/pwd: "$PROJECT_DIRECTORY/src/examples/executables/subdirectory\n"
-template: "this is pwd from subdirectory:\n$PROJECT_DIRECTORY/src/examples/executables/subdirectory\n"
+cat.txt.sh: ""
+count-cli-args.txt.sh: "0\n"
+error.txt.sh: "Error: Unable to render content. Executable '$PROJECT_DIRECTORY/src/examples/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/executables' exited with code 1: boom!\n"
+ls.txt.sh: "SKIP-SNAPSHOT-random.bin.sh\nSKIP-SNAPSHOT-system-info.html.sh\ncat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\npwd.txt.sh\nsubdirectory\ntemplate.txt.hbs\n"
+pwd.txt.sh: "$PROJECT_DIRECTORY/src/examples/executables\n"
+subdirectory/pwd.txt.sh: "$PROJECT_DIRECTORY/src/examples/executables/subdirectory\n"
+template.txt.hbs: "this is pwd from subdirectory:\n$PROJECT_DIRECTORY/src/examples/executables/subdirectory\n"

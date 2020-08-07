@@ -3,9 +3,9 @@ source: src/cli.rs
 expression: contents
 input_file: src/examples/partials
 ---
-a: "a\n"
-ab: "a\nb\n\n"
-abc: "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n"
-b: "b\n"
-subdirectory: "subdirectory entries:\nsubdirectory/c\n"
-subdirectory/c: "c\n"
+a.html.hbs: "a\n"
+ab.html.hbs: "a\nb\n\n"
+abc.html.hbs: "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n"
+b.html: "b\n"
+subdirectory.html.hbs: "subdirectory entries:\nsubdirectory/c\n"
+subdirectory/c.html.hbs: "c\n"

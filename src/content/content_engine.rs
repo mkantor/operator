@@ -885,7 +885,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "system-info-SKIP-SNAPSHOT"; // This outputs text/html.
+        let route = "SKIP-SNAPSHOT-system-info"; // This outputs text/html.
         let content = content_engine
             .get(route)
             .expect("Content could not be found");
@@ -913,7 +913,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "random-SKIP-SNAPSHOT";
+        let route = "SKIP-SNAPSHOT-random";
         let content = content_engine
             .get(route)
             .expect("Content could not be found");

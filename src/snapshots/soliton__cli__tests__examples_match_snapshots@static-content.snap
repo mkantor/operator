@@ -3,5 +3,5 @@ source: src/cli.rs
 expression: contents
 input_file: src/examples/static-content
 ---
-index: "<h1>title</h1><p>content</p>\n"
-no-trailing-newline: there is no newline following this
+index.html: "<h1>title</h1><p>content</p>\n"
+no-trailing-newline.txt: there is no newline following this

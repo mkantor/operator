@@ -243,7 +243,7 @@ mod tests {
                 };
 
                 content.insert(
-                    String::from(content_file.relative_path_without_extensions()),
+                    String::from(content_file.relative_path()),
                     output_or_error_message,
                 );
             }
@@ -264,7 +264,7 @@ mod tests {
                 // out, redact it to keep tests portable.
                 .map(|(key, value)| (key, value.replace(PROJECT_DIRECTORY, "$PROJECT_DIRECTORY")))
                 // Files can be omitted from snapshots with a naming convention.
-                .filter(|(key, _)| !key.ends_with("-SKIP-SNAPSHOT"))
+                .filter(|(key, _)| !key.starts_with("SKIP-SNAPSHOT-"))
                 .collect::<BTreeMap<_, _>>();
 
             let mut insta_settings = insta::Settings::clone_current();
