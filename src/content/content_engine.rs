@@ -6,6 +6,7 @@ use super::handlebars_helpers::*;
 use super::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io;
 use std::path::Path;
@@ -386,7 +387,7 @@ where
         content_index: &mut ContentIndexEntries,
         route: CanonicalRoute,
         media_type: MediaType,
-        f: F,
+        create_content: F,
     ) -> Result<(), ContentLoadingError>
     where
         F: FnOnce() -> RegisteredContent,
@@ -394,16 +395,20 @@ where
         content_index.try_add(&route)?;
         let representations = content_registry
             .entry(route.clone())
-            .or_insert(HashMap::new());
-        if representations.contains_key(&media_type) {
-            Err(ContentLoadingError::DuplicateContent {
-                route: route.0.clone(),
-                media_type,
-            })
-        } else {
-            let content_item = f();
-            representations.insert(media_type, content_item);
-            Ok(())
+            .or_insert_with(HashMap::new);
+
+        match representations.entry(media_type) {
+            Entry::Occupied(entry) => {
+                let (media_type, _) = entry.remove_entry();
+                Err(ContentLoadingError::DuplicateContent {
+                    route: route.0,
+                    media_type,
+                })
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(create_content());
+                Ok(())
+            }
         }
     }
 }
