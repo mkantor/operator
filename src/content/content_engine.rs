@@ -639,7 +639,7 @@ mod tests {
     }
 
     #[test]
-    fn get_helper_requires_an_route_argument() {
+    fn get_helper_requires_a_route_argument() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
         let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
