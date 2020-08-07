@@ -454,19 +454,7 @@ mod tests {
 
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
-        let content_directories_with_valid_contents = vec![
-            example_content_directory("alternative-representations"),
-            example_content_directory("hello-world"),
-            example_content_directory("partials"),
-            example_content_directory("empty"),
-            example_content_directory("static-content"),
-            example_content_directory("media-types"),
-            example_content_directory("render-context"),
-            example_content_directory("executables"),
-            example_content_directory("hidden-content"),
-            example_content_directory("multimedia"),
-        ];
-        for directory in content_directories_with_valid_contents {
+        for directory in example_content_directories_with_valid_contents() {
             if let Err(error) =
                 FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
             {
@@ -477,16 +465,7 @@ mod tests {
 
     #[test]
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
-        let content_directories_with_invalid_contents = vec![
-            example_content_directory("invalid-templates"),
-            example_content_directory("invalid-unsupported-static-file"),
-            example_content_directory("invalid-single-extension-executable"),
-            example_content_directory("invalid-two-extensions-not-template-or-executable"),
-            example_content_directory("invalid-template-that-is-executable"),
-            example_content_directory("invalid-three-extensions-not-executable"),
-            example_content_directory("invalid-three-extensions-executable"),
-        ];
-        for directory in content_directories_with_invalid_contents {
+        for directory in example_content_directories_with_invalid_contents() {
             assert!(
                 FilesystemBasedContentEngine::from_content_directory(directory, VERSION).is_err(),
                 "Content engine was successfully created, but this should have failed",

@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::content::ContentDirectory;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use crate::lib::*;
 
@@ -46,6 +46,24 @@ pub fn example_content_directories() -> Vec<ContentDirectory> {
     ]
 }
 
+pub fn example_content_directories_with_valid_contents() -> Vec<ContentDirectory> {
+    example_content_directories()
+        .into_iter()
+        .filter(|content_directory| {
+            example_path_is_for_valid_content_directory(&content_directory.root())
+        })
+        .collect()
+}
+
+pub fn example_content_directories_with_invalid_contents() -> Vec<ContentDirectory> {
+    example_content_directories()
+        .into_iter()
+        .filter(|content_directory| {
+            !example_path_is_for_valid_content_directory(&content_directory.root())
+        })
+        .collect()
+}
+
 pub fn arbitrary_content_directory_with_valid_content() -> ContentDirectory {
     example_content_directory("hello-world")
 }
@@ -62,4 +80,17 @@ pub fn example_content_directory(relative_path: &str) -> ContentDirectory {
         "Test fixture data is broken in path '{}'",
         root.display()
     ))
+}
+
+/// By convention, examples whose root folder start with "invalid-" are ones
+/// that will fail when used to instantiate a ContentEngine.
+fn example_path_is_for_valid_content_directory(root: &Path) -> bool {
+    let prefix_path_for_invalid = example_path("invalid-");
+
+    let prefix_str_for_invalid = prefix_path_for_invalid
+        .to_str()
+        .expect("Example path was not UTF-8");
+    let root_str = root.to_str().expect("Example path was not UTF-8");
+
+    !root_str.starts_with(prefix_str_for_invalid)
 }
