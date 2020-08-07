@@ -715,7 +715,8 @@ mod tests {
                         .render(content_engine.get_render_context(""), &[mime::TEXT_HTML]);
                     assert!(
                         result.is_err(),
-                        "Content was successfully rendered for `{}`, but this should have failed because its media type cannot become html",
+                        "Content was successfully rendered for `{}`, but this should have failed \
+                        because its media type cannot become html",
                         route,
                     );
                 }
