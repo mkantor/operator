@@ -42,7 +42,7 @@ where
                     index_route: index_route.clone(),
                     server_info_type: PhantomData,
                 })
-                .route("/{path:.*}", web::get().to(get::<ServerInfo, Engine>))
+                .default_service(web::get().to(get::<ServerInfo, Engine>))
         })
         .bind(socket_address)?
         .run()
@@ -77,10 +77,7 @@ where
         .app_data::<AppData<ServerInfo, Engine>>()
         .expect("App data was not of the expected type!");
 
-    let path = request
-        .match_info()
-        .get("path")
-        .expect("Failed to match request path!");
+    let path = request.uri().path().trim_start_matches('/');
 
     let http_version = match request.version() {
         http::Version::HTTP_09 => "HTTP/0.9",
@@ -239,25 +236,24 @@ mod tests {
     use actix_web::test::TestRequest;
     use std::path::Path;
 
-    fn test_request(content_directory_path: &Path, url_path: &'static str) -> TestRequest {
+    fn test_request(content_directory_path: &Path) -> TestRequest {
         let directory = ContentDirectory::from_root(&content_directory_path).unwrap();
         let shared_content_engine =
             FilesystemBasedContentEngine::from_content_directory(directory, ())
                 .expect("Content engine could not be created");
 
-        TestRequest::default()
-            .app_data(AppData {
-                shared_content_engine: shared_content_engine,
-                index_route: String::new(),
-                server_info_type: PhantomData,
-            })
-            .param("path", url_path)
+        TestRequest::default().app_data(AppData {
+            shared_content_engine: shared_content_engine,
+            index_route: String::new(),
+            server_info_type: PhantomData,
+        })
     }
 
     #[actix_rt::test]
     async fn content_may_be_not_found() {
-        let request =
-            test_request(&example_path("empty"), "nothing/exists/at/this/path").to_http_request();
+        let request = test_request(&example_path("empty"))
+            .uri("/nothing/exists/at/this/path")
+            .to_http_request();
         let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -265,7 +261,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_exact_media_type() {
-        let request = test_request(&example_path("hello-world"), "hello")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
             .header("accept", "text/html")
             .to_http_request();
 
@@ -297,7 +294,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_media_range() {
-        let request = test_request(&example_path("hello-world"), "hello")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
             .header("accept", "text/*")
             .to_http_request();
 
@@ -329,7 +327,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_star_star_media_range() {
-        let request = test_request(&example_path("hello-world"), "hello")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
             .header("accept", "*/*")
             .to_http_request();
 
@@ -361,7 +360,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_elaborate_accept_header() {
-        let request = test_request(&example_path("hello-world"), "hello")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
 
@@ -393,7 +393,9 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_missing_accept_header() {
-        let request = test_request(&example_path("hello-world"), "hello").to_http_request();
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
+            .to_http_request();
 
         let response = get::<(), FilesystemBasedContentEngine<()>>(request).await;
         let response_body = response
@@ -423,7 +425,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn multimedia_content_can_be_retrieved() {
-        let request = test_request(&example_path("multimedia"), "dramatic-prairie-dog")
+        let request = test_request(&example_path("multimedia"))
+            .uri("/dramatic-prairie-dog")
             .header("accept", "video/*")
             .to_http_request();
 
@@ -464,7 +467,8 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_cannot_be_retrieved_if_no_acceptable_media_type() {
-        let request = test_request(&example_path("hello-world"), "hello")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello")
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
@@ -481,7 +485,8 @@ mod tests {
     async fn extension_on_url_takes_precedence_over_accept_header() {
         // Note .html extension on URL path, but no text/html (nor any other
         // workable media range) in the accept header.
-        let request = test_request(&example_path("hello-world"), "hello.html")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello.html")
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
@@ -507,7 +512,8 @@ mod tests {
         // URL path extension has the wrong media type, but accept header has
         // the correct one. Should be HTTP 406 because the accept header is not
         // considered when there is an extension.
-        let request = test_request(&example_path("hello-world"), "hello.doc")
+        let request = test_request(&example_path("hello-world"))
+            .uri("/hello.doc")
             .header("accept", "text/html")
             .to_http_request();
 
