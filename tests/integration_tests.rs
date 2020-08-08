@@ -4,18 +4,19 @@ use actix_web::test::unused_addr;
 use std::env;
 use std::ffi::OsStr;
 use std::io::Write;
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time;
 
-const PROJECT_DIRECTORY: &str = env!("CARGO_MANIFEST_DIR");
+// Pull in some utilities from the main crate.
+#[path = "../src/content/mod.rs"]
+mod content;
+#[path = "../src/lib.rs"]
+mod lib;
+#[path = "../src/test_lib.rs"]
+mod test_lib;
 
-fn example_path(relative_path: &str) -> PathBuf {
-    [PROJECT_DIRECTORY, "src", "examples", relative_path]
-        .iter()
-        .collect()
-}
+use test_lib::*;
 
 fn soliton_command<I, S>(args: I) -> Command
 where
