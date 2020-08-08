@@ -2,6 +2,7 @@ use actix_web::client::Client as HttpClient;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
 use content::ContentDirectory;
+use futures::future;
 use mime_guess::MimeGuess;
 use regex::Regex;
 use std::collections::hash_map::DefaultHasher;
@@ -53,11 +54,12 @@ where
 /// Attempts to render all non-hidden files in ContentDirectory, returning
 /// them as a map of Route -> RenderedContent | ErrorMessage.
 async fn render_everything(content_directory: &ContentDirectory) -> HashMap<String, String> {
-    let mut content = HashMap::new();
     let (server_socket_address, mut server) = start_server(content_directory);
 
-    for content_file in content_directory {
-        if !content_file.is_hidden() {
+    let render_operations = content_directory
+        .into_iter()
+        .filter(|content_file| !content_file.is_hidden())
+        .map(|content_file| async move {
             let route = content_file.relative_path_without_extensions();
             let empty_string = String::from("");
             let first_filename_extension =
@@ -93,13 +95,16 @@ async fn render_everything(content_directory: &ContentDirectory) -> HashMap<Stri
                 }
             };
 
-            content.insert(
+            (
                 String::from(content_file.relative_path()),
                 output_or_error_message,
-            );
-        }
-    }
+            )
+        });
 
+    let content = future::join_all(render_operations)
+        .await
+        .into_iter()
+        .collect::<HashMap<String, String>>();
     server.kill().expect("Failed to kill server");
     content
 }

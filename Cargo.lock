@@ -1656,6 +1656,7 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "anyhow",
+ "futures",
  "handlebars",
  "insta",
  "log",
