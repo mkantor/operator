@@ -54,7 +54,7 @@ enum SolitonCommand {
         content_directory: PathBuf,
 
         #[structopt(long)]
-        index_route: String,
+        index_route: Option<String>,
 
         #[structopt(long)]
         socket_address: SocketAddr,
@@ -122,7 +122,7 @@ fn handle_command<I: io::Read, O: io::Write>(
             socket_address,
         } => cli::serve(
             get_content_directory(content_directory)?,
-            &index_route,
+            index_route,
             socket_address,
             VERSION,
         )

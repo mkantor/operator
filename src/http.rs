@@ -16,13 +16,13 @@ struct AppData<
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 > {
     shared_content_engine: Arc<RwLock<Engine>>,
-    index_route: String,
+    index_route: Option<String>,
     server_info_type: PhantomData<ServerInfo>,
 }
 
 pub fn run_server<ServerInfo, SocketAddress, Engine>(
     shared_content_engine: Arc<RwLock<Engine>>,
-    index_route: &str,
+    index_route: Option<String>,
     socket_address: SocketAddress,
 ) -> Result<(), io::Error>
 where
@@ -30,8 +30,6 @@ where
     SocketAddress: 'static + ToSocketAddrs,
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
-    let index_route = String::from(index_route);
-
     log::info!("Initializing HTTP server");
     let mut system = System::new("server");
     let result = system.block_on(async move {
@@ -95,8 +93,13 @@ where
     );
 
     let (route, media_range_from_url) = if path.is_empty() {
-        // Default to the index route.
-        (app_data.index_route.as_str(), None)
+        // Default to the index route if one was specified.
+        let adjusted_route = match &app_data.index_route {
+            Some(default_route) => default_route.as_str(),
+            None => path,
+        };
+        let media_range_from_url = None;
+        (adjusted_route, media_range_from_url)
     } else {
         let media_range_from_url = MimeGuess::from_path(path).first();
         let route = if media_range_from_url.is_some() {
@@ -244,7 +247,7 @@ mod tests {
 
         TestRequest::default().app_data(AppData {
             shared_content_engine: shared_content_engine,
-            index_route: String::new(),
+            index_route: None,
             server_info_type: PhantomData,
         })
     }

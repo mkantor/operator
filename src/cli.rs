@@ -151,7 +151,7 @@ pub fn get<O: io::Write>(
 /// Starts an HTTP server for the given content directory.
 pub fn serve<A: 'static + ToSocketAddrs>(
     content_directory: ContentDirectory,
-    index_route: &str,
+    index_route: Option<String>,
     socket_address: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
@@ -162,20 +162,19 @@ pub fn serve<A: 'static + ToSocketAddrs>(
         },
     )?;
 
-    let index_exists = {
-        shared_content_engine
+    if let Some(specified_index_route) = &index_route {
+        let index_route_exists = shared_content_engine
             .read()
             .expect("RwLock for ContentEngine has been poisoned")
-            .get(index_route)
-            .is_some()
-    };
-
-    if !index_exists {
-        Err(ServeCommandError::IndexRouteMissing)
-    } else {
-        http::run_server(shared_content_engine, index_route, socket_address)
-            .map_err(|source| ServeCommandError::ServerError { source })
+            .get(&specified_index_route)
+            .is_some();
+        if !index_route_exists {
+            return Err(ServeCommandError::IndexRouteMissing);
+        }
     }
+
+    http::run_server(shared_content_engine, index_route, socket_address)
+        .map_err(|source| ServeCommandError::ServerError { source })
 }
 
 #[cfg(test)]
