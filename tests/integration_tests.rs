@@ -1,10 +1,18 @@
 use actix_web::client::Client as HttpClient;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
+use content::ContentDirectory;
+use mime_guess::MimeGuess;
+use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
+use std::hash::Hasher;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::str;
 use std::thread;
 use std::time;
 
@@ -39,6 +47,113 @@ where
     let mut soliton = Command::new(bin_path);
     soliton.args(args);
     soliton
+}
+
+/// Attempts to render all non-hidden files in ContentDirectory, returning
+/// them as a map of Route -> RenderedContent | ErrorMessage.
+fn render_everything(content_directory: ContentDirectory) -> HashMap<String, String> {
+    let mut content = HashMap::new();
+    for content_file in &content_directory {
+        if !content_file.is_hidden() {
+            let route = content_file.relative_path_without_extensions();
+            let empty_string = String::from("");
+            let first_filename_extension =
+                content_file.extensions().first().unwrap_or(&empty_string);
+
+            // Target media type is just the source media type.
+            let target_media_type = MimeGuess::from_ext(first_filename_extension)
+                .first()
+                .unwrap_or(mime::STAR_STAR);
+
+            let result =
+                render_one_thing(&content_directory, route, &target_media_type.to_string());
+
+            let output_or_error_message = match result {
+                Ok(output) => {
+                    let hash = {
+                        let mut hasher = DefaultHasher::new();
+                        hasher.write(&output);
+                        hasher.finish()
+                    };
+                    match String::from_utf8(output) {
+                        Ok(string) => string,
+                        Err(_) => format!("binary data with hash {:x}", hash),
+                    }
+                }
+                Err(error_bytes) => {
+                    String::from_utf8(error_bytes).expect("Error message was not UTF-8")
+                }
+            };
+
+            content.insert(
+                String::from(content_file.relative_path()),
+                output_or_error_message,
+            );
+        }
+    }
+    content
+}
+
+fn render_one_thing(
+    content_directory: &ContentDirectory,
+    route: &str,
+    accept: &str,
+) -> Result<Vec<u8>, Vec<u8>> {
+    let mut command = soliton_command(&[
+        "get",
+        &format!(
+            "--content-directory={}",
+            content_directory
+                .root()
+                .to_str()
+                .expect("Content directory root path was not UTF-8")
+        ),
+        &format!("--route={}", route),
+        &format!("--accept={}", accept),
+    ]);
+    let output = command.output().expect("Failed to execute process");
+
+    if output.status.success() {
+        Ok(output.stdout)
+    } else {
+        Err(output.stderr)
+    }
+}
+
+#[test]
+fn examples_match_snapshots() {
+    for content_directory in example_content_directories() {
+        let content_directory_root = &content_directory.root();
+
+        let log_prefix_regex = {
+            let datetime_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+[-+]\d{2}:\d{2}";
+            let log_level_pattern = r"ERROR|WARN|INFO|DEBUG|TRACE";
+            let log_prefix_pattern =
+                format!("^({}) - ({}) - ", datetime_pattern, log_level_pattern);
+            Regex::new(&log_prefix_pattern).unwrap()
+        };
+
+        let unordered_content = render_everything(content_directory);
+        let contents = unordered_content
+            .iter()
+            // If dynamic content files mention where the repo is checked
+            // out, redact it to keep tests portable.
+            .map(|(key, value)| (key, value.replace(PROJECT_DIRECTORY, "$PROJECT_DIRECTORY")))
+            // Also remove the prefix used on log messages.
+            .map(|(key, value)| (key, String::from(log_prefix_regex.replace_all(&value, ""))))
+            // Files can be omitted from snapshots with a naming convention.
+            .filter(|(key, _)| !key.starts_with("SKIP-SNAPSHOT-"))
+            .collect::<BTreeMap<_, _>>();
+
+        let mut insta_settings = insta::Settings::clone_current();
+        insta_settings.set_input_file(content_directory_root);
+        let id = content_directory_root
+            .strip_prefix(example_path("."))
+            .unwrap()
+            .to_string_lossy();
+        insta_settings.set_snapshot_suffix(id);
+        insta_settings.bind(|| insta::assert_yaml_snapshot!(contents));
+    }
 }
 
 #[test]

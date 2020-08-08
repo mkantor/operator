@@ -1,7 +1,0 @@
----
-source: src/cli.rs
-expression: contents
-input_file: src/examples/invalid-duplicate-media-type-1
----
-bad.xml: "Error: Unable to load content. There are multiple content files for route /bad with the same media type (text/xml)."
-bad.xml.hbs: "Error: Unable to load content. There are multiple content files for route /bad with the same media type (text/xml)."

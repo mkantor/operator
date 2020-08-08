@@ -1,11 +1,11 @@
 ---
-source: src/cli.rs
+source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/executables
 ---
 cat.txt.sh: ""
 count-cli-args.txt.sh: "0\n"
-error.txt.sh: "Error: Unable to render content. Executable '$PROJECT_DIRECTORY/src/examples/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/executables' exited with code 1: boom!\n"
+error.txt.sh: "Rendering failure: Executable '$PROJECT_DIRECTORY/src/examples/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/executables' exited with code 1: boom!\n\nError: Unable to render content.\n\nCaused by:\n    Executable '$PROJECT_DIRECTORY/src/examples/executables/error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/executables' exited with code 1: boom!\n    \n"
 ls.txt.sh: "SKIP-SNAPSHOT-random.bin.sh\nSKIP-SNAPSHOT-system-info.html.sh\ncat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\npwd.txt.sh\nsubdirectory\ntemplate.txt.hbs\n"
 pwd.txt.sh: "$PROJECT_DIRECTORY/src/examples/executables\n"
 subdirectory/pwd.txt.sh: "$PROJECT_DIRECTORY/src/examples/executables/subdirectory\n"

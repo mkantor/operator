@@ -1,6 +1,0 @@
----
-source: src/cli.rs
-expression: contents
-input_file: src/examples/invalid-templates
----
-borked.html.hbs: "Error: Unable to load content. Failed to parse template 'borked' from content directory. Template error: invalid handlebars syntax.\n    --> Template error in \"borked\":3:1\n     |\n   0 | {{!-- this is not valid --}}\n   1 | {{\n     |\n     = reason: invalid handlebars syntax.\n"

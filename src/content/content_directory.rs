@@ -259,6 +259,14 @@ impl IntoIterator for ContentDirectory {
     }
 }
 
+impl<'a> IntoIterator for &'a ContentDirectory {
+    type Item = &'a ContentFile;
+    type IntoIter = std::slice::Iter<'a, ContentFile>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.files.iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

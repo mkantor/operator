@@ -1,6 +1,0 @@
----
-source: src/cli.rs
-expression: contents
-input_file: src/examples/invalid-unsupported-static-file
----
-index.thisfileextensionisnotsupported: "Error: Unable to load content. Content file has an unknown media type: The filename extension for the file at 'index.thisfileextensionisnotsupported' ('thisfileextensionisnotsupported') does not map to any known media type."

@@ -1,0 +1,6 @@
+---
+source: tests/integration_tests.rs
+expression: contents
+input_file: src/examples/invalid-template-that-is-executable
+---
+this-file-is-executable.html.hbs: "Error: Unable to load content.\n\nCaused by:\n    Content file name is not supported: The content file 'this-file-is-executable.html.hbs' appears to be a handlebars file (because it ends in '.hbs'), but it is also executable. It must be one or the other.\n"

@@ -1,0 +1,14 @@
+---
+source: tests/integration_tests.rs
+expression: contents
+input_file: src/examples/media-types
+---
+cannot-become-html.xyz: ""
+echo-target-media-type.html.hbs: text/html
+html-variation.htm: ""
+includes-echo-target-media-type.html.hbs: text/html
+nesting/html-that-includes-txt.html.hbs: "Rendering failure: Rendering failed for template: Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\nError: Unable to render content.\n\nCaused by:\n    0: Rendering failed for template: Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\n    1: Error rendering \"nesting/html-that-includes-txt\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\n"
+nesting/just-html.html: "<marquee>wowowow</marquee>\n"
+nesting/txt-that-includes-html.txt.hbs: "Rendering failure: Rendering failed for template: Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\nError: Unable to render content.\n\nCaused by:\n    0: Rendering failed for template: Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\n    1: Error rendering \"nesting/txt-that-includes-html\" line 1, col 1: The `get` helper's first argument must be a string (the route of the content item to get), but it was `null`.\n"
+template-cannot-become-html.xyz.hbs: ""
+template-html-variation.htm.hbs: ""
