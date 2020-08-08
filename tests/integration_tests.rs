@@ -11,7 +11,8 @@ use std::env;
 use std::ffi::OsStr;
 use std::hash::Hasher;
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::net::SocketAddr;
+use std::process::{Child, Command, Stdio};
 use std::str;
 use std::thread;
 use std::time;
@@ -51,9 +52,11 @@ where
 
 /// Attempts to render all non-hidden files in ContentDirectory, returning
 /// them as a map of Route -> RenderedContent | ErrorMessage.
-fn render_everything(content_directory: ContentDirectory) -> HashMap<String, String> {
+async fn render_everything(content_directory: &ContentDirectory) -> HashMap<String, String> {
     let mut content = HashMap::new();
-    for content_file in &content_directory {
+    let (server_socket_address, mut server) = start_server(content_directory);
+
+    for content_file in content_directory {
         if !content_file.is_hidden() {
             let route = content_file.relative_path_without_extensions();
             let empty_string = String::from("");
@@ -65,8 +68,13 @@ fn render_everything(content_directory: ContentDirectory) -> HashMap<String, Str
                 .first()
                 .unwrap_or(mime::STAR_STAR);
 
-            let result =
-                render_one_thing(&content_directory, route, &target_media_type.to_string());
+            let result = render_multiple_ways(
+                &server_socket_address,
+                content_directory,
+                route,
+                &target_media_type.to_string(),
+            )
+            .await;
 
             let output_or_error_message = match result {
                 Ok(output) => {
@@ -91,10 +99,71 @@ fn render_everything(content_directory: ContentDirectory) -> HashMap<String, Str
             );
         }
     }
+
+    server.kill().expect("Failed to kill server");
     content
 }
 
-fn render_one_thing(
+fn start_server(content_directory: &ContentDirectory) -> (SocketAddr, Child) {
+    let server_address = unused_addr();
+
+    let mut command = soliton_command(&[
+        "serve",
+        &format!(
+            "--content-directory={}",
+            content_directory
+                .root()
+                .to_str()
+                .expect("Content directory root path was not UTF-8")
+        ),
+        &format!("--socket-address={}", server_address),
+    ]);
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child = command.spawn().expect("Failed to spawn process");
+
+    // Give the server a chance to start up.
+    // TODO: It would be better to poll by retrying a few times if the
+    // connection is refused.
+    thread::sleep(time::Duration::from_millis(500));
+
+    (server_address, child)
+}
+
+/// Render the desired content using a few different methods and verify that
+/// they all produce the same result.
+async fn render_multiple_ways(
+    server_address: &SocketAddr,
+    content_directory: &ContentDirectory,
+    route: &str,
+    accept: &str,
+) -> Result<Vec<u8>, Vec<u8>> {
+    let http_result = render_via_http_request(server_address, route, accept).await;
+    let get_command_result = render_via_get_command(content_directory, route, accept);
+
+    if !is_omitted_from_snapshots(route) {
+        // Results must either both be successful or both failed, and if
+        // successful they must have the same content. It's okay if they both
+        // failed and produced different error messages.
+        match (&http_result, &get_command_result) {
+            (Ok(_), Err(_)) =>
+                panic!("Rendering {} as {} succeeded via server but failed via get command", route, accept),
+            (Err(_), Ok(_)) =>
+                panic!("Rendering {} as {} failed via server but succeeded via get command", route, accept),
+            (Ok(server_ok), Ok(get_command_ok)) if server_ok != get_command_ok =>
+                panic!("Rendering {} as {} produced different results when done via server and get command", route, accept),
+            _ => ()
+        };
+    }
+
+    // Use the get command result for actual snapshots since it will have more
+    // detailed error messages.
+    get_command_result
+}
+
+fn render_via_get_command(
     content_directory: &ContentDirectory,
     route: &str,
     accept: &str,
@@ -120,8 +189,34 @@ fn render_one_thing(
     }
 }
 
-#[test]
-fn examples_match_snapshots() {
+async fn render_via_http_request(
+    server_address: &SocketAddr,
+    route: &str,
+    accept: &str,
+) -> Result<Vec<u8>, Vec<u8>> {
+    let request = HttpClient::new()
+        .get(format!("http://{}/{}", server_address, route))
+        .header("accept", accept);
+
+    match request.send().await {
+        Err(send_request_error) => Err(send_request_error.to_string().into_bytes()),
+        Ok(mut response) => {
+            let response_body = response.body().await.expect("Unable to get response body");
+            if response.status().is_success() {
+                Ok(Vec::from(response_body.as_ref()))
+            } else {
+                Err(Vec::from(response_body.as_ref()))
+            }
+        }
+    }
+}
+
+fn is_omitted_from_snapshots(route: &str) -> bool {
+    route.starts_with("SKIP-SNAPSHOT-") || route.contains("/SKIP-SNAPSHOT-")
+}
+
+#[actix_rt::test]
+async fn examples_match_snapshots() {
     for content_directory in example_content_directories() {
         let content_directory_root = &content_directory.root();
 
@@ -133,16 +228,16 @@ fn examples_match_snapshots() {
             Regex::new(&log_prefix_pattern).unwrap()
         };
 
-        let unordered_content = render_everything(content_directory);
+        let unordered_content = render_everything(&content_directory).await;
         let contents = unordered_content
             .iter()
+            // Files can be omitted from snapshots with a naming convention.
+            .filter(|(key, _)| !is_omitted_from_snapshots(key))
             // If dynamic content files mention where the repo is checked
             // out, redact it to keep tests portable.
             .map(|(key, value)| (key, value.replace(PROJECT_DIRECTORY, "$PROJECT_DIRECTORY")))
             // Also remove the prefix used on log messages.
             .map(|(key, value)| (key, String::from(log_prefix_regex.replace_all(&value, ""))))
-            // Files can be omitted from snapshots with a naming convention.
-            .filter(|(key, _)| !key.starts_with("SKIP-SNAPSHOT-"))
             .collect::<BTreeMap<_, _>>();
 
         let mut insta_settings = insta::Settings::clone_current();
@@ -249,35 +344,17 @@ fn get_subcommand_succeeds() {
 
 #[actix_rt::test]
 async fn serve_subcommand_succeeds() {
-    let server_address = unused_addr();
+    let content_directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
+    let (server_address, mut server) = start_server(&content_directory);
 
     let expected_response_body = "hello world\n";
-    let mut command = soliton_command(&[
-        "serve",
-        &format!(
-            "--content-directory={}",
-            &example_path("hello-world").to_str().unwrap()
-        ),
-        &format!("--socket-address={}", server_address),
-        "--index-route=hello",
-    ]);
-    command
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-    let mut child = command.spawn().expect("Failed to spawn process");
 
     let request = HttpClient::new()
-        .get(format!("http://{}/", server_address))
+        .get(format!("http://{}/hello", server_address))
         .header(
             "accept",
             "application/msword, text/*;q=0.9, image/gif;q=0.1",
         );
-
-    // Give the server a chance to start up before sending the request.
-    // TODO: Would be better to poll by retrying a few times if the connection
-    // is refused.
-    thread::sleep(time::Duration::from_millis(500));
 
     let mut response = request.send().await.expect("Unable to send HTTP request");
     let response_body = response.body().await.expect("Unable to get response body");
@@ -300,5 +377,5 @@ async fn serve_subcommand_succeeds() {
         "Response body was incorrect"
     );
 
-    child.kill().expect("Failed to kill server");
+    server.kill().expect("Failed to kill server");
 }
