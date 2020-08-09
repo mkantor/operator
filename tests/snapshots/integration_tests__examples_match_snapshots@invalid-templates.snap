@@ -3,4 +3,4 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/invalid-templates
 ---
-borked.html.hbs: "Error: Unable to load content.\n\nCaused by:\n    0: Failed to parse template 'borked' from content directory.\n    1: Template error: invalid handlebars syntax.\n           --> Template error in \"borked\":3:1\n            |\n          0 | {{!-- this is not valid --}}\n          1 | {{\n            |\n            = reason: invalid handlebars syntax.\n       \n"
+borked.html.hbs: "Error: Unable to load content.\n\nCaused by:\n    0: Failed to parse template 'borked.html.hbs' from content directory.\n    1: Template error: invalid handlebars syntax.\n           --> Template error in \"borked.html.hbs\":3:1\n            |\n          0 | {{!-- this is not valid --}}\n          1 | {{\n            |\n            = reason: invalid handlebars syntax.\n       \n"

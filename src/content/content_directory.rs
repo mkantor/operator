@@ -238,16 +238,20 @@ impl ContentFile {
         self.is_executable
     }
 
-    pub fn file_contents(self) -> File {
-        self.file
-    }
-
     pub fn relative_path_without_extensions(&self) -> &str {
         &self.relative_path_without_extensions
     }
 
     pub fn extensions(&self) -> &[String] {
         &self.extensions
+    }
+
+    pub fn file(&self) -> &File {
+        &self.file
+    }
+
+    pub fn into_file(self) -> File {
+        self.file
     }
 }
 

@@ -211,7 +211,7 @@ where
 
         Self::register_content(content_registry, index, route, media_type.clone(), || {
             RegisteredContent::StaticContentItem(StaticContentItem::new(
-                file.file_contents(),
+                file.into_file(),
                 media_type,
             ))
         })
@@ -260,9 +260,23 @@ where
                     MediaType::from_media_range(mime).ok_or_else(|| ContentLoadingError::Bug {
                         message: String::from("Mime guess was not a concrete media type!"),
                     })?;
-                let mut contents = file.file_contents();
 
-                let template_name = String::from(route.as_ref());
+                // Note that templates are keyed by relative path + extensions
+                // in the handlebars registry, not the extensionless routes
+                // used elsewhere. This is necessary to allow alternative
+                // representations for templates (foo.html.hbs and foo.md.hbs
+                // need to both live in the handlebars registry under distinct
+                // names).
+                let template_name = file.relative_path();
+                let mut contents = file.file();
+                if handlebars_registry.has_template(&template_name) {
+                    return Err(ContentLoadingError::Bug {
+                        message: format!(
+                            "More than one template has the name '{}'.",
+                            template_name
+                        ),
+                    });
+                }
                 handlebars_registry
                     .register_template_source(&template_name, &mut contents)
                     .map_err(|template_render_error| match template_render_error {
@@ -510,7 +524,7 @@ mod tests {
                 .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let template = "this is partial: {{> ([/].abc)}}";
+        let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
             "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
 
