@@ -21,8 +21,6 @@ pub use content_engine::{
 pub use content_item::UnregisteredTemplate;
 pub use content_registry::{ContentRepresentations, RegisteredContent};
 
-const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
-
 /// A piece of rendered content along with its media type.
 pub struct Media<Content: Read> {
     pub media_type: MediaType,

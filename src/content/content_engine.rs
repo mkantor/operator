@@ -101,6 +101,8 @@ where
     ErrorCode: 'static + Clone + Serialize + Send + Sync,
     ServerInfo: 'static + Clone + Serialize + Send + Sync,
 {
+    const HANDLEBARS_FILE_EXTENSION: &'static str = "hbs";
+
     pub fn from_content_directory(
         content_directory: ContentDirectory,
         server_info: ServerInfo,
@@ -232,14 +234,14 @@ where
             // Handlebars templates are named like foo.html.hbs and do not
             // have the executable bit set. When rendered they are evaluated by
             // soliton.
-            [first_extension, HANDLEBARS_FILE_EXTENSION] => {
+            [first_extension, Self::HANDLEBARS_FILE_EXTENSION] => {
                 if file.is_executable() {
                     return Err(ContentLoadingError::ContentFileNameError(
                         format!(
                             "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), \
                             but it is also executable. It must be one or the other.",
                             file.relative_path(),
-                            HANDLEBARS_FILE_EXTENSION,
+                            Self::HANDLEBARS_FILE_EXTENSION,
                         ),
                     ));
                 }
@@ -589,6 +591,21 @@ mod tests {
             content_engine.get(route).is_none(),
             "Content was found at '{}', but it was not expected to be",
             route
+        );
+    }
+
+    #[test]
+    fn handlebars_extension_agrees_with_mime_guess() {
+        let mime_guess_handlebars_extension =
+            mime_guess::get_extensions("text", "x-handlebars-template")
+                .unwrap()
+                .first()
+                .unwrap();
+        let content_engine_handlebars_extension = TestContentEngine::HANDLEBARS_FILE_EXTENSION;
+
+        assert_eq!(
+            mime_guess_handlebars_extension,
+            &content_engine_handlebars_extension,
         );
     }
 
