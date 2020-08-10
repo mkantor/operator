@@ -14,8 +14,7 @@ use std::io::Read;
 pub use self::mime::{MediaRange, MediaType};
 pub use content_directory::ContentDirectory;
 pub use content_engine::{
-    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine,
-    UnregisteredTemplateParseError as TemplateParseError,
+    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, TemplateParseError,
 };
 pub use content_item::{ContentRenderingError, UnregisteredTemplate};
 pub use content_registry::{ContentRepresentations, RegisteredContent};

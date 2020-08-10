@@ -14,22 +14,13 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-#[error(
-  "Failed to parse template{} from content directory.",
-  .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default()
-)]
-pub struct RegisteredTemplateParseError {
-    source: handlebars::TemplateError,
-}
-
 /// A handlebars template had invalid syntax.
 #[derive(Error, Debug)]
 #[error(
   "Failed to parse template{}.",
   .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
 )]
-pub struct UnregisteredTemplateParseError {
+pub struct TemplateParseError {
     #[from]
     source: handlebars::TemplateError,
 }
@@ -38,7 +29,7 @@ pub struct UnregisteredTemplateParseError {
 #[derive(Error, Debug)]
 pub enum ContentLoadingError {
     #[error(transparent)]
-    TemplateParseError(#[from] RegisteredTemplateParseError),
+    TemplateParseError(#[from] TemplateParseError),
 
     #[error(
         "Input/output error when loading{} from content directory.",
@@ -84,7 +75,7 @@ where
         &self,
         template_source: &str,
         media_type: MediaType,
-    ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError>;
+    ) -> Result<UnregisteredTemplate, TemplateParseError>;
 
     fn get(&self, route: &str) -> Option<&ContentRepresentations>;
 
@@ -295,9 +286,7 @@ where
                     .register_template_source(&template_name, &mut contents)
                     .map_err(|template_render_error| match template_render_error {
                         handlebars::TemplateFileError::TemplateError(source) => {
-                            ContentLoadingError::TemplateParseError(RegisteredTemplateParseError {
-                                source,
-                            })
+                            ContentLoadingError::TemplateParseError(TemplateParseError { source })
                         }
                         handlebars::TemplateFileError::IOError(source, original_name) => {
                             // Handlebars-rust will use an empty string when the
@@ -436,7 +425,7 @@ where
         &self,
         handlebars_source: &str,
         media_type: MediaType,
-    ) -> Result<UnregisteredTemplate, UnregisteredTemplateParseError> {
+    ) -> Result<UnregisteredTemplate, TemplateParseError> {
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
 
