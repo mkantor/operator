@@ -16,16 +16,10 @@ pub enum RenderCommandError {
         source: ContentLoadingError,
     },
 
-    #[error("Unable to parse template from content directory.")]
-    RegisteredTemplateParseError {
-        #[from]
-        source: RegisteredTemplateParseError,
-    },
-
     #[error("Unable to parse template from input.")]
-    UnregisteredTemplateParseError {
+    TemplateParseError {
         #[from]
-        source: UnregisteredTemplateParseError,
+        source: TemplateParseError,
     },
 
     #[error("Unable to render content.")]
@@ -44,12 +38,6 @@ pub enum GetCommandError {
     ContentLoadingError {
         #[from]
         source: ContentLoadingError,
-    },
-
-    #[error("Unable to parse template from content directory.")]
-    RegisteredTemplateParseError {
-        #[from]
-        source: RegisteredTemplateParseError,
     },
 
     #[error("Content not found at route '{}'.", .route)]

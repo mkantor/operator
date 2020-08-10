@@ -129,7 +129,7 @@ impl UnregisteredTemplate {
     pub fn from_source<S: AsRef<str>>(
         handlebars_source: S,
         rendered_media_type: MediaType,
-    ) -> Result<Self, UnregisteredTemplateParseError> {
+    ) -> Result<Self, TemplateParseError> {
         let template = handlebars::Template::compile2(handlebars_source, true)?;
         Ok(UnregisteredTemplate {
             template,
