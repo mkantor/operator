@@ -22,10 +22,8 @@ pub enum ContentDirectoryFromRootError {
 }
 
 #[derive(Error, Debug)]
-#[error("Content file error: {}", .message)]
-pub struct ContentFileError {
-    message: String,
-}
+#[error("Content file error: {}", .0)]
+pub struct ContentFileError(String);
 
 /// A filesystem directory containing content.
 pub struct ContentDirectory {
@@ -98,83 +96,69 @@ impl ContentFile {
         absolute_content_file_path: PathBuf,
     ) -> Result<Self, ContentFileError> {
         if path::MAIN_SEPARATOR != Self::PATH_SEPARATOR {
-            return Err(ContentFileError {
-                message: format!(
-                    "Platforms that use '{}' as a path separator are not supported",
-                    path::MAIN_SEPARATOR
-                ),
-            });
+            return Err(ContentFileError(format!(
+                "Platforms that use '{}' as a path separator are not supported",
+                path::MAIN_SEPARATOR
+            )));
         }
 
         let root = match content_directory_root.to_str() {
             Some(unicode_root) => unicode_root,
             None => {
-                return Err(ContentFileError {
-                    message: format!(
-                        "Non-unicode directory root (path is similar to '{}')",
-                        content_directory_root.display(),
-                    ),
-                })
+                return Err(ContentFileError(format!(
+                    "Non-unicode directory root (path is similar to '{}')",
+                    content_directory_root.display(),
+                )))
             }
         };
 
-        let absolute_path =
-            String::from(
-                absolute_content_file_path
-                    .to_str()
-                    .ok_or_else(|| ContentFileError {
-                        message: String::from("Path was not unicode."),
-                    })?,
-            );
+        let absolute_path = String::from(
+            absolute_content_file_path
+                .to_str()
+                .ok_or_else(|| ContentFileError(String::from("Path was not unicode.")))?,
+        );
 
         let relative_path = absolute_content_file_path
             .strip_prefix(root)
-            .map_err(|strip_prefix_error| ContentFileError {
-                message: format!(
+            .map_err(|strip_prefix_error| {
+                ContentFileError(format!(
                     "Content file path '{}' did not start with expected prefix '{}': {}",
                     absolute_content_file_path.display(),
                     root,
                     strip_prefix_error
-                ),
+                ))
             })?
             .to_str()
             .map(String::from)
-            .ok_or_else(|| ContentFileError {
-                message: String::from("Path was not unicode."),
-            })?;
+            .ok_or_else(|| ContentFileError(String::from("Path was not unicode.")))?;
 
-        let file =
-            File::open(&absolute_content_file_path).map_err(|io_error| ContentFileError {
-                message: format!(
-                    "Unable to open file '{}' in '{}' for reading: {}",
-                    relative_path, root, io_error
-                ),
-            })?;
+        let file = File::open(&absolute_content_file_path).map_err(|io_error| {
+            ContentFileError(format!(
+                "Unable to open file '{}' in '{}' for reading: {}",
+                relative_path, root, io_error
+            ))
+        })?;
 
         let basename = absolute_content_file_path
             .file_name()
-            .ok_or_else(|| ContentFileError {
-                message: format!(
+            .ok_or_else(|| {
+                ContentFileError(format!(
                     "Unable to get basename of '{}' in '{}'",
                     relative_path, root,
-                ),
+                ))
             })?
             .to_str()
-            .ok_or_else(|| ContentFileError {
-                message: String::from("File had a non-unicode basename."),
-            })?;
+            .ok_or_else(|| ContentFileError(String::from("File had a non-unicode basename.")))?;
 
         // Conventions around hidden files, whether a file is executable, etc
         // differ across platforms. It wouldn't be hard to implement this, but
         // soliton does not currently run its CI checks on non-unix platforms
         // so it would be too easy to introduce regressions.
         let (extensions, is_hidden, is_executable) = if !cfg!(unix) {
-            return Err(ContentFileError {
-                message: format!(
-                    "Soliton does not currently support your operating system ({})",
-                    env::consts::OS,
-                ),
-            });
+            return Err(ContentFileError(format!(
+                "Soliton does not currently support your operating system ({})",
+                env::consts::OS,
+            )));
         } else {
             // If the basename begins with `.` its first chunk isn't considered an "extension".
             let non_extension_components = if basename.starts_with('.') { 2 } else { 1 };
@@ -191,12 +175,12 @@ impl ContentFile {
 
             let permissions = file
                 .metadata()
-                .map_err(|io_error| ContentFileError {
-                    message: format!(
+                .map_err(|io_error| {
+                    ContentFileError(format!(
                         "Unable to query metadata for content file '{}': {}",
                         absolute_content_file_path.display(),
                         io_error
-                    ),
+                    ))
                 })?
                 .permissions();
             let is_executable = permissions.mode() & 0o111 != 0;

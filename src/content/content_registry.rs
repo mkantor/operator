@@ -65,13 +65,11 @@ impl Render for ContentRepresentations {
                     match render_result {
                         Ok(rendered) => {
                             return if &rendered.media_type != registered_media_type {
-                                Err(ContentRenderingError::Bug {
-                                    message: format!(
-                                        "The actual rendered media type ({}) did not match the \
+                                Err(ContentRenderingError::Bug(format!(
+                                    "The actual rendered media type ({}) did not match the \
                                         media type this content was registered for ({}).",
-                                        rendered.media_type, registered_media_type,
-                                    ),
-                                })
+                                    rendered.media_type, registered_media_type,
+                                )))
                             } else {
                                 Ok(rendered)
                             }

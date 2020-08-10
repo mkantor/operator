@@ -15,8 +15,8 @@ pub enum ContentRenderingError {
     #[error("The requested content cannot be rendered as an acceptable media type.")]
     CannotProvideAcceptableMediaType,
 
-    #[error("You've encountered a bug! This should never happen: {}", .message)]
-    Bug { message: String },
+    #[error("You've encountered a bug! This should never happen: {}", .0)]
+    Bug(String),
 }
 
 #[derive(Error, Debug)]
