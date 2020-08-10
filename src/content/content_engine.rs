@@ -17,7 +17,7 @@ use thiserror::Error;
 /// A handlebars template had invalid syntax.
 #[derive(Error, Debug)]
 #[error(
-  "Failed to parse template{}.",
+  "Failed to parse handlebars template{}.",
   .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
 )]
 pub struct TemplateParseError {
@@ -255,7 +255,7 @@ where
                     .first()
                     .ok_or_else(|| ContentLoadingError::UnknownFileType {
                         message: format!(
-                            "The first filename extension for the template at '{}' ('{}') \
+                            "The first filename extension for the handlebars template at '{}' ('{}') \
                             does not map to any known media type.",
                             file.relative_path(),
                             first_extension,
@@ -277,7 +277,7 @@ where
                 if handlebars_registry.has_template(&template_name) {
                     return Err(ContentLoadingError::Bug {
                         message: format!(
-                            "More than one template has the name '{}'.",
+                            "More than one handlebars template has the name '{}'.",
                             template_name
                         ),
                     });

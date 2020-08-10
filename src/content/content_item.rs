@@ -22,7 +22,7 @@ pub enum ContentRenderingError {
 #[derive(Error, Debug)]
 pub enum RenderingFailure {
     #[error(
-        "Rendering failed for template: {}",
+        "Rendering failed for handlebars template: {}",
         .source
     )]
     TemplateRenderError {
