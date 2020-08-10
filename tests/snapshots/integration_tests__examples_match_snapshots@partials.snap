@@ -1,5 +1,5 @@
 ---
-source: src/cli.rs
+source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/partials
 ---
