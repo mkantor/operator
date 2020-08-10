@@ -22,12 +22,13 @@ pub use content_registry::{ContentRepresentations, RegisteredContent};
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
 
-pub struct Media<O: Read> {
+/// A piece of rendered content along with its media type.
+pub struct Media<Content: Read> {
     pub media_type: MediaType,
-    pub content: O,
+    pub content: Content,
 }
-impl<O: Read> Media<O> {
-    fn new(media_type: MediaType, content: O) -> Self {
+impl<Content: Read> Media<Content> {
+    fn new(media_type: MediaType, content: Content) -> Self {
         Self {
             media_type,
             content,
@@ -65,6 +66,8 @@ struct RenderData<ServerInfo: Clone + Serialize, ErrorCode: Clone + Serialize> {
     error_code: Option<ErrorCode>,
 }
 
+/// Values used during rendering, including the data passed to handlebars
+/// templates.
 pub struct RenderContext<'engine, ServerInfo, ErrorCode, Engine>
 where
     ServerInfo: Clone + Serialize,

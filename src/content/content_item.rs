@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 use thiserror::Error;
 
+/// Something went wrong during rendering.
 #[derive(Error, Debug)]
 pub enum ContentRenderingError {
     #[error(transparent)]

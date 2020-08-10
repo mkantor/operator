@@ -27,6 +27,7 @@ pub struct ContentFileError {
     message: String,
 }
 
+/// A filesystem directory containing content.
 pub struct ContentDirectory {
     files: Vec<ContentFile>,
     #[cfg(test)]

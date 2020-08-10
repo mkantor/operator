@@ -6,6 +6,7 @@ use thiserror::Error;
 
 pub type MediaRange = Mime;
 
+/// See [IETF RFC 2046](https://tools.ietf.org/html/rfc2046).
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct MediaType(MediaRange);
 impl MediaType {

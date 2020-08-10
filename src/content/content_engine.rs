@@ -23,6 +23,7 @@ pub struct RegisteredTemplateParseError {
     source: handlebars::TemplateError,
 }
 
+/// A handlebars template had invalid syntax.
 #[derive(Error, Debug)]
 #[error(
   "Failed to parse template{}.",
@@ -33,6 +34,7 @@ pub struct UnregisteredTemplateParseError {
     source: handlebars::TemplateError,
 }
 
+/// There was a problem loading content from the filesystem.
 #[derive(Error, Debug)]
 pub enum ContentLoadingError {
     #[error(transparent)]
@@ -89,6 +91,8 @@ where
     fn handlebars_registry(&self) -> &Handlebars;
 }
 
+/// A [`ContentEngine`](trait.ContentEngine.html) that serves files from a
+/// [`ContentDirectory`](struct.ContentDirectory.html).
 pub struct FilesystemBasedContentEngine<'engine, ServerInfo, ErrorCode>
 where
     ErrorCode: Clone + Serialize,
