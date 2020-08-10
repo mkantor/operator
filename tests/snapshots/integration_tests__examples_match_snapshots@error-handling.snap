@@ -3,6 +3,7 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/error-handling
 ---
+error-code-and-request-route.txt.hbs: " error-code-and-request-route"
 error-handler.html.hbs: "<p>no error!</p>"
 error-handler.txt.hbs: no error!
 executable-error-handler.txt.sh: "this is executable error handler, and my working directory is $PROJECT_DIRECTORY/src/examples/error-handling\n"

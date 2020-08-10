@@ -175,6 +175,7 @@ where
                     error_response(
                         http::StatusCode::INTERNAL_SERVER_ERROR,
                         &*content_engine,
+                        route,
                         app_data.error_handler_route.as_deref(),
                         acceptable_media_ranges,
                     )
@@ -186,6 +187,7 @@ where
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
+                route,
                 app_data.error_handler_route.as_deref(),
                 acceptable_media_ranges,
             )
@@ -195,6 +197,7 @@ where
             error_response(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
+                route,
                 app_data.error_handler_route.as_deref(),
                 acceptable_media_ranges,
             )
@@ -204,6 +207,7 @@ where
             error_response(
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
+                route,
                 app_data.error_handler_route.as_deref(),
                 acceptable_media_ranges,
             )
@@ -214,6 +218,7 @@ where
 fn error_response<ServerInfo, Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
+    request_route: &str,
     error_handler_route: Option<&str>,
     acceptable_media_ranges: Vec<&MediaRange>,
 ) -> HttpResponse
@@ -238,7 +243,7 @@ where
         .and_then(|route| {
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .get_render_context(route)
+                    .get_render_context(request_route)
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
@@ -914,5 +919,34 @@ mod tests {
                 "Response content-type was not text/plain",
             );
         }
+    }
+
+    #[actix_rt::test]
+    async fn error_handler_sees_original_request_route() {
+        let request = test_request(
+            &example_path("error-handling"),
+            None,
+            Some("error-code-and-request-route"),
+        )
+        .header("accept", "text/plain")
+        .uri("/not/a/real/path/so/this/should/404")
+        .to_http_request();
+
+        let response = get::<(), TestContentEngine>(request).await;
+        let response_body = response
+            .body()
+            .as_ref()
+            .expect("Response body was not available");
+
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "Response status was not 404"
+        );
+        assert_eq!(
+            response_body,
+            &Body::from_slice(b"404 not/a/real/path/so/this/should/404"),
+            "Response body was incorrect"
+        );
     }
 }
