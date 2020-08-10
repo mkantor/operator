@@ -220,6 +220,25 @@ fn is_omitted_from_snapshots(route: &str) -> bool {
     route.starts_with("SKIP-SNAPSHOT-") || route.contains("/SKIP-SNAPSHOT-")
 }
 
+/// RenderContext::into_error_context was flagged as unused from this crate
+/// (because it is). Tooling complains about this even though it's used from
+/// the main crate, so here's a function to "use" it.
+#[allow(dead_code)]
+fn use_into_error_context() {
+    use content::{ContentEngine, FilesystemBasedContentEngine};
+    use std::path::Path;
+    let shared_engine = FilesystemBasedContentEngine::<(), ()>::from_content_directory(
+        ContentDirectory::from_root(&Path::new("/dev/null")).unwrap(),
+        (),
+    )
+    .unwrap();
+    let engine = shared_engine.read().unwrap();
+    let context = engine.get_render_context("");
+    context.into_error_context(());
+}
+
+// The rest of this file is the actual tests.
+
 #[actix_rt::test]
 async fn examples_match_snapshots() {
     for content_directory in example_content_directories() {

@@ -57,6 +57,9 @@ enum SolitonCommand {
         index_route: Option<String>,
 
         #[structopt(long)]
+        error_handler_route: Option<String>,
+
+        #[structopt(long)]
         socket_address: SocketAddr,
     },
 }
@@ -119,10 +122,12 @@ fn handle_command<I: io::Read, O: io::Write>(
         SolitonCommand::Serve {
             content_directory,
             index_route,
+            error_handler_route,
             socket_address,
         } => cli::serve(
             get_content_directory(content_directory)?,
             index_route,
+            error_handler_route,
             socket_address,
             VERSION,
         )

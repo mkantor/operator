@@ -29,14 +29,15 @@ pub enum RegisteredContent {
 
 impl Render for ContentRepresentations {
     type Output = Box<dyn Read>;
-    fn render<'accept, ServerInfo, Engine, Accept>(
+    fn render<'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
-        context: RenderContext<ServerInfo, Engine>,
+        context: RenderContext<ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, ContentRenderingError>
     where
+        ErrorCode: Clone + Serialize,
         ServerInfo: Clone + Serialize,
-        Engine: ContentEngine<ServerInfo>,
+        Engine: ContentEngine<ServerInfo, ErrorCode>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: Read,
     {
@@ -118,7 +119,7 @@ mod tests {
 
     /// Test fixtures. All of these will render to an empty string with media
     /// type text/plain or text/html.
-    fn examples() -> (impl ContentEngine<()>, Vec<ContentRepresentations>) {
+    fn examples() -> (impl ContentEngine<(), ()>, Vec<ContentRepresentations>) {
         let text_plain = MediaType::from_media_range(::mime::TEXT_PLAIN).unwrap();
         let text_html = MediaType::from_media_range(::mime::TEXT_HTML).unwrap();
         let mut content_engine = MockContentEngine::new();

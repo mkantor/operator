@@ -99,11 +99,15 @@ impl RegisteredTemplate {
         }
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
+    pub(super) fn render_to_native_media_type<ServerInfo, ErrorCode>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailure> {
+        render_data: RenderData<ServerInfo, ErrorCode>,
+    ) -> Result<Media<Cursor<String>>, RenderingFailure>
+    where
+        ServerInfo: Clone + Serialize,
+        ErrorCode: Clone + Serialize,
+    {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
@@ -133,11 +137,15 @@ impl UnregisteredTemplate {
         })
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo: Clone + Serialize>(
+    pub(super) fn render_to_native_media_type<ServerInfo, ErrorCode>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailure> {
+        render_data: RenderData<ServerInfo, ErrorCode>,
+    ) -> Result<Media<Cursor<String>>, RenderingFailure>
+    where
+        ServerInfo: Clone + Serialize,
+        ErrorCode: Clone + Serialize,
+    {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
@@ -157,14 +165,15 @@ impl UnregisteredTemplate {
 }
 impl Render for UnregisteredTemplate {
     type Output = Cursor<String>;
-    fn render<'engine, 'accept, ServerInfo, Engine, Accept>(
+    fn render<'engine, 'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
-        context: RenderContext<ServerInfo, Engine>,
+        context: RenderContext<ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, ContentRenderingError>
     where
         ServerInfo: Clone + Serialize,
-        Engine: ContentEngine<ServerInfo>,
+        ErrorCode: Clone + Serialize,
+        Engine: ContentEngine<ServerInfo, ErrorCode>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: Read,
     {

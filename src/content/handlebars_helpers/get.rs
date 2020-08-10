@@ -3,23 +3,37 @@ use handlebars::{self, Handlebars};
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
-pub struct GetHelper<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>> {
+pub struct GetHelper<ServerInfo, ErrorCode, Engine>
+where
+    ServerInfo: Clone + Serialize,
+    ErrorCode: Clone + Serialize,
+    Engine: ContentEngine<ServerInfo, ErrorCode>,
+{
     content_engine: Arc<RwLock<Engine>>,
     server_info_type: PhantomData<ServerInfo>,
+    error_code_type: PhantomData<ErrorCode>,
 }
-impl<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>>
-    GetHelper<ServerInfo, Engine>
+impl<ServerInfo, ErrorCode, Engine> GetHelper<ServerInfo, ErrorCode, Engine>
+where
+    ServerInfo: Clone + Serialize,
+    ErrorCode: Clone + Serialize,
+    Engine: ContentEngine<ServerInfo, ErrorCode>,
 {
     pub fn new(content_engine: Arc<RwLock<Engine>>) -> Self {
         Self {
             content_engine,
             server_info_type: PhantomData,
+            error_code_type: PhantomData,
         }
     }
 }
 
-impl<ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>> handlebars::HelperDef
-    for GetHelper<ServerInfo, Engine>
+impl<ServerInfo, ErrorCode, Engine> handlebars::HelperDef
+    for GetHelper<ServerInfo, ErrorCode, Engine>
+where
+    ServerInfo: Clone + Serialize,
+    ErrorCode: Clone + Serialize,
+    Engine: ContentEngine<ServerInfo, ErrorCode>,
 {
     fn call<'registry: 'context, 'context>(
         &self,

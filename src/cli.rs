@@ -76,6 +76,9 @@ pub enum ServeCommandError {
     #[error("Index route does not exist.")]
     IndexRouteMissing,
 
+    #[error("Error handler route does not exist.")]
+    ErrorHandlerRouteMissing,
+
     #[error("Failed to run server.")]
     ServerError { source: io::Error },
 }
@@ -88,12 +91,13 @@ pub fn render<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
-        content_directory,
-        SolitonInfo {
-            version: soliton_version,
-        },
-    )?;
+    let shared_content_engine =
+        FilesystemBasedContentEngine::<SolitonInfo, ()>::from_content_directory(
+            content_directory,
+            SolitonInfo {
+                version: soliton_version,
+            },
+        )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -123,12 +127,13 @@ pub fn get<O: io::Write>(
     soliton_version: SolitonVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
-        content_directory,
-        SolitonInfo {
-            version: soliton_version,
-        },
-    )?;
+    let shared_content_engine =
+        FilesystemBasedContentEngine::<SolitonInfo, ()>::from_content_directory(
+            content_directory,
+            SolitonInfo {
+                version: soliton_version,
+            },
+        )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -152,6 +157,7 @@ pub fn get<O: io::Write>(
 pub fn serve<A: 'static + ToSocketAddrs>(
     content_directory: ContentDirectory,
     index_route: Option<String>,
+    error_handler_route: Option<String>,
     socket_address: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
@@ -162,19 +168,35 @@ pub fn serve<A: 'static + ToSocketAddrs>(
         },
     )?;
 
-    if let Some(specified_index_route) = &index_route {
-        let index_route_exists = shared_content_engine
+    // If index or error handler are set, validate that they refer to an
+    // existing route.
+    if index_route.is_some() || error_handler_route.is_some() {
+        let content_engine = shared_content_engine
             .read()
-            .expect("RwLock for ContentEngine has been poisoned")
-            .get(&specified_index_route)
-            .is_some();
-        if !index_route_exists {
-            return Err(ServeCommandError::IndexRouteMissing);
+            .expect("RwLock for ContentEngine has been poisoned");
+
+        if let Some(specified_index_route) = &index_route {
+            let index = content_engine.get(specified_index_route);
+            if index.is_none() {
+                return Err(ServeCommandError::IndexRouteMissing);
+            }
+        }
+
+        if let Some(specified_error_handler_route) = &error_handler_route {
+            let error_handler = content_engine.get(specified_error_handler_route);
+            if error_handler.is_none() {
+                return Err(ServeCommandError::ErrorHandlerRouteMissing);
+            }
         }
     }
 
-    http::run_server(shared_content_engine, index_route, socket_address)
-        .map_err(|source| ServeCommandError::ServerError { source })
+    http::run_server(
+        shared_content_engine,
+        index_route,
+        error_handler_route,
+        socket_address,
+    )
+    .map_err(|source| ServeCommandError::ServerError { source })
 }
 
 #[cfg(test)]

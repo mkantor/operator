@@ -25,6 +25,7 @@ pub fn example_content_directories() -> Vec<ContentDirectory> {
     vec![
         example_content_directory("alternative-representations"),
         example_content_directory("empty"),
+        example_content_directory("error-handling"),
         example_content_directory("executables"),
         example_content_directory("hello-world"),
         example_content_directory("hidden-content"),

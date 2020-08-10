@@ -1,0 +1,11 @@
+---
+source: tests/integration_tests.rs
+expression: contents
+input_file: src/examples/error-handling
+---
+error-handler.html.hbs: "<p>no error!</p>"
+error-handler.txt.hbs: no error!
+executable-error-handler.txt.sh: "this is executable error handler, and my working directory is $PROJECT_DIRECTORY/src/examples/error-handling\n"
+json-file.json: "{}"
+static-error-handler.txt: "this is static error handler\n"
+trigger-error.txt.sh: "Rendering failure: Executable '$PROJECT_DIRECTORY/src/examples/error-handling/trigger-error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/error-handling' exited with code 1: boom!\n\nError: Unable to render content.\n\nCaused by:\n    Executable '$PROJECT_DIRECTORY/src/examples/error-handling/trigger-error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/error-handling' exited with code 1: boom!\n    \n"

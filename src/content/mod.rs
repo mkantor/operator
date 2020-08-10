@@ -37,14 +37,15 @@ impl<O: Read> Media<O> {
 
 pub trait Render {
     type Output;
-    fn render<'engine, 'accept, ServerInfo, Engine, Accept>(
+    fn render<'engine, 'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
-        context: RenderContext<'engine, ServerInfo, Engine>,
+        context: RenderContext<'engine, ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, ContentRenderingError>
     where
         ServerInfo: Clone + Serialize,
-        Engine: ContentEngine<ServerInfo>,
+        ErrorCode: Clone + Serialize,
+        Engine: ContentEngine<ServerInfo, ErrorCode>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: Read;
 }
@@ -55,16 +56,38 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct RenderData<ServerInfo: Clone + Serialize> {
+struct RenderData<ServerInfo: Clone + Serialize, ErrorCode: Clone + Serialize> {
     #[serde(rename = "/")]
     index: ContentIndex,
     server_info: ServerInfo,
     request_route: String,
     target_media_type: Option<MediaType>,
+    error_code: Option<ErrorCode>,
 }
 
-pub struct RenderContext<'engine, ServerInfo: Clone + Serialize, Engine: ContentEngine<ServerInfo>>
+pub struct RenderContext<'engine, ServerInfo, ErrorCode, Engine>
+where
+    ServerInfo: Clone + Serialize,
+    ErrorCode: Clone + Serialize,
+    Engine: ContentEngine<ServerInfo, ErrorCode>,
 {
     content_engine: &'engine Engine,
-    data: RenderData<ServerInfo>,
+    data: RenderData<ServerInfo, ErrorCode>,
+}
+
+impl<'engine, ServerInfo, ErrorCode, Engine> RenderContext<'engine, ServerInfo, ErrorCode, Engine>
+where
+    ServerInfo: Clone + Serialize,
+    ErrorCode: Clone + Serialize,
+    Engine: ContentEngine<ServerInfo, ErrorCode>,
+{
+    pub fn into_error_context(self, error_code: ErrorCode) -> Self {
+        RenderContext {
+            data: RenderData {
+                error_code: Some(error_code),
+                ..self.data
+            },
+            ..self
+        }
+    }
 }
