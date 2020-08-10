@@ -165,7 +165,7 @@ impl UnregisteredTemplate {
 }
 impl Render for UnregisteredTemplate {
     type Output = Cursor<String>;
-    fn render<'engine, 'accept, ServerInfo, ErrorCode, Engine, Accept>(
+    fn render<'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
         context: RenderContext<ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
