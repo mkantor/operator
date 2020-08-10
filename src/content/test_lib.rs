@@ -1,6 +1,7 @@
 #![cfg(test)]
 
-use crate::content::*;
+use super::content_index::ContentIndexEntries;
+use super::*;
 use handlebars::Handlebars;
 
 pub struct MockContentEngine<'a>(Handlebars<'a>);

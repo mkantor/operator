@@ -7,7 +7,7 @@ mod handlebars_helpers;
 mod mime;
 mod test_lib;
 
-use content_index::*;
+use content_index::ContentIndex;
 use content_item::RenderingFailedError;
 use serde::Serialize;
 use std::io::Read;
