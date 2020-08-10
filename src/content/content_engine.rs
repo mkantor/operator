@@ -435,7 +435,7 @@ mod tests {
     use crate::test_lib::*;
     use ::mime;
 
-    const VERSION: SolitonVersion = SolitonVersion("0.0.0");
+    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
 
     // FIXME: It's not ideal to rely on specific example directories in these
     // tests. It would be better to mock out contents in each of the tests.
@@ -443,9 +443,7 @@ mod tests {
     #[test]
     fn content_engine_can_be_created_from_valid_content_directory() {
         for directory in example_content_directories_with_valid_contents() {
-            if let Err(error) =
-                FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-            {
+            if let Err(error) = TestContentEngine::from_content_directory(directory, ()) {
                 panic!("Content engine could not be created: {}", error);
             }
         }
@@ -455,7 +453,7 @@ mod tests {
     fn content_engine_cannot_be_created_from_invalid_content_directory() {
         for directory in example_content_directories_with_invalid_contents() {
             assert!(
-                FilesystemBasedContentEngine::from_content_directory(directory, VERSION).is_err(),
+                TestContentEngine::from_content_directory(directory, ()).is_err(),
                 "Content engine was successfully created, but this should have failed",
             );
         }
@@ -463,9 +461,9 @@ mod tests {
 
     #[test]
     fn new_templates_can_be_rendered() {
-        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = TestContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
-            VERSION,
+            (),
         )
         .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
@@ -495,9 +493,9 @@ mod tests {
 
     #[test]
     fn new_template_fails_for_invalid_templates() {
-        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = TestContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
-            VERSION,
+            (),
         )
         .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
@@ -519,9 +517,8 @@ mod tests {
     #[test]
     fn new_templates_can_reference_partials_from_content_directory() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let template = "this is partial: {{> abc.html.hbs}}";
@@ -552,9 +549,8 @@ mod tests {
     #[test]
     fn content_can_be_retrieved() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "abc";
@@ -584,9 +580,8 @@ mod tests {
     #[test]
     fn content_may_not_exist_at_route() {
         let directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "this-route-does-not-refer-to-any-content";
@@ -601,9 +596,8 @@ mod tests {
     #[test]
     fn get_helper_is_available() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let template = "i got stuff: {{get [/].b}}";
@@ -633,9 +627,8 @@ mod tests {
     #[test]
     fn get_helper_requires_a_route_argument() {
         let directory = ContentDirectory::from_root(&example_path("partials")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let templates = [
@@ -667,9 +660,8 @@ mod tests {
     fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
         let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let routes = ["cannot-become-html", "template-cannot-become-html"];
@@ -693,9 +685,9 @@ mod tests {
 
     #[test]
     fn anonymous_template_cannot_be_rendered_with_unacceptable_target_media_type() {
-        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = TestContentEngine::from_content_directory(
             arbitrary_content_directory_with_valid_content(),
-            VERSION,
+            (),
         )
         .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
@@ -718,9 +710,8 @@ mod tests {
     fn nesting_incompatible_media_types_fails_at_render_time() {
         let content_directory_path = &example_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let inputs = vec![
@@ -746,9 +737,9 @@ mod tests {
 
     #[test]
     fn target_media_type_is_correct_for_templates_rendered_directly() {
-        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        let shared_content_engine = TestContentEngine::from_content_directory(
             ContentDirectory::from_root(&example_path("media-types")).unwrap(),
-            VERSION,
+            (),
         )
         .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
@@ -792,9 +783,8 @@ mod tests {
     #[test]
     fn executables_are_given_zero_args() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "count-cli-args";
@@ -821,9 +811,8 @@ mod tests {
     #[test]
     fn executables_are_executed_with_correct_working_directory() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route1 = "pwd";
@@ -873,9 +862,8 @@ mod tests {
     #[test]
     fn executables_have_a_media_type() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "SKIP-SNAPSHOT-system-info"; // This outputs text/html.
@@ -901,9 +889,8 @@ mod tests {
     #[test]
     fn executables_can_output_arbitrary_bytes() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "SKIP-SNAPSHOT-random";
@@ -931,9 +918,8 @@ mod tests {
     #[test]
     fn templates_can_get_executable_output() {
         let directory = ContentDirectory::from_root(&example_path("executables")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = "template";
@@ -963,9 +949,8 @@ mod tests {
     #[test]
     fn content_can_be_hidden() {
         let directory = ContentDirectory::from_root(&example_path("hidden-content")).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, VERSION)
-                .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let routes = [
