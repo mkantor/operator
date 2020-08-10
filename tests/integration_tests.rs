@@ -337,7 +337,7 @@ fn render_subcommand_succeeds() {
 
 #[test]
 fn get_subcommand_succeeds() {
-    let expected_output = "hello world\n";
+    let expected_output = "hello world";
 
     let mut command = soliton_command(&[
         "get",
@@ -371,7 +371,7 @@ async fn serve_subcommand_succeeds() {
     let content_directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
     let (server_address, mut server) = start_server(&content_directory);
 
-    let expected_response_body = "hello world\n";
+    let expected_response_body = "hello world";
 
     let request = HttpClient::new()
         .get(format!("http://{}/hello", server_address))
@@ -393,8 +393,8 @@ async fn serve_subcommand_succeeds() {
         "Response status was not 200 OK"
     );
     assert_eq!(
-        response_content_type, "text/html",
-        "Response content-type was not text/html",
+        response_content_type, "text/plain",
+        "Response content-type was not text/plain",
     );
     assert_eq!(
         response_body, expected_response_body,

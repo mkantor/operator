@@ -1,6 +1,6 @@
 ---
-source: src/cli.rs
+source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/hello-world
 ---
-hello.html.hbs: "hello world\n"
+hello.txt: hello world

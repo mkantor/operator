@@ -364,7 +364,7 @@ mod tests {
     async fn content_can_be_retrieved_with_exact_media_type() {
         let request = test_request(&example_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "text/html")
+            .header("accept", "text/plain")
             .to_http_request();
 
         let response = get::<(), TestContentEngine>(request).await;
@@ -383,12 +383,12 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }
@@ -416,12 +416,12 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }
@@ -449,12 +449,12 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }
@@ -482,12 +482,12 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }
@@ -514,12 +514,12 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }
@@ -584,10 +584,10 @@ mod tests {
 
     #[actix_rt::test]
     async fn extension_on_url_takes_precedence_over_accept_header() {
-        // Note .html extension on URL path, but no text/html (nor any other
+        // Note .txt extension on URL path, but no text/plain (nor any other
         // workable media range) in the accept header.
         let request = test_request(&example_path("hello-world"), None, None)
-            .uri("/hello.html")
+            .uri("/hello.txt")
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
@@ -603,8 +603,8 @@ mod tests {
             "Response status was not 200"
         );
         assert_eq!(
-            response_content_type, "text/html",
-            "Response content-type was not text/html",
+            response_content_type, "text/plain",
+            "Response content-type was not text/plain",
         );
     }
 
@@ -615,7 +615,7 @@ mod tests {
         // considered when there is an extension.
         let request = test_request(&example_path("hello-world"), None, None)
             .uri("/hello.doc")
-            .header("accept", "text/html")
+            .header("accept", "text/plain")
             .to_http_request();
 
         let response = get::<(), TestContentEngine>(request).await;
@@ -630,7 +630,7 @@ mod tests {
     #[actix_rt::test]
     async fn index_route_is_used_for_empty_uri_path() {
         let request = test_request(&example_path("hello-world"), Some("hello"), None)
-            .header("accept", "text/html")
+            .header("accept", "text/plain")
             .to_http_request();
 
         let response = get::<(), TestContentEngine>(request).await;
@@ -646,7 +646,7 @@ mod tests {
         );
         assert_eq!(
             response_body,
-            &Body::from_slice(b"hello world\n"),
+            &Body::from_slice(b"hello world"),
             "Response body was incorrect"
         );
     }

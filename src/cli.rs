@@ -251,13 +251,13 @@ mod tests {
     fn content_can_be_retrieved_from_content_directory() {
         let mut output = Vec::new();
         let route = "hello";
-        let expected_output = "hello world\n";
+        let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
         let result = get(
             directory,
             route,
-            mime::TEXT_HTML,
+            mime::TEXT_PLAIN,
             SolitonVersion("0.0.0"),
             &mut output,
         );
