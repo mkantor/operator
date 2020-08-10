@@ -33,7 +33,7 @@ impl Render for ContentRepresentations {
         &self,
         context: RenderContext<ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
-    ) -> Result<Media<Self::Output>, ContentRenderingError>
+    ) -> Result<Media<Self::Output>, RenderError>
     where
         ErrorCode: Clone + Serialize,
         ServerInfo: Clone + Serialize,
@@ -65,7 +65,7 @@ impl Render for ContentRepresentations {
                     match render_result {
                         Ok(rendered) => {
                             return if &rendered.media_type != registered_media_type {
-                                Err(ContentRenderingError::Bug(format!(
+                                Err(RenderError::Bug(format!(
                                     "The actual rendered media type ({}) did not match the \
                                         media type this content was registered for ({}).",
                                     rendered.media_type, registered_media_type,
@@ -93,8 +93,8 @@ impl Render for ContentRepresentations {
         // failed, perhaps multiple times, in which case the first error is
         // returned.
         Err(match errors.into_iter().next() {
-            None => ContentRenderingError::CannotProvideAcceptableMediaType,
-            Some(first_error) => ContentRenderingError::RenderingFailure(first_error),
+            None => RenderError::CannotProvideAcceptableMediaType,
+            Some(first_error) => RenderError::RenderingFailed(first_error),
         })
     }
 }

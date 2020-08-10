@@ -23,9 +23,9 @@ pub enum RenderCommandError {
     },
 
     #[error("Unable to render content.")]
-    ContentRenderingError {
+    RenderError {
         #[from]
-        source: ContentRenderingError,
+        source: RenderError,
     },
 
     #[error("Failed to write output.")]
@@ -44,9 +44,9 @@ pub enum GetCommandError {
     ContentNotFound { route: String },
 
     #[error("Unable to render content.")]
-    ContentRenderingError {
+    RenderError {
         #[from]
-        source: ContentRenderingError,
+        source: RenderError,
     },
 
     #[error("Failed to write output.")]

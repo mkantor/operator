@@ -182,7 +182,7 @@ where
                 }
             }
         }
-        Some(Err(error @ ContentRenderingError::CannotProvideAcceptableMediaType { .. })) => {
+        Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => {
             log::warn!("Cannot provide an acceptable response: {}", error);
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,

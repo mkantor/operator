@@ -6,21 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::{ChildStdout, Command, Stdio};
 use thiserror::Error;
 
-/// Something went wrong during rendering.
+/// There was an error during rendering.
 #[derive(Error, Debug)]
-pub enum ContentRenderingError {
-    #[error(transparent)]
-    RenderingFailure(RenderingFailure),
-
-    #[error("The requested content cannot be rendered as an acceptable media type.")]
-    CannotProvideAcceptableMediaType,
-
-    #[error("You've encountered a bug! This should never happen: {}", .0)]
-    Bug(String),
-}
-
-#[derive(Error, Debug)]
-pub enum RenderingFailure {
+pub enum RenderingFailedError {
     #[error(
         "Rendering failed for handlebars template: {}",
         .source
@@ -76,7 +64,7 @@ impl StaticContentItem {
         }
     }
 
-    pub(super) fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailure> {
+    pub(super) fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailedError> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
@@ -104,7 +92,7 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo, ErrorCode>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailure>
+    ) -> Result<Media<Cursor<String>>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
@@ -142,7 +130,7 @@ impl UnregisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo, ErrorCode>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailure>
+    ) -> Result<Media<Cursor<String>>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
@@ -170,7 +158,7 @@ impl Render for UnregisteredTemplate {
         &self,
         context: RenderContext<ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
-    ) -> Result<Media<Self::Output>, ContentRenderingError>
+    ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
@@ -188,11 +176,11 @@ impl Render for UnregisteredTemplate {
                         context.content_engine.handlebars_registry(),
                         context.data.clone(),
                     )
-                    .map_err(ContentRenderingError::RenderingFailure);
+                    .map_err(RenderError::RenderingFailed);
             }
         }
 
-        Err(ContentRenderingError::CannotProvideAcceptableMediaType)
+        Err(RenderError::CannotProvideAcceptableMediaType)
     }
 }
 
@@ -224,7 +212,7 @@ impl Executable {
 
     pub(super) fn render_to_native_media_type(
         &self,
-    ) -> Result<Media<ChildStdout>, RenderingFailure> {
+    ) -> Result<Media<ChildStdout>, RenderingFailedError> {
         let mut command = Command::new(self.program.clone());
 
         let mut child = command
@@ -233,7 +221,7 @@ impl Executable {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|io_error| RenderingFailure::ExecutableError {
+            .map_err(|io_error| RenderingFailedError::ExecutableError {
                 message: format!("Unable to execute program: {}", io_error),
                 program: self.program.clone(),
                 working_directory: self.working_directory.clone(),
@@ -241,7 +229,7 @@ impl Executable {
 
         let exit_status = child
             .wait()
-            .map_err(|error| RenderingFailure::ExecutableError {
+            .map_err(|error| RenderingFailedError::ExecutableError {
                 message: format!("Could not get exit status from program: {}", error),
                 program: self.program.clone(),
                 working_directory: self.working_directory.clone(),
@@ -249,7 +237,7 @@ impl Executable {
 
         let stdout = child
             .stdout
-            .ok_or_else(|| RenderingFailure::ExecutableError {
+            .ok_or_else(|| RenderingFailedError::ExecutableError {
                 message: String::from("Could not capture stdout from program."),
                 program: self.program.clone(),
                 working_directory: self.working_directory.clone(),
@@ -267,7 +255,7 @@ impl Executable {
                             }
                         })
                     };
-                    RenderingFailure::ExecutableExitedWithNonzero {
+                    RenderingFailedError::ExecutableExitedWithNonzero {
                         stderr_contents,
                         program: self.program.clone(),
                         exit_code,
@@ -275,7 +263,7 @@ impl Executable {
                     }
                 }
 
-                None => RenderingFailure::ExecutableError {
+                None => RenderingFailedError::ExecutableError {
                     message: String::from(
                         "Program exited with failure, but its exit code was not available. \
                         It may have been killed by a signal.",

@@ -8,15 +8,17 @@ mod mime;
 mod test_lib;
 
 use content_index::*;
+use content_item::RenderingFailedError;
 use serde::Serialize;
 use std::io::Read;
+use thiserror::Error;
 
 pub use self::mime::{MediaRange, MediaType};
 pub use content_directory::ContentDirectory;
 pub use content_engine::{
     ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, TemplateParseError,
 };
-pub use content_item::{ContentRenderingError, UnregisteredTemplate};
+pub use content_item::UnregisteredTemplate;
 pub use content_registry::{ContentRepresentations, RegisteredContent};
 
 const HANDLEBARS_FILE_EXTENSION: &str = "hbs";
@@ -35,13 +37,27 @@ impl<Content: Read> Media<Content> {
     }
 }
 
+/// Could not produce rendered output, either because rendering was attempted
+/// and failed or because no acceptable media types are available.
+#[derive(Error, Debug)]
+pub enum RenderError {
+    #[error(transparent)]
+    RenderingFailed(RenderingFailedError),
+
+    #[error("The requested content cannot be rendered as an acceptable media type.")]
+    CannotProvideAcceptableMediaType,
+
+    #[error("You've encountered a bug! This should never happen: {}", .0)]
+    Bug(String),
+}
+
 pub trait Render {
     type Output;
     fn render<'engine, 'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
         context: RenderContext<'engine, ServerInfo, ErrorCode, Engine>,
         acceptable_media_ranges: Accept,
-    ) -> Result<Media<Self::Output>, ContentRenderingError>
+    ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
