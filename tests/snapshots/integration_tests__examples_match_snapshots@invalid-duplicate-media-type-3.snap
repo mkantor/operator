@@ -3,5 +3,5 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/invalid-duplicate-media-type-3
 ---
-bad.xml.hbs: "Error: Unable to load content.\n\nCaused by:\n    There are multiple content files for route /bad with the same media type (text/xml).\n"
-bad.xml.php: "Error: Unable to load content.\n\nCaused by:\n    There are multiple content files for route /bad with the same media type (text/xml).\n"
+bad.xml.hbs: "Unable to load content.\n\nCaused by:\n    There are multiple content files for route /bad with the same media type (text/xml).\n"
+bad.xml.php: "Unable to load content.\n\nCaused by:\n    There are multiple content files for route /bad with the same media type (text/xml).\n"

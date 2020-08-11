@@ -3,4 +3,4 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: src/examples/invalid-three-extensions-not-executable
 ---
-this-file-is-not-executable.txt.html.jpg: "Error: Unable to load content.\n\nCaused by:\n    Content file name is not supported: Content file name 'this-file-is-not-executable.txt.html.jpg' has too many extensions.\n"
+this-file-is-not-executable.txt.html.jpg: "Unable to load content.\n\nCaused by:\n    Content file name is not supported: Content file name 'this-file-is-not-executable.txt.html.jpg' has too many extensions.\n"
