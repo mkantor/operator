@@ -74,7 +74,6 @@ pub enum ServeCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn render<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
-    media_type: MediaType,
     soliton_version: SolitonVersion,
     input: &mut I,
     output: &mut O,
@@ -95,10 +94,10 @@ pub fn render<I: io::Read, O: io::Write>(
         .read_to_string(&mut template)
         .map_err(|source| RenderCommandError::ReadError { source })?;
 
-    let content_item = content_engine.new_template(&template, media_type.clone())?;
+    let content_item =
+        content_engine.new_template(&template, MediaType::APPLICATION_OCTET_STREAM)?;
     let render_context = content_engine.get_render_context("");
-    let mut rendered_output =
-        content_item.render(render_context, &[media_type.into_media_range()])?;
+    let mut rendered_output = content_item.render(render_context, &[mime::STAR_STAR])?;
 
     io::copy(&mut rendered_output.content, output)
         .map_err(|source| RenderCommandError::WriteError { source })?;
@@ -199,13 +198,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(
-                directory,
-                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
-                SolitonVersion("0.0.0"),
-                &mut input,
-                &mut output,
-            );
+            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -231,13 +224,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(
-                directory,
-                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
-                SolitonVersion("0.0.0"),
-                &mut input,
-                &mut output,
-            );
+            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_err(),

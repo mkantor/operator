@@ -304,11 +304,7 @@ fn render_subcommand_succeeds() {
     let input = "{{#if true}}hello world{{/if}}";
     let expected_output = "hello world";
 
-    let mut command = soliton_command(&[
-        "render",
-        "--content-directory=/dev/null",
-        "--media-type=text/plain",
-    ]);
+    let mut command = soliton_command(&["render", "--content-directory=/dev/null"]);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

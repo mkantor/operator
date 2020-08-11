@@ -4,7 +4,7 @@ mod http;
 mod lib;
 mod test_lib;
 
-use crate::content::{ContentDirectory, MediaRange, MediaType};
+use crate::content::{ContentDirectory, MediaRange};
 use crate::lib::*;
 use anyhow::Context;
 use std::fs;
@@ -32,14 +32,11 @@ struct SolitonCommand {
 enum SolitonSubcommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(
-        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null --media-type=text/plain"
+        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null",
     )]
     Render {
         #[structopt(long, parse(from_os_str))]
         content_directory: PathBuf,
-
-        #[structopt(long)]
-        media_type: MediaType,
     },
 
     /// Renders a file from the content directory.
@@ -109,12 +106,8 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        SolitonSubcommand::Render {
-            content_directory,
-            media_type,
-        } => cli::render(
+        SolitonSubcommand::Render { content_directory } => cli::render(
             get_content_directory(content_directory)?,
-            media_type,
             VERSION,
             input,
             output,

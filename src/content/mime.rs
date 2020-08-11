@@ -10,6 +10,8 @@ pub type MediaRange = Mime;
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct MediaType(MediaRange);
 impl MediaType {
+    pub const APPLICATION_OCTET_STREAM: Self = Self(mime::APPLICATION_OCTET_STREAM);
+
     pub fn from_media_range(media_range: MediaRange) -> Option<MediaType> {
         if media_range.type_() == "*" || media_range.subtype() == "*" {
             None
