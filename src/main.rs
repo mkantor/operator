@@ -17,11 +17,14 @@ use structopt::StructOpt;
 const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
 
 #[derive(StructOpt)]
+#[structopt(about)]
 struct SolitonCommand {
-    #[structopt(long, short = "q")]
+    /// Silence all output
+    #[structopt(long, short = "q", global = true)]
     quiet: bool,
 
-    #[structopt(long, short = "v", parse(from_occurrences))]
+    /// Verbose mode; multiple -v options increase the verbosity
+    #[structopt(long, short = "v", parse(from_occurrences), global = true)]
     verbose: usize,
 
     #[structopt(subcommand)]
@@ -31,45 +34,86 @@ struct SolitonCommand {
 #[derive(StructOpt)]
 enum SolitonSubcommand {
     /// Evaluates a handlebars template from STDIN.
-    #[structopt(
-        after_help = "EXAMPLE:\n    echo '{{#if true}}hello world{{/if}}' \\\n        | soliton render --content-directory=/dev/null",
-    )]
-    Render {
-        #[structopt(long, parse(from_os_str))]
+    #[structopt(after_help = concat!(
+        "EXAMPLE:\n",
+        "    echo '{{#if true}}hello world{{/if}}' | soliton eval --content-directory=/dev/null"
+    ), display_order = 0)]
+    Eval {
+        /// Path to a directory containing content files.
+        ///
+        /// Files in this directory can be referenced from the provided
+        /// handlebars template.
+        #[structopt(long, parse(from_os_str), value_name = "path")]
         content_directory: PathBuf,
     },
 
-    /// Renders a file from the content directory.
-    #[structopt(
-        after_help = "EXAMPLE:\n    mkdir -p content\n    echo 'hello world' > content/hello.txt\n    soliton get --content-directory=content --route=hello --accept=text/*"
-    )]
+    /// Renders content from a content directory.
+    #[structopt(after_help = concat!(
+        "EXAMPLE:\n",
+        "    mkdir -p content\n",
+        "    echo 'hello world' > content/hello.txt\n",
+        "    soliton get --content-directory=./content --route=hello --accept=text/*"
+    ), display_order = 1)]
     Get {
-        #[structopt(long, parse(from_os_str))]
+        /// Path to a directory containing content files.
+        ///
+        /// The route argument refers to files within this directory.
+        #[structopt(long, parse(from_os_str), value_name = "path")]
         content_directory: PathBuf,
 
+        /// Route specifying which piece of content to get.
+        ///
+        /// Routes are extension-less slash-delimited paths rooted in the
+        /// content directory.
         #[structopt(long)]
         route: String,
 
-        #[structopt(long)]
+        /// Declares what types of media are acceptable as output.
+        ///
+        /// This serves the same purpose as the HTTP Accept header: to drive
+        /// content negotiation. Unlike the Accept header it is only a single
+        /// media range.
+        #[structopt(long, value_name = "media-range")]
         accept: MediaRange,
     },
 
-    /// Serves the content directory over HTTP.
-    #[structopt(
-        after_help = "EXAMPLE:\n    mkdir -p site\n    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n    soliton -vv serve --content-directory=site --index-route=home --socket-address=127.0.0.1:8080"
-    )]
+    /// Starts an HTTP server.
+    #[structopt(after_help = concat!(
+        "EXAMPLE:\n",
+        "    mkdir -p site\n",
+        "    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n",
+        "    soliton -vv serve --bind-to=127.0.0.1:8080 --content-directory=./site --index-route=home",
+    ), display_order = 2)]
     Serve {
-        #[structopt(long, parse(from_os_str))]
+        /// Path to a directory containing content files.
+        ///
+        /// This directory is used to create the website.
+        #[structopt(long, parse(from_os_str), value_name = "path")]
         content_directory: PathBuf,
 
-        #[structopt(long)]
+        /// What to serve when the request URI has an empty path.
+        ///
+        /// A request for http://mysite.com/ gets a response from this route.
+        /// If this option is not set, such requests always receive a 404.
+        #[structopt(long, value_name = "route")]
         index_route: Option<String>,
 
-        #[structopt(long)]
+        /// What to serve when there are errors.
+        ///
+        /// This facilitates custom error pages. When there is an HTTP error
+        /// this route is used to create the response. The HTTP status code can
+        /// be obtained from the `error-code` render parameter.
+        ///
+        /// If the error handler itself fails then a default error message is
+        /// used.
+        #[structopt(long, value_name = "route")]
         error_handler_route: Option<String>,
 
-        #[structopt(long)]
-        socket_address: SocketAddr,
+        /// The TCP address/port that the server should bind to.
+        ///
+        /// This is an IP address and port number. For example, "127.0.0.1:80".
+        #[structopt(long, value_name = "socket-address")]
+        bind_to: SocketAddr,
     },
 }
 
@@ -106,7 +150,7 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        SolitonSubcommand::Render { content_directory } => cli::render(
+        SolitonSubcommand::Eval { content_directory } => cli::eval(
             get_content_directory(content_directory)?,
             VERSION,
             input,
@@ -131,12 +175,12 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
             content_directory,
             index_route,
             error_handler_route,
-            socket_address,
+            bind_to,
         } => cli::serve(
             get_content_directory(content_directory)?,
             index_route,
             error_handler_route,
-            socket_address,
+            bind_to,
             VERSION,
         )
         .map_err(anyhow::Error::from),

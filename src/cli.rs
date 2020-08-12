@@ -72,7 +72,7 @@ pub enum ServeCommandError {
 }
 
 /// Reads a template from `input`, renders it, and writes it to `output`.
-pub fn render<I: io::Read, O: io::Write>(
+pub fn eval<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
     soliton_version: SolitonVersion,
     input: &mut I,
@@ -145,7 +145,7 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     content_directory: ContentDirectory,
     index_route: Option<String>,
     error_handler_route: Option<String>,
-    socket_address: A,
+    bind_to: A,
     soliton_version: SolitonVersion,
 ) -> Result<(), ServeCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
@@ -181,7 +181,7 @@ pub fn serve<A: 'static + ToSocketAddrs>(
         shared_content_engine,
         index_route,
         error_handler_route,
-        socket_address,
+        bind_to,
     )
     .map_err(|source| ServeCommandError::ServerError { source })
 }
@@ -193,12 +193,12 @@ mod tests {
     use std::str;
 
     #[test]
-    fn valid_templates_can_be_rendered() {
+    fn valid_templates_can_be_evaluated() {
         for &(template, expected_output) in &VALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -219,12 +219,12 @@ mod tests {
     }
 
     #[test]
-    fn invalid_templates_cannot_be_rendered() {
+    fn invalid_templates_fail_evaluation() {
         for &template in &INVALID_TEMPLATES {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = render(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_err(),

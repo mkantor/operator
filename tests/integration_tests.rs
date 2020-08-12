@@ -121,7 +121,7 @@ fn start_server(content_directory: &ContentDirectory) -> (SocketAddr, Child) {
                 .to_str()
                 .expect("Content directory root path was not UTF-8")
         ),
-        &format!("--socket-address={}", server_address),
+        &format!("--bind-to={}", server_address),
     ]);
     command
         .stdin(Stdio::null())
@@ -300,11 +300,11 @@ fn invalid_subcommand_is_error() {
 }
 
 #[test]
-fn render_subcommand_succeeds() {
+fn eval_subcommand_succeeds() {
     let input = "{{#if true}}hello world{{/if}}";
     let expected_output = "hello world";
 
-    let mut command = soliton_command(&["render", "--content-directory=/dev/null"]);
+    let mut command = soliton_command(&["eval", "--content-directory=/dev/null"]);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

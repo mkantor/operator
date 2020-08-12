@@ -1,5 +1,5 @@
 # Soliton (WIP)
 
-A *content framework* for web sites.
+A *content framework* for websites.
 
 **Soliton is in early development.**
