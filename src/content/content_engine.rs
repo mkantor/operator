@@ -140,6 +140,7 @@ where
         let mut index = ContentIndexEntries::new();
         let mut handlebars_registry = Handlebars::new();
         let mut content_registry = ContentRegistry::new();
+        handlebars_registry.set_strict_mode(true);
         for entry in content_item_entries {
             let extensions = entry.extensions().to_owned();
             match extensions.as_slice() {
