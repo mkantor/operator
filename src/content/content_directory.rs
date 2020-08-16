@@ -74,8 +74,8 @@ impl ContentDirectory {
     }
 
     #[cfg(test)]
-    pub fn root(&self) -> PathBuf {
-        self.root.clone()
+    pub fn root(&self) -> &Path {
+        &self.root
     }
 }
 
