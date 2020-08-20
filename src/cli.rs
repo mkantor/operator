@@ -1,6 +1,8 @@
 use crate::content::*;
 use crate::http;
 use crate::lib::*;
+use futures::executor;
+use futures::stream::TryStreamExt;
 use std::io;
 use std::net::ToSocketAddrs;
 use thiserror::Error;
@@ -28,6 +30,12 @@ pub enum RenderCommandError {
         source: RenderError,
     },
 
+    #[error("Unable to emit rendered content.")]
+    StreamError {
+        #[from]
+        source: StreamError,
+    },
+
     #[error("Failed to write output.")]
     WriteError { source: io::Error },
 }
@@ -47,6 +55,12 @@ pub enum GetCommandError {
     RenderError {
         #[from]
         source: RenderError,
+    },
+
+    #[error("Unable to emit rendered content.")]
+    StreamError {
+        #[from]
+        source: StreamError,
     },
 
     #[error("Failed to write output.")]
@@ -97,10 +111,16 @@ pub fn eval<I: io::Read, O: io::Write>(
     let content_item =
         content_engine.new_template(&template, MediaType::APPLICATION_OCTET_STREAM)?;
     let render_context = content_engine.get_render_context("");
-    let mut rendered_output = content_item.render(render_context, &[mime::STAR_STAR])?;
+    let media = content_item.render(render_context, &[mime::STAR_STAR])?;
 
-    io::copy(&mut rendered_output.content, output)
-        .map_err(|source| RenderCommandError::WriteError { source })?;
+    executor::block_on(media.content.try_for_each(|bytes| {
+        let result = match output.write(&bytes) {
+            Err(error) => Err(StreamError::from(error)),
+            Ok(_) => Ok(()),
+        };
+        async { result }
+    }))?;
+
     output
         .flush()
         .map_err(|source| RenderCommandError::WriteError { source })
@@ -131,10 +151,16 @@ pub fn get<O: io::Write>(
             route: String::from(route),
         })?;
     let render_context = content_engine.get_render_context(route);
-    let mut rendered_output = content_item.render(render_context, &[accept])?;
+    let media = content_item.render(render_context, &[accept])?;
 
-    io::copy(&mut rendered_output.content, output)
-        .map_err(|source| GetCommandError::WriteError { source })?;
+    executor::block_on(media.content.try_for_each(|bytes| {
+        let result = match output.write(&bytes) {
+            Err(error) => Err(StreamError::from(error)),
+            Ok(_) => Ok(()),
+        };
+        async { result }
+    }))?;
+
     output
         .flush()
         .map_err(|source| GetCommandError::WriteError { source })

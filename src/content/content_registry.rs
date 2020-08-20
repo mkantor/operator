@@ -28,7 +28,7 @@ pub enum RegisteredContent {
 }
 
 impl Render for ContentRepresentations {
-    type Output = Box<dyn Read>;
+    type Output = Box<dyn ByteStream>;
     fn render<'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
         context: RenderContext<ServerInfo, ErrorCode, Engine>,
@@ -39,7 +39,7 @@ impl Render for ContentRepresentations {
         ServerInfo: Clone + Serialize,
         Engine: ContentEngine<ServerInfo, ErrorCode>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
-        Self::Output: Read,
+        Self::Output: ByteStream,
     {
         let mut errors = Vec::new();
         for acceptable_media_range in acceptable_media_ranges {
@@ -99,7 +99,7 @@ impl Render for ContentRepresentations {
     }
 }
 
-fn box_media<'o, O: Read + 'o>(media: Media<O>) -> Media<Box<dyn Read + 'o>> {
+fn box_media<'o, O: ByteStream + 'o>(media: Media<O>) -> Media<Box<dyn ByteStream + 'o>> {
     Media {
         content: Box::new(media.content),
         media_type: media.media_type,

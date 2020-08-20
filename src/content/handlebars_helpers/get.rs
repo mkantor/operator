@@ -1,4 +1,6 @@
 use crate::content::*;
+use futures::executor;
+use futures::stream::TryStreamExt;
 use handlebars::{self, Handlebars};
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
@@ -67,14 +69,14 @@ where
         let content_item = content_engine.get(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
                 "No content found at route passed to `get` helper (\"{}\").",
-                route
+                route,
             ))
         })?;
 
         let current_render_data = handlebars_context.data().as_object().ok_or_else(|| {
             handlebars::RenderError::new(format!(
                 "The `get` helper call failed because the context JSON was not an object. It is `{}`.",
-                handlebars_context.data()
+                handlebars_context.data(),
             ))
         })?;
 
@@ -87,7 +89,7 @@ where
                     in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
                     whose value is a valid media type essence string. The current context is `{}`.",
                     TARGET_MEDIA_TYPE_PROPERTY_NAME,
-                    handlebars_context.data()
+                    handlebars_context.data(),
                 ))
             })?;
 
@@ -99,26 +101,42 @@ where
                     in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
                     whose value is a string. The current context is `{}`.",
                     REQUEST_ROUTE_PROPERTY_NAME,
-                    handlebars_context.data()
+                    handlebars_context.data(),
                 ))
             })?;
 
         let context = content_engine.get_render_context(request_route);
 
-        let mut rendered = content_item
+        let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|soliton_render_error| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the content item being retrieved (\"{}\") \
                     could not be rendered: {}",
                     route,
-                    soliton_render_error
+                    soliton_render_error,
                 ))
             })?;
 
-        let mut rendered_content_as_string = String::new();
-        rendered
-            .content
-            .read_to_string(&mut rendered_content_as_string)?;
+        // Unfortunately handlebars-rust needs a string, so we block the thread
+        // until the stream has been exhausted (or produces an error).
+        let (size_lower_bound, _) = rendered.content.size_hint();
+        let bytes = executor::block_on(rendered.content.try_fold(
+            Vec::with_capacity(size_lower_bound),
+            |mut all_bytes, additional_bytes| async {
+                all_bytes.extend(additional_bytes);
+                Ok(all_bytes)
+            },
+        ))
+        .map_err(|streaming_error| {
+            handlebars::RenderError::new(format!(
+                "The `get` helper call failed because there was an error collecting the rendered content \
+                for \"{}\": {:?}",
+                route,
+                streaming_error,
+            ))
+        })?;
+        let rendered_content_as_string = String::from_utf8(bytes)?;
+
         output.write(&rendered_content_as_string)?;
         Ok(())
     }

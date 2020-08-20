@@ -2,6 +2,8 @@
 
 use super::content_index::ContentIndexEntries;
 use super::*;
+use bytes::{Bytes, BytesMut};
+use futures::executor;
 use handlebars::Handlebars;
 
 pub struct MockContentEngine<'a>(Handlebars<'a>);
@@ -46,20 +48,18 @@ impl<'a> ContentEngine<(), ()> for MockContentEngine<'a> {
     }
 }
 
-pub fn media_to_string(media: &mut Media<impl Read>) -> String {
-    let mut string = String::new();
-    media
-        .content
-        .read_to_string(&mut string)
-        .expect("Failed to read media into a string");
-    string
+pub fn media_to_string(media: Media<impl ByteStream + Unpin>) -> String {
+    let bytes = block_on_content(media).expect("There was an error in the content stream");
+    String::from_utf8(bytes.into_iter().collect()).expect("Failed to read media into a string")
 }
 
-pub fn media_to_bytes(media: &mut Media<impl Read>) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    media
-        .content
-        .read_to_end(&mut bytes)
-        .expect("Failed to read media");
-    bytes
+pub fn block_on_content(media: Media<impl ByteStream + Unpin>) -> Result<Bytes, StreamError> {
+    let mut all_bytes = BytesMut::new();
+    for result in executor::block_on_stream(media.content) {
+        match result {
+            Ok(bytes) => all_bytes.extend_from_slice(&bytes),
+            error => return error,
+        }
+    }
+    Ok(all_bytes.freeze())
 }

@@ -257,6 +257,13 @@ impl<'a> IntoIterator for &'a ContentDirectory {
 }
 
 #[cfg(test)]
+impl PartialEq for ContentDirectory {
+    fn eq(&self, other: &Self) -> bool {
+        self.root() == other.root()
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_lib::*;

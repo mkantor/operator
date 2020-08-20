@@ -1,9 +1,10 @@
 use super::*;
+use body::{FileBody, InMemoryBody, ProcessBody};
 use handlebars::{self, Handlebars, Renderable as _};
-use std::fs::{self, File};
-use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::fs;
+use std::io::{self, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::process::{ChildStdout, Command, Stdio};
+use std::process::{Command, Stdio};
 use thiserror::Error;
 
 /// There was an error during rendering.
@@ -30,20 +31,6 @@ pub enum RenderingFailedError {
         message: String,
     },
 
-    #[error(
-        "Executable '{}' with working directory '{}' exited with code {}{}",
-        .program,
-        .working_directory.display(),
-        .exit_code,
-        .stderr_contents.as_ref().map(|message| format!(": {}", message)).unwrap_or_default(),
-    )]
-    ExecutableExitedWithNonzero {
-        program: String,
-        working_directory: PathBuf,
-        exit_code: i32,
-        stderr_contents: Option<String>,
-    },
-
     #[error("Input/output error during rendering")]
     IOError {
         #[from]
@@ -64,14 +51,17 @@ impl StaticContentItem {
         }
     }
 
-    pub(super) fn render_to_native_media_type(&self) -> Result<Media<File>, RenderingFailedError> {
+    pub(super) fn render_to_native_media_type(
+        &self,
+    ) -> Result<Media<FileBody>, RenderingFailedError> {
         // We clone the file handle and operate on that to avoid taking
         // self as mut. Note that all clones share a cursor, so seeking
         // back to the beginning is necessary to ensure we read the
         // entire file.
         let mut file = self.contents.try_clone()?;
         file.seek(SeekFrom::Start(0))?;
-        Ok(Media::new(self.media_type.clone(), file))
+        let stream = FileBody::try_from_file(file)?;
+        Ok(Media::new(self.media_type.clone(), stream))
     }
 }
 
@@ -92,7 +82,7 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo, ErrorCode>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailedError>
+    ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
@@ -104,7 +94,7 @@ impl RegisteredTemplate {
         let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
         Ok(Media::new(
             self.rendered_media_type.clone(),
-            Cursor::new(rendered_content),
+            InMemoryBody(rendered_content.bytes().collect()),
         ))
     }
 }
@@ -130,7 +120,7 @@ impl UnregisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo, ErrorCode>,
-    ) -> Result<Media<Cursor<String>>, RenderingFailedError>
+    ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
         ErrorCode: Clone + Serialize,
@@ -148,12 +138,12 @@ impl UnregisteredTemplate {
         )?;
         Ok(Media::new(
             self.rendered_media_type.clone(),
-            Cursor::new(rendered_content),
+            InMemoryBody(rendered_content.bytes().collect()),
         ))
     }
 }
 impl Render for UnregisteredTemplate {
-    type Output = Cursor<String>;
+    type Output = InMemoryBody;
     fn render<'accept, ServerInfo, ErrorCode, Engine, Accept>(
         &self,
         context: RenderContext<ServerInfo, ErrorCode, Engine>,
@@ -164,7 +154,7 @@ impl Render for UnregisteredTemplate {
         ErrorCode: Clone + Serialize,
         Engine: ContentEngine<ServerInfo, ErrorCode>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
-        Self::Output: Read,
+        Self::Output: ByteStream,
     {
         for acceptable_media_range in acceptable_media_ranges {
             if self
@@ -212,10 +202,10 @@ impl Executable {
 
     pub(super) fn render_to_native_media_type(
         &self,
-    ) -> Result<Media<ChildStdout>, RenderingFailedError> {
+    ) -> Result<Media<ProcessBody>, RenderingFailedError> {
         let mut command = Command::new(self.program.clone());
 
-        let mut child = command
+        let child = command
             .current_dir(self.working_directory.clone())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -227,54 +217,10 @@ impl Executable {
                 working_directory: self.working_directory.clone(),
             })?;
 
-        let exit_status = child
-            .wait()
-            .map_err(|error| RenderingFailedError::ExecutableError {
-                message: format!("Could not get exit status from program: {}", error),
-                program: self.program.clone(),
-                working_directory: self.working_directory.clone(),
-            })?;
-
-        let stdout = child
-            .stdout
-            .ok_or_else(|| RenderingFailedError::ExecutableError {
-                message: String::from("Could not capture stdout from program."),
-                program: self.program.clone(),
-                working_directory: self.working_directory.clone(),
-            })?;
-
-        if !exit_status.success() {
-            Err(match exit_status.code() {
-                Some(exit_code) => {
-                    let stderr_contents = {
-                        child.stderr.and_then(|mut stderr| {
-                            let mut error_message = String::new();
-                            match stderr.read_to_string(&mut error_message) {
-                                Err(_) | Ok(0) => None,
-                                Ok(_) => Some(error_message),
-                            }
-                        })
-                    };
-                    RenderingFailedError::ExecutableExitedWithNonzero {
-                        stderr_contents,
-                        program: self.program.clone(),
-                        exit_code,
-                        working_directory: self.working_directory.clone(),
-                    }
-                }
-
-                None => RenderingFailedError::ExecutableError {
-                    message: String::from(
-                        "Program exited with failure, but its exit code was not available. \
-                        It may have been killed by a signal.",
-                    ),
-                    program: self.program.clone(),
-                    working_directory: self.working_directory.clone(),
-                },
-            })
-        } else {
-            Ok(Media::new(self.output_media_type.clone(), stdout))
-        }
+        Ok(Media::new(
+            self.output_media_type.clone(),
+            ProcessBody::new(child),
+        ))
     }
 }
 
@@ -290,18 +236,18 @@ mod tests {
     use tempfile::tempfile;
 
     #[test]
-    fn static_content_is_stringified_when_rendered() {
+    fn static_content_can_be_rendered() {
         let mut file = tempfile().expect("Failed to create temporary file");
         write!(file, "hello world").expect("Failed to write to temporary file");
         let static_content = StaticContentItem {
             media_type: MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             contents: file,
         };
-        let mut output = static_content
+        let output = static_content
             .render_to_native_media_type()
             .expect("Render failed");
 
-        assert_eq!(media_to_string(&mut output), String::from("hello world"));
+        assert_eq!(media_to_string(output), String::from("hello world"));
     }
 
     #[test]
@@ -316,11 +262,52 @@ mod tests {
             media_type: MediaType::from_media_range(mime::APPLICATION_OCTET_STREAM).unwrap(),
             contents: file,
         };
-        let mut output = static_content
+        let output = static_content
             .render_to_native_media_type()
             .expect("Render failed");
 
-        assert_eq!(media_to_bytes(&mut output), non_utf8_bytes);
+        assert_eq!(
+            block_on_content(output).expect("There was an error in the content stream"),
+            Bytes::copy_from_slice(non_utf8_bytes)
+        );
+    }
+
+    #[test]
+    fn unregistered_template_can_be_rendered() {
+        let content_engine = MockContentEngine::new();
+
+        let template = UnregisteredTemplate::from_source(
+            "{{#if true}}it works!{{/if}}",
+            MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+        )
+        .expect("Test template was invalid");
+        let rendered = template.render_to_native_media_type(
+            content_engine.handlebars_registry(),
+            content_engine.get_render_context("test").data,
+        );
+
+        let template_output = media_to_string(rendered.expect("Rendering failed"));
+        assert_eq!(template_output, "it works!");
+    }
+
+    #[test]
+    fn registered_template_can_be_rendered() {
+        let mut content_engine = MockContentEngine::new();
+        content_engine
+            .register_template("test", "{{#if true}}it works!{{/if}}")
+            .expect("Could not register test template");
+
+        let template = RegisteredTemplate::new(
+            "test",
+            MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+        );
+        let rendered = template.render_to_native_media_type(
+            content_engine.handlebars_registry(),
+            content_engine.get_render_context("test").data,
+        );
+
+        let template_output = media_to_string(rendered.expect("Rendering failed"));
+        assert_eq!(template_output, "it works!");
     }
 
     #[test]
@@ -333,28 +320,13 @@ mod tests {
             working_directory.clone(),
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
-        let mut output = executable
+        let output = executable
             .render_to_native_media_type()
             .expect("Executable failed but it should have succeeded");
 
         assert_eq!(
-            media_to_string(&mut output),
+            media_to_string(output),
             format!("{}\n", working_directory.display())
-        );
-    }
-
-    #[test]
-    fn executables_exiting_with_nonzero_are_err() {
-        let executable = Executable::new(
-            "false",
-            PROJECT_DIRECTORY,
-            MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
-        );
-
-        let result = executable.render_to_native_media_type();
-        assert!(
-            result.is_err(),
-            "Executable succeeded but it should have failed"
         );
     }
 
@@ -372,5 +344,63 @@ mod tests {
             result.is_err(),
             "Executable succeeded but it should have failed"
         );
+    }
+
+    #[test]
+    fn executables_emit_stream_error_if_exit_code_is_not_zero() {
+        let path = format!("{}/src", PROJECT_DIRECTORY);
+        let working_directory =
+            fs::canonicalize(path).expect("Could not canonicalize path for test");
+
+        // Exits with 1 and prints nothing to stdout.
+        {
+            let executable = Executable::new(
+                "false",
+                working_directory.clone(),
+                MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+            );
+            let output = executable
+                .render_to_native_media_type()
+                .expect("Executable failed but it should have succeeded");
+
+            match block_on_content(output) {
+                Err(StreamError::ExecutableExitedWithNonzero {
+                    exit_code,
+                    stderr_contents,
+                    ..
+                }) => {
+                    assert_eq!(exit_code, Some(1));
+                    assert_eq!(stderr_contents, None);
+                }
+                Err(_) => panic!("Got a different error than expected"),
+                Ok(_) => panic!("Expected an error"),
+            }
+        }
+
+        // Exits with 64 and prints a message to stdout.
+        {
+            let executable = Executable::new(
+                "mv",
+                working_directory.clone(),
+                MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+            );
+            let output = executable
+                .render_to_native_media_type()
+                .expect("Executable failed but it should have succeeded");
+
+            match block_on_content(output) {
+                Err(StreamError::ExecutableExitedWithNonzero {
+                    exit_code,
+                    stderr_contents,
+                    ..
+                }) => {
+                    assert_eq!(exit_code, Some(64));
+                    assert!(stderr_contents.is_some());
+                    assert!(stderr_contents.unwrap().len() > 0);
+                }
+                Err(_) => panic!("Got a different error than expected"),
+                Ok(_) => panic!("Expected an error"),
+            }
+        }
     }
 }

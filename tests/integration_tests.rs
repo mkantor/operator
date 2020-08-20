@@ -1,8 +1,10 @@
-use actix_web::client::Client as HttpClient;
+use actix_web::client::{Client as HttpClient, ClientResponse};
+use actix_web::error::PayloadError;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
+use bytes::{Bytes, BytesMut};
 use content::ContentDirectory;
-use futures::future;
+use futures::{future, Stream, TryStreamExt};
 use mime_guess::MimeGuess;
 use regex::Regex;
 use std::collections::hash_map::DefaultHasher;
@@ -13,7 +15,7 @@ use std::ffi::OsStr;
 use std::hash::Hasher;
 use std::io::Write;
 use std::net::SocketAddr;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 use std::str;
 use std::thread;
 use std::time;
@@ -53,8 +55,30 @@ where
 
 /// Attempts to render all non-hidden files in ContentDirectory, returning
 /// them as a map of Route -> RenderedContent | ErrorMessage.
-async fn render_everything(content_directory: &ContentDirectory) -> HashMap<String, String> {
-    let (server_socket_address, mut server) = start_server(content_directory);
+async fn render_everything_for_snapshots(
+    content_directory: &ContentDirectory,
+) -> HashMap<String, String> {
+    // The server successfully start for valid content directories and fail to
+    // start for invalid ones.
+    let (server_socket_address, mut server) = match start_server(content_directory) {
+        Err(message) => {
+            assert!(
+                !example_content_directories_with_valid_contents().contains(content_directory),
+                "Server failed to start for {}, which should be valid: {}",
+                content_directory.root().to_string_lossy(),
+                message,
+            );
+            (None, None)
+        }
+        Ok((server_socket_address, server)) => {
+            assert!(
+                !example_content_directories_with_invalid_contents().contains(content_directory),
+                "Server successfully started for {}, which should be invalid",
+                content_directory.root().to_string_lossy(),
+            );
+            (Some(server_socket_address), Some(server))
+        }
+    };
 
     let render_operations = content_directory
         .into_iter()
@@ -70,28 +94,23 @@ async fn render_everything(content_directory: &ContentDirectory) -> HashMap<Stri
                 .first()
                 .unwrap_or(mime::STAR_STAR);
 
-            let result = render_multiple_ways(
-                &server_socket_address,
+            let output = render_multiple_ways_for_snapshots(
+                server_socket_address.as_ref(),
                 content_directory,
                 route,
                 &target_media_type.to_string(),
             )
             .await;
 
-            let output_or_error_message = match result {
-                Ok(output) => {
+            let output_or_error_message = match String::from_utf8(output) {
+                Ok(string) => string,
+                Err(from_utf8_error) => {
                     let hash = {
                         let mut hasher = DefaultHasher::new();
-                        hasher.write(&output);
+                        hasher.write(from_utf8_error.as_bytes());
                         hasher.finish()
                     };
-                    match String::from_utf8(output) {
-                        Ok(string) => string,
-                        Err(_) => format!("binary data with hash {:x}", hash),
-                    }
-                }
-                Err(error_bytes) => {
-                    String::from_utf8(error_bytes).expect("Error message was not UTF-8")
+                    format!("binary data with hash {:x}", hash)
                 }
             };
 
@@ -105,15 +124,18 @@ async fn render_everything(content_directory: &ContentDirectory) -> HashMap<Stri
         .await
         .into_iter()
         .collect::<HashMap<String, String>>();
-    server.kill().expect("Failed to kill server");
+    server
+        .as_mut()
+        .map(|process| process.kill().expect("Failed to kill server"));
     content
 }
 
-fn start_server(content_directory: &ContentDirectory) -> (SocketAddr, Child) {
+fn start_server(content_directory: &ContentDirectory) -> Result<(SocketAddr, Child), String> {
     let server_address = unused_addr();
 
     let mut command = soliton_command(&[
         "serve",
+        "--quiet",
         &format!(
             "--content-directory={}",
             content_directory
@@ -126,53 +148,149 @@ fn start_server(content_directory: &ContentDirectory) -> (SocketAddr, Child) {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    let child = command.spawn().expect("Failed to spawn process");
+        .stderr(Stdio::inherit());
+    let mut child = command.spawn().expect("Failed to spawn process");
 
     // Give the server a chance to start up.
     // TODO: It would be better to poll by retrying a few times if the
     // connection is refused.
     thread::sleep(time::Duration::from_millis(500));
 
-    (server_address, child)
+    // The server may have failed to start if the content directory was invalid.
+    if let Ok(Some(_)) = child.try_wait() {
+        Err(match child.wait_with_output() {
+            Err(error) => format!(
+                "Server for {} failed to start and output is unavailable: {}",
+                content_directory.root().to_string_lossy(),
+                error,
+            ),
+            Ok(output) => format!(
+                "Server for {} failed to start: {}",
+                content_directory.root().to_string_lossy(),
+                String::from_utf8_lossy(&output.stderr),
+            ),
+        })
+    } else {
+        Ok((server_address, child))
+    }
 }
 
 /// Render the desired content using a few different methods and verify that
 /// they all produce the same result.
-async fn render_multiple_ways(
-    server_address: &SocketAddr,
+/// If `server_address` is `None`, no HTTP-based rendering is performed.
+async fn render_multiple_ways_for_snapshots(
+    server_address: Option<&SocketAddr>,
     content_directory: &ContentDirectory,
     route: &str,
     accept: &str,
-) -> Result<Vec<u8>, Vec<u8>> {
-    let http_result = render_via_http_request(server_address, route, accept).await;
-    let get_command_result = render_via_get_command(content_directory, route, accept);
+) -> Vec<u8> {
+    let get_command_output = render_via_get_command(content_directory, route, accept);
+    match server_address {
+        None => {
+            if get_command_output.status.success() {
+                get_command_output.stdout
+            } else {
+                get_command_output.stderr
+            }
+        }
+        Some(server_address) => {
+            let (http_response_status, http_response_body_result) =
+                render_via_http_request(server_address, route, accept).await;
 
-    if !is_omitted_from_snapshots(route) {
-        // Results must either both be successful or both failed, and if
-        // successful they must have the same content. It's okay if they both
-        // failed and produced different error messages.
-        match (&http_result, &get_command_result) {
-            (Ok(_), Err(_)) =>
-                panic!("Rendering {} as {} succeeded via server but failed via get command", route, accept),
-            (Err(_), Ok(_)) =>
-                panic!("Rendering {} as {} failed via server but succeeded via get command", route, accept),
-            (Ok(server_ok), Ok(get_command_ok)) if server_ok != get_command_ok =>
-                panic!("Rendering {} as {} produced different results when done via server and get command", route, accept),
-            _ => ()
-        };
+            // This is complicated. One of the reasons is that only certain
+            // types of stream errors produce payload errors when using actix
+            // clients (others will just successfully return the streamed bytes
+            // up to the point of failure). For every type of error I've been
+            // able to produce, curl and web browsers report errors in some
+            // fashion (e.g. "curl: (18) transfer closed with outstanding read
+            // data remaining" or a warning in browser dev tools), so this is
+            // considered a deficiency in how actix clients work and is
+            // clumsily hacked around below.
+            match http_response_body_result {
+                Err(payload_error) => panic!(
+                    "HTTP request for /{} resulted in payload error: {}",
+                    route, payload_error,
+                ),
+                Ok(http_response_body) => {
+                    // We check this down here so all the basic validations
+                    // performed up to this point are still applied to files
+                    // which do not get snapshotted. We don't want to look at
+                    // the output though (one reason is to allow example files
+                    // that are non-deterministic, as long as they aren't part
+                    // of the snapshots).
+                    if is_omitted_from_snapshots(route) {
+                        Vec::new()
+                    } else {
+                        // If the HTTP body matches what's on stdout, and the
+                        // HTTP status indicates success, we're good.
+                        if http_response_body == get_command_output.stdout
+                            && http_response_status.is_success()
+                            && get_command_output.status.success()
+                        {
+                            get_command_output.stdout
+                        }
+                        // Just like the previous case, but the get command
+                        // failed. This is necessary because streaming errors
+                        // result in non-zero exit code but a 200 HTTP status.
+                        else if http_response_body == get_command_output.stdout
+                            && http_response_status.is_success()
+                            && !get_command_output.status.success()
+                        {
+                            get_command_output.stderr
+                        }
+                        // If both the get command's exit code and HTTP status
+                        // indicate failure, we're good. The error messages do
+                        // not need to be identical, and the CLI error is more
+                        // detailed, so use that.
+                        else if !http_response_status.is_success()
+                            && !get_command_output.status.success()
+                        {
+                            get_command_output.stderr
+                        }
+                        // If none of the above conditions were true then the
+                        // behavior of the get command and HTTP request is
+                        // different enough to be considered a bug.
+                        else {
+                            panic!(
+                                "Rendering /{} as {} produced different results when done via server and get command!\n    \
+                                get command exit code: {}\n    \
+                                get command stdout: {}\n    \
+                                get command stderr: {}\n    \
+                                HTTP status code: {}\n    \
+                                HTTP response body: {}\n",
+                                route,
+                                accept,
+                                get_command_output.status,
+                                if get_command_output.stdout.len() > 64 {
+                                    format!("{} bytes", get_command_output.stdout.len())
+                                } else {
+                                    format!("{:?}", Bytes::from(get_command_output.stdout))
+                                },
+                                if get_command_output.stderr.len() > 64 {
+                                    format!("{} bytes", get_command_output.stderr.len())
+                                } else {
+                                    format!("{:?}", Bytes::from(get_command_output.stderr))
+                                },
+                                http_response_status,
+                                if http_response_body.len() > 64 {
+                                    format!("{} bytes", http_response_body.len())
+                                } else {
+                                    format!("{:?}", http_response_body)
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
-
-    // Use the get command result for actual snapshots since it will have more
-    // detailed error messages.
-    get_command_result
 }
 
 fn render_via_get_command(
     content_directory: &ContentDirectory,
     route: &str,
     accept: &str,
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> Output {
     let mut command = soliton_command(&[
         "get",
         &format!(
@@ -185,35 +303,44 @@ fn render_via_get_command(
         &format!("--route={}", route),
         &format!("--accept={}", accept),
     ]);
-    let output = command.output().expect("Failed to execute process");
 
-    if output.status.success() {
-        Ok(output.stdout)
-    } else {
-        Err(output.stderr)
-    }
+    command.output().expect("Failed to execute process")
 }
 
 async fn render_via_http_request(
     server_address: &SocketAddr,
     route: &str,
     accept: &str,
-) -> Result<Vec<u8>, Vec<u8>> {
+) -> (StatusCode, Result<Bytes, PayloadError>) {
     let request = HttpClient::new()
         .get(format!("http://{}/{}", server_address, route))
-        .header("accept", accept);
+        .header("accept", accept)
+        .timeout(time::Duration::from_secs(30));
 
     match request.send().await {
-        Err(send_request_error) => Err(send_request_error.to_string().into_bytes()),
-        Ok(mut response) => {
-            let response_body = response.body().await.expect("Unable to get response body");
-            if response.status().is_success() {
-                Ok(Vec::from(response_body.as_ref()))
-            } else {
-                Err(Vec::from(response_body.as_ref()))
-            }
+        Err(send_request_error) => panic!(
+            "Failed while sending request for http://{}/{}: {}",
+            server_address, route, send_request_error,
+        ),
+        Ok(response) => {
+            let response_status = response.status();
+            let response_body = collect_response_body(response).await;
+            (response_status, response_body)
         }
     }
+}
+
+async fn collect_response_body<S>(response: ClientResponse<S>) -> Result<Bytes, PayloadError>
+where
+    S: Stream<Item = Result<Bytes, PayloadError>> + Unpin,
+{
+    response
+        .try_fold(BytesMut::new(), |mut accumulator, bytes| {
+            accumulator.extend_from_slice(&bytes);
+            async { Ok(accumulator) }
+        })
+        .await
+        .map(BytesMut::freeze)
 }
 
 fn is_omitted_from_snapshots(route: &str) -> bool {
@@ -252,7 +379,7 @@ async fn examples_match_snapshots() {
             Regex::new(&log_prefix_pattern).unwrap()
         };
 
-        let unordered_content = render_everything(&content_directory).await;
+        let unordered_content = render_everything_for_snapshots(&content_directory).await;
         let contents = unordered_content
             .iter()
             // Files can be omitted from snapshots with a naming convention.
@@ -365,7 +492,8 @@ fn get_subcommand_succeeds() {
 #[actix_rt::test]
 async fn serve_subcommand_succeeds() {
     let content_directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
-    let (server_address, mut server) = start_server(&content_directory);
+    let (server_address, mut server) =
+        start_server(&content_directory).expect("Server failed to start");
 
     let expected_response_body = "hello world";
 

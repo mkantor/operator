@@ -2,14 +2,14 @@ use crate::content::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
+use futures::TryStreamExt;
 use mime_guess::MimeGuess;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::io::{self, Read};
+use std::io;
 use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 type HttpStatusCodeNumber = u16;
 
@@ -47,6 +47,7 @@ where
                 })
                 .default_service(web::get().to(get::<ServerInfo, Engine>))
         })
+        .keep_alive(None)
         .bind(socket_address)?
         .run()
         .await
@@ -139,8 +140,6 @@ where
         },
     };
 
-    let started_rendering = Instant::now();
-
     let content_engine = app_data
         .shared_content_engine
         .read()
@@ -153,34 +152,25 @@ where
 
     match render_result {
         Some(Ok(Media {
-            mut content,
+            content,
             media_type,
         })) => {
-            let mut content_as_bytes = Vec::new();
-            match content.read_to_end(&mut content_as_bytes) {
-                Ok(_) => {
-                    let render_duration = started_rendering.elapsed();
-                    log::info!(
-                        "Successfully rendered /{} as {} in {}ms",
-                        route,
-                        media_type,
-                        render_duration.as_millis()
-                    );
-                    HttpResponse::Ok()
-                        .content_type(media_type.to_string())
-                        .body(content_as_bytes)
-                }
-                Err(error) => {
-                    log::error!("Failed to read content for /{}: {}", route, error);
-                    error_response(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                        &*content_engine,
-                        route,
-                        app_data.error_handler_route.as_deref(),
-                        acceptable_media_ranges,
-                    )
-                }
-            }
+            log::info!("Sending response for /{} as {}", route, media_type);
+            HttpResponse::Ok()
+                .content_type(media_type.to_string())
+                .streaming(
+                    content
+                        .map_err(|error| {
+                            log::error!(
+                                "An error occurred while streaming a response body: {}",
+                                error,
+                            );
+                            ()
+                        })
+                        .inspect_ok(|bytes| {
+                            log::trace!("Streaming data for response body: {:?}", bytes);
+                        }),
+                )
         }
         Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => {
             log::warn!("Cannot provide an acceptable response: {}", error);
@@ -257,23 +247,20 @@ where
                 }
             })
         })
-        .and_then(
+        .map(
             |Media {
                  media_type,
-                 mut content,
+                 content,
              }| {
-                let mut content_as_bytes = Vec::new();
-                match content.read_to_end(&mut content_as_bytes) {
-                    Ok(_) => Some(
-                        response_builder
-                            .content_type(media_type.to_string())
-                            .body(content_as_bytes),
-                    ),
-                    Err(error) => {
-                        log::error!("Failed to read content from error handler: {}", error);
-                        None
-                    }
-                }
+                response_builder
+                    .content_type(media_type.to_string())
+                    .streaming(content.map_err(|error| {
+                        log::error!(
+                            "An error occurred while streaming a response body: {:?}",
+                            error,
+                        );
+                        ()
+                    }))
             },
         )
         .unwrap_or_else(|| {
@@ -325,9 +312,10 @@ fn acceptable_media_ranges_from_accept_header<'a>(
 mod tests {
     use super::*;
     use crate::test_lib::*;
-    use actix_web::body::Body;
+    use actix_web::body::{Body, ResponseBody};
     use actix_web::http::StatusCode;
     use actix_web::test::TestRequest;
+    use bytes::{Bytes, BytesMut};
     use std::path::Path;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, (), HttpStatusCodeNumber>;
@@ -350,6 +338,15 @@ mod tests {
         })
     }
 
+    async fn collect_response_body(body: ResponseBody<Body>) -> Result<Bytes, actix_web::Error> {
+        body.try_fold(BytesMut::new(), |mut accumulator, bytes| {
+            accumulator.extend_from_slice(&bytes);
+            async { Ok(accumulator) }
+        })
+        .await
+        .map(BytesMut::freeze)
+    }
+
     #[actix_rt::test]
     async fn content_may_be_not_found() {
         let request = test_request(&example_path("empty"), None, None)
@@ -367,11 +364,10 @@ mod tests {
             .header("accept", "text/plain")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -386,11 +382,7 @@ mod tests {
             response_content_type, "text/plain",
             "Response content-type was not text/plain",
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -400,11 +392,10 @@ mod tests {
             .header("accept", "text/*")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -419,11 +410,7 @@ mod tests {
             response_content_type, "text/plain",
             "Response content-type was not text/plain",
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -433,11 +420,10 @@ mod tests {
             .header("accept", "*/*")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -452,11 +438,7 @@ mod tests {
             response_content_type, "text/plain",
             "Response content-type was not text/plain",
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -466,11 +448,10 @@ mod tests {
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -485,11 +466,7 @@ mod tests {
             response_content_type, "text/plain",
             "Response content-type was not text/plain",
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -498,11 +475,10 @@ mod tests {
             .uri("/hello")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -517,11 +493,7 @@ mod tests {
             response_content_type, "text/plain",
             "Response content-type was not text/plain",
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -531,11 +503,10 @@ mod tests {
             .header("accept", "video/*")
             .to_http_request();
 
-        let response: HttpResponse = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -551,16 +522,8 @@ mod tests {
             "Response content-type was not video/mp4",
         );
 
-        let response_bytes = match response_body {
-            Body::None => vec![],
-            Body::Empty => vec![],
-            Body::Bytes(bytes) => bytes.to_vec(),
-            Body::Message(_) => {
-                unimplemented!("can't get bytes from response with generic message body")
-            }
-        };
         assert_eq!(
-            response_bytes.len(),
+            response_body.len(),
             198946,
             "Response body did not have the expected size",
         );
@@ -633,22 +596,17 @@ mod tests {
             .header("accept", "text/plain")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
 
         assert_eq!(
             response.status(),
             StatusCode::OK,
             "Response status was not 200"
         );
-        assert_eq!(
-            response_body,
-            &Body::from_slice(b"hello world"),
-            "Response body was incorrect"
-        );
+        assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
     #[actix_rt::test]
@@ -660,11 +618,10 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(request_not_found).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(request_not_found).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
 
             assert_eq!(
                 response.status(),
@@ -672,33 +629,7 @@ mod tests {
                 "Response status was not 404"
             );
             assert_eq!(
-                response_body,
-                &Body::from_slice(b"error code: 404"),
-                "Response body was incorrect"
-            );
-        }
-
-        {
-            let request_internal_server_error =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
-                    .header("accept", "text/plain")
-                    .uri("/trigger-error")
-                    .to_http_request();
-
-            let response = get::<(), TestContentEngine>(request_internal_server_error).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
-
-            assert_eq!(
-                response.status(),
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Response status was not 500"
-            );
-            assert_eq!(
-                response_body,
-                &Body::from_slice(b"error code: 500"),
+                response_body, "error code: 404",
                 "Response body was incorrect"
             );
         }
@@ -710,11 +641,10 @@ mod tests {
                     .uri("/json-file")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(request_not_acceptable_error).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(request_not_acceptable_error).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
 
             assert_eq!(
                 response.status(),
@@ -722,11 +652,33 @@ mod tests {
                 "Response status was not 406"
             );
             assert_eq!(
-                response_body,
-                &Body::from_slice(b"error code: 406"),
+                response_body, "error code: 406",
                 "Response body was incorrect"
             );
         }
+    }
+
+    #[actix_rt::test]
+    async fn stream_errors_are_propagated() {
+        let request_internal_server_error =
+            test_request(&example_path("error-handling"), None, Some("error-handler"))
+                .header("accept", "text/plain")
+                .uri("/trigger-error")
+                .to_http_request();
+
+        let mut response = get::<(), TestContentEngine>(request_internal_server_error).await;
+        let response_body = collect_response_body(response.take_body()).await;
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "Response status was not 200"
+        );
+
+        assert_eq!(
+            response_body.unwrap_err().to_string(),
+            actix_web::Error::from(()).to_string()
+        );
     }
 
     #[actix_rt::test]
@@ -740,11 +692,10 @@ mod tests {
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
 
         assert_eq!(
             response.status(),
@@ -752,8 +703,7 @@ mod tests {
             "Response status was not 404"
         );
         assert_eq!(
-            response_body,
-            &Body::from_slice(b"this is static error handler\n"),
+            response_body, "this is static error handler\n",
             "Response body was incorrect"
         );
     }
@@ -787,11 +737,10 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(text_plain_request).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(text_plain_request).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
                 .get("content-type")
@@ -803,8 +752,7 @@ mod tests {
                 "Response status was not 404"
             );
             assert_eq!(
-                response_body,
-                &Body::from_slice(b"error code: 404"),
+                response_body, "error code: 404",
                 "Response body was incorrect"
             );
             assert_eq!(
@@ -820,11 +768,10 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(text_html_request).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(text_html_request).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
                 .get("content-type")
@@ -836,8 +783,7 @@ mod tests {
                 "Response status was not 404"
             );
             assert_eq!(
-                response_body,
-                &Body::from_slice(b"<p>error code: 404</p>"),
+                response_body, "<p>error code: 404</p>",
                 "Response body was incorrect"
             );
             assert_eq!(
@@ -857,11 +803,10 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(request).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(request).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
                 .get("content-type")
@@ -872,11 +817,7 @@ mod tests {
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
-            assert_eq!(
-                response_body,
-                &Body::from_slice(b"Not Found"),
-                "Response body was incorrect"
-            );
+            assert_eq!(response_body, "Not Found", "Response body was incorrect");
             assert_eq!(
                 response_content_type, "text/plain",
                 "Response content-type was not text/plain",
@@ -891,11 +832,10 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let response = get::<(), TestContentEngine>(request).await;
-            let response_body = response
-                .body()
-                .as_ref()
-                .expect("Response body was not available");
+            let mut response = get::<(), TestContentEngine>(request).await;
+            let response_body = collect_response_body(response.take_body())
+                .await
+                .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
                 .get("content-type")
@@ -906,11 +846,7 @@ mod tests {
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
-            assert_eq!(
-                response_body,
-                &Body::from_slice(b"Not Found"),
-                "Response body was incorrect"
-            );
+            assert_eq!(response_body, "Not Found", "Response body was incorrect");
             assert_eq!(
                 // The default error handler always emits text/plain regardless
                 // of the accept header.
@@ -932,11 +868,10 @@ mod tests {
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
-        let response_body = response
-            .body()
-            .as_ref()
-            .expect("Response body was not available");
+        let mut response = get::<(), TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
 
         assert_eq!(
             response.status(),
@@ -944,8 +879,7 @@ mod tests {
             "Response status was not 404"
         );
         assert_eq!(
-            response_body,
-            &Body::from_slice(b"404 not/a/real/path/so/this/should/404"),
+            response_body, "404 not/a/real/path/so/this/should/404",
             "Response body was incorrect"
         );
     }

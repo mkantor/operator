@@ -9,4 +9,4 @@ error-handler.txt.hbs: no error!
 executable-error-handler.txt.sh: "this is executable error handler, and my working directory is $PROJECT_DIRECTORY/src/examples/error-handling\n"
 json-file.json: "{}"
 static-error-handler.txt: "this is static error handler\n"
-trigger-error.txt.sh: "Unable to render content.\n\nCaused by:\n    Executable '$PROJECT_DIRECTORY/src/examples/error-handling/trigger-error.txt.sh' with working directory '$PROJECT_DIRECTORY/src/examples/error-handling' exited with code 1: boom!\n    \n"
+trigger-error.txt.sh: "Unable to emit rendered content.\n\nCaused by:\n    Process exited with code 1: boom!\n    \n"
