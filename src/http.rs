@@ -165,7 +165,6 @@ where
                                 "An error occurred while streaming a response body: {}",
                                 error,
                             );
-                            ()
                         })
                         .inspect_ok(|bytes| {
                             log::trace!("Streaming data for response body: {:?}", bytes);
@@ -259,7 +258,6 @@ where
                             "An error occurred while streaming a response body: {:?}",
                             error,
                         );
-                        ()
                     }))
             },
         )

@@ -177,11 +177,11 @@ impl Stream for ProcessBody {
                                             })
                                         };
 
-                                        return Err(StreamError::ExecutableExitedWithNonzero {
+                                        Err(StreamError::ExecutableExitedWithNonzero {
                                             pid,
                                             stderr_contents,
                                             exit_code: exit_status.code(),
-                                        });
+                                        })
                                     } else {
                                         // Successful completion.
                                         Ok((None, Bytes::new()))
