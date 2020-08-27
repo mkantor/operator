@@ -58,8 +58,8 @@ where
 async fn render_everything_for_snapshots(
     content_directory: &ContentDirectory,
 ) -> HashMap<String, String> {
-    // The server successfully start for valid content directories and fail to
-    // start for invalid ones.
+    // The server should successfully start up for valid content directories
+    // and fail to start for invalid ones.
     let (server_socket_address, mut server) = match start_server(content_directory) {
         Err(message) => {
             assert!(

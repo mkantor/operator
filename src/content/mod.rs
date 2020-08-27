@@ -60,7 +60,7 @@ pub enum RenderError {
     Bug(String),
 }
 
-/// Something went after starting to stream content.
+/// Something went wrong after starting to stream content.
 #[derive(Error, Debug)]
 pub enum StreamError {
     #[error(
