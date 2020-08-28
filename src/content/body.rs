@@ -1,4 +1,4 @@
-//! This module contains various types of steaming HTTP response bodies
+//! This module contains various types of streaming HTTP response bodies
 //! (reading from files, capturing stdout of a process, etc). All of these
 //! types have an impl for Stream<Item=Result<Bytes, StreamError>>.
 
