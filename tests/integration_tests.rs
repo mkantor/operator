@@ -53,14 +53,78 @@ where
     soliton
 }
 
+struct RunningServer {
+    address: SocketAddr,
+    process: Child,
+}
+
+impl RunningServer {
+    fn start(content_directory: &ContentDirectory) -> Result<Self, String> {
+        let address = unused_addr();
+
+        let mut command = soliton_command(&[
+            "serve",
+            "--quiet",
+            &format!(
+                "--content-directory={}",
+                content_directory
+                    .root()
+                    .to_str()
+                    .expect("Content directory root path was not UTF-8")
+            ),
+            &format!("--bind-to={}", address),
+        ]);
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        let mut process = command.spawn().expect("Failed to spawn process");
+
+        // Give the server a chance to start up.
+        // TODO: It would be better to poll by retrying a few times if the
+        // connection is refused.
+        thread::sleep(time::Duration::from_millis(500));
+
+        // The server may have failed to start if the content directory was invalid.
+        if let Ok(Some(_)) = process.try_wait() {
+            Err(match process.wait_with_output() {
+                Err(error) => format!(
+                    "Server for {} failed to start and output is unavailable: {}",
+                    content_directory.root().to_string_lossy(),
+                    error,
+                ),
+                Ok(output) => format!(
+                    "Server for {} failed to start: {}",
+                    content_directory.root().to_string_lossy(),
+                    String::from_utf8_lossy(&output.stderr),
+                ),
+            })
+        } else {
+            Ok(RunningServer { address, process })
+        }
+    }
+
+    fn address(&self) -> &SocketAddr {
+        &self.address
+    }
+}
+
+impl Drop for RunningServer {
+    fn drop(&mut self) {
+        self.process.kill().expect("Failed to kill server")
+    }
+}
+
 /// Attempts to render all non-hidden files in ContentDirectory, returning
 /// them as a map of Route -> RenderedContent | ErrorMessage.
 async fn render_everything_for_snapshots(
     content_directory: &ContentDirectory,
 ) -> HashMap<String, String> {
+    let server_result = RunningServer::start(content_directory);
+
     // The server should successfully start up for valid content directories
     // and fail to start for invalid ones.
-    let (server_socket_address, mut server) = match start_server(content_directory) {
+    let optional_server = match server_result {
         Err(message) => {
             assert!(
                 !example_content_directories_with_valid_contents().contains(content_directory),
@@ -68,15 +132,15 @@ async fn render_everything_for_snapshots(
                 content_directory.root().to_string_lossy(),
                 message,
             );
-            (None, None)
+            None
         }
-        Ok((server_socket_address, server)) => {
+        Ok(ref server) => {
             assert!(
                 !example_content_directories_with_invalid_contents().contains(content_directory),
                 "Server successfully started for {}, which should be invalid",
                 content_directory.root().to_string_lossy(),
             );
-            (Some(server_socket_address), Some(server))
+            Some(server)
         }
     };
 
@@ -95,7 +159,7 @@ async fn render_everything_for_snapshots(
                 .unwrap_or(mime::STAR_STAR);
 
             let output = render_multiple_ways_for_snapshots(
-                server_socket_address.as_ref(),
+                optional_server.map(RunningServer::address),
                 content_directory,
                 route,
                 &target_media_type.to_string(),
@@ -124,55 +188,7 @@ async fn render_everything_for_snapshots(
         .await
         .into_iter()
         .collect::<HashMap<String, String>>();
-    server
-        .as_mut()
-        .map(|process| process.kill().expect("Failed to kill server"));
     content
-}
-
-fn start_server(content_directory: &ContentDirectory) -> Result<(SocketAddr, Child), String> {
-    let server_address = unused_addr();
-
-    let mut command = soliton_command(&[
-        "serve",
-        "--quiet",
-        &format!(
-            "--content-directory={}",
-            content_directory
-                .root()
-                .to_str()
-                .expect("Content directory root path was not UTF-8")
-        ),
-        &format!("--bind-to={}", server_address),
-    ]);
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
-    let mut child = command.spawn().expect("Failed to spawn process");
-
-    // Give the server a chance to start up.
-    // TODO: It would be better to poll by retrying a few times if the
-    // connection is refused.
-    thread::sleep(time::Duration::from_millis(500));
-
-    // The server may have failed to start if the content directory was invalid.
-    if let Ok(Some(_)) = child.try_wait() {
-        Err(match child.wait_with_output() {
-            Err(error) => format!(
-                "Server for {} failed to start and output is unavailable: {}",
-                content_directory.root().to_string_lossy(),
-                error,
-            ),
-            Ok(output) => format!(
-                "Server for {} failed to start: {}",
-                content_directory.root().to_string_lossy(),
-                String::from_utf8_lossy(&output.stderr),
-            ),
-        })
-    } else {
-        Ok((server_address, child))
-    }
 }
 
 /// Render the desired content using a few different methods and verify that
@@ -492,13 +508,12 @@ fn get_subcommand_succeeds() {
 #[actix_rt::test]
 async fn serve_subcommand_succeeds() {
     let content_directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
-    let (server_address, mut server) =
-        start_server(&content_directory).expect("Server failed to start");
+    let server = RunningServer::start(&content_directory).expect("Server failed to start");
 
     let expected_response_body = "hello world";
 
     let request = HttpClient::new()
-        .get(format!("http://{}/hello", server_address))
+        .get(format!("http://{}/hello", server.address()))
         .header(
             "accept",
             "application/msword, text/*;q=0.9, image/gif;q=0.1",
@@ -524,6 +539,4 @@ async fn serve_subcommand_succeeds() {
         response_body, expected_response_body,
         "Response body was incorrect"
     );
-
-    server.kill().expect("Failed to kill server");
 }
