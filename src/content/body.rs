@@ -19,6 +19,8 @@ use std::task::{Context, Poll};
 use actix_web::error::BlockingError;
 use actix_web::web;
 
+type ChunkOperation<'a, T> = LocalBoxFuture<'a, Result<T, BlockingError<StreamError>>>;
+
 fn handle_error(error: BlockingError<StreamError>) -> StreamError {
     match error {
         BlockingError::Error(error) => error,
@@ -51,7 +53,7 @@ pub struct FileBody {
     size: u64,
     offset: u64,
     file: Option<File>,
-    next: Option<LocalBoxFuture<'static, Result<(File, Bytes), BlockingError<StreamError>>>>,
+    next: Option<ChunkOperation<'static, (File, Bytes)>>,
     counter: u64,
 }
 impl FileBody {
@@ -109,8 +111,7 @@ impl Stream for FileBody {
 /// HTTP response body populated from the stdout of a running process.
 pub struct ProcessBody {
     process: Option<Child>,
-    next:
-        Option<LocalBoxFuture<'static, Result<(Option<Child>, Bytes), BlockingError<StreamError>>>>,
+    next: Option<ChunkOperation<'static, (Option<Child>, Bytes)>>,
 }
 impl ProcessBody {
     pub fn new(process: Child) -> Self {
