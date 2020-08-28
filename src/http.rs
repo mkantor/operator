@@ -92,10 +92,16 @@ where
         _ => "HTTP",
     };
     log::info!(
-        "Handling request {} {} {}",
-        http_version,
+        "Handling request {} {} {}{}",
         request.method(),
-        request.uri()
+        request.uri(),
+        http_version,
+        request
+            .headers()
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| format!(" with accept: {}", value))
+            .unwrap_or_default()
     );
 
     let (route, media_range_from_url) = if path.is_empty() {
@@ -155,7 +161,12 @@ where
             content,
             media_type,
         })) => {
-            log::info!("Sending response for /{} as {}", route, media_type);
+            log::info!(
+                "Sending {} response for /{} as {}",
+                http::StatusCode::OK,
+                route,
+                media_type,
+            );
             HttpResponse::Ok()
                 .content_type(media_type.to_string())
                 .streaming(
@@ -172,7 +183,12 @@ where
                 )
         }
         Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => {
-            log::warn!("Cannot provide an acceptable response: {}", error);
+            log::warn!(
+                "Responding with {} for /{}. Cannot provide an acceptable response: {}",
+                http::StatusCode::NOT_ACCEPTABLE,
+                route,
+                error,
+            );
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
@@ -182,7 +198,12 @@ where
             )
         }
         Some(Err(error)) => {
-            log::warn!("Failed to render content from route /{}: {}", route, error);
+            log::warn!(
+                "Responding with {} for /{}. Failed to render content: {}",
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                route,
+                error,
+            );
             error_response(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
@@ -192,7 +213,11 @@ where
             )
         }
         None => {
-            log::warn!("No content found at /{}", route);
+            log::warn!(
+                "Responding with {} for /{}. No content found.",
+                http::StatusCode::NOT_FOUND,
+                route,
+            );
             error_response(
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
