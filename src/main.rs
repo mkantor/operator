@@ -14,11 +14,11 @@ use std::path::{Path, PathBuf};
 use std::process;
 use structopt::StructOpt;
 
-const VERSION: SolitonVersion = SolitonVersion(env!("CARGO_PKG_VERSION"));
+const VERSION: ServerVersion = ServerVersion(env!("CARGO_PKG_VERSION"));
 
 #[derive(StructOpt)]
 #[structopt(about)]
-struct SolitonCommand {
+struct OperatorCommand {
     /// Silence all output
     #[structopt(long, short = "q", global = true)]
     quiet: bool,
@@ -28,15 +28,15 @@ struct SolitonCommand {
     verbose: usize,
 
     #[structopt(subcommand)]
-    subcommand: SolitonSubcommand,
+    subcommand: OperatorSubcommand,
 }
 
 #[derive(StructOpt)]
-enum SolitonSubcommand {
+enum OperatorSubcommand {
     /// Evaluates a handlebars template from STDIN.
     #[structopt(after_help = concat!(
         "EXAMPLE:\n",
-        "    echo '{{#if true}}hello world{{/if}}' | soliton eval --content-directory=/dev/null"
+        "    echo '{{#if true}}hello world{{/if}}' | operator eval --content-directory=/dev/null"
     ), display_order = 0)]
     Eval {
         /// Path to a directory containing content files.
@@ -52,7 +52,7 @@ enum SolitonSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p content\n",
         "    echo 'hello world' > content/hello.txt\n",
-        "    soliton get --content-directory=./content --route=hello --accept=text/*"
+        "    operator get --content-directory=./content --route=hello --accept=text/*"
     ), display_order = 1)]
     Get {
         /// Path to a directory containing content files.
@@ -82,7 +82,7 @@ enum SolitonSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p site\n",
         "    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n",
-        "    soliton -vv serve --bind-to=127.0.0.1:8080 --content-directory=./site --index-route=home",
+        "    operator -vv serve --bind-to=127.0.0.1:8080 --content-directory=./site --index-route=home",
     ), display_order = 2)]
     Serve {
         /// Path to a directory containing content files.
@@ -118,7 +118,7 @@ enum SolitonSubcommand {
 }
 
 fn main() {
-    let command = SolitonCommand::from_args();
+    let command = OperatorCommand::from_args();
 
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -145,12 +145,12 @@ fn main() {
 }
 
 fn handle_subcommand<I: io::Read, O: io::Write>(
-    subcommand: SolitonSubcommand,
+    subcommand: OperatorSubcommand,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        SolitonSubcommand::Eval { content_directory } => cli::eval(
+        OperatorSubcommand::Eval { content_directory } => cli::eval(
             get_content_directory(content_directory)?,
             VERSION,
             input,
@@ -158,7 +158,7 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
         )
         .map_err(anyhow::Error::from),
 
-        SolitonSubcommand::Get {
+        OperatorSubcommand::Get {
             content_directory,
             route,
             accept,
@@ -171,7 +171,7 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
         )
         .map_err(anyhow::Error::from),
 
-        SolitonSubcommand::Serve {
+        OperatorSubcommand::Serve {
             content_directory,
             index_route,
             error_handler_route,

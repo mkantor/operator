@@ -152,11 +152,11 @@ impl ContentFile {
 
         // Conventions around hidden files, whether a file is executable, etc
         // differ across platforms. It wouldn't be hard to implement this, but
-        // soliton does not currently run its CI checks on non-unix platforms
+        // Operator does not currently run its CI checks on non-unix platforms
         // so it would be too easy to introduce regressions.
         let (extensions, is_hidden, is_executable) = if !cfg!(unix) {
             return Err(ContentFileError(format!(
-                "Soliton does not currently support your operating system ({})",
+                "Operator does not currently support your operating system ({})",
                 env::consts::OS,
             )));
         } else {

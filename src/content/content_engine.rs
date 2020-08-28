@@ -233,8 +233,7 @@ where
         let route = Route::new(file.relative_path_without_extensions());
         match [first_extension, second_extension] {
             // Handlebars templates are named like foo.html.hbs and do not
-            // have the executable bit set. When rendered they are evaluated by
-            // soliton.
+            // have the executable bit set. They are evaluated when rendered.
             [first_extension, Self::HANDLEBARS_FILE_EXTENSION] => {
                 if file.is_executable() {
                     return Err(ContentLoadingError::ContentFileNameError(

@@ -1,8 +1,8 @@
 [package]
-name = "soliton"
+name = "operator"
 version = "0.0.1"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
-description = "A content framework for websites"
+description = "A web server"
 edition = "2018"
 
 [dependencies]

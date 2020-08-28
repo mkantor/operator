@@ -88,15 +88,15 @@ pub enum ServeCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn eval<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
-    soliton_version: SolitonVersion,
+    operator_version: ServerVersion,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
     let shared_content_engine =
-        FilesystemBasedContentEngine::<SolitonInfo, ()>::from_content_directory(
+        FilesystemBasedContentEngine::<ServerInfo, ()>::from_content_directory(
             content_directory,
-            SolitonInfo {
-                version: soliton_version,
+            ServerInfo {
+                version: operator_version,
             },
         )?;
     let content_engine = shared_content_engine
@@ -131,14 +131,14 @@ pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &str,
     accept: MediaRange,
-    soliton_version: SolitonVersion,
+    operator_version: ServerVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
     let shared_content_engine =
-        FilesystemBasedContentEngine::<SolitonInfo, ()>::from_content_directory(
+        FilesystemBasedContentEngine::<ServerInfo, ()>::from_content_directory(
             content_directory,
-            SolitonInfo {
-                version: soliton_version,
+            ServerInfo {
+                version: operator_version,
             },
         )?;
     let content_engine = shared_content_engine
@@ -172,12 +172,12 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     index_route: Option<String>,
     error_handler_route: Option<String>,
     bind_to: A,
-    soliton_version: SolitonVersion,
+    operator_version: ServerVersion,
 ) -> Result<(), ServeCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        SolitonInfo {
-            version: soliton_version,
+        ServerInfo {
+            version: operator_version,
         },
     )?;
 
@@ -224,7 +224,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = eval(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, ServerVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -250,7 +250,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = eval(directory, SolitonVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, ServerVersion("0.0.0"), &mut input, &mut output);
 
             assert!(
                 result.is_err(),
@@ -271,7 +271,7 @@ mod tests {
             directory,
             route,
             mime::TEXT_PLAIN,
-            SolitonVersion("0.0.0"),
+            ServerVersion("0.0.0"),
             &mut output,
         );
 
@@ -302,7 +302,7 @@ mod tests {
             directory,
             route,
             mime::TEXT_HTML,
-            SolitonVersion("0.0.0"),
+            ServerVersion("0.0.0"),
             &mut output,
         );
 

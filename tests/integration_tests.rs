@@ -30,7 +30,7 @@ mod test_lib;
 
 use test_lib::*;
 
-fn soliton_command<I, S>(args: I) -> Command
+fn operator_command<I, S>(args: I) -> Command
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
@@ -46,11 +46,11 @@ where
         })
         .unwrap();
 
-    let bin_path = target_dir.join(format!("soliton{}", env::consts::EXE_SUFFIX));
+    let bin_path = target_dir.join(format!("operator{}", env::consts::EXE_SUFFIX));
 
-    let mut soliton = Command::new(bin_path);
-    soliton.args(args);
-    soliton
+    let mut operator = Command::new(bin_path);
+    operator.args(args);
+    operator
 }
 
 struct RunningServer {
@@ -62,7 +62,7 @@ impl RunningServer {
     fn start(content_directory: &ContentDirectory) -> Result<Self, String> {
         let address = unused_addr();
 
-        let mut command = soliton_command(&[
+        let mut command = operator_command(&[
             "serve",
             "--quiet",
             &format!(
@@ -307,7 +307,7 @@ fn render_via_get_command(
     route: &str,
     accept: &str,
 ) -> Output {
-    let mut command = soliton_command(&[
+    let mut command = operator_command(&[
         "get",
         &format!(
             "--content-directory={}",
@@ -420,7 +420,7 @@ async fn examples_match_snapshots() {
 
 #[test]
 fn missing_subcommand_is_error() {
-    let mut command = soliton_command(&[] as &[&str]);
+    let mut command = operator_command(&[] as &[&str]);
     let output = command.output().expect("Failed to execute process");
 
     assert!(
@@ -432,7 +432,7 @@ fn missing_subcommand_is_error() {
 
 #[test]
 fn invalid_subcommand_is_error() {
-    let mut command = soliton_command(&["invalid-subcommand"]);
+    let mut command = operator_command(&["invalid-subcommand"]);
     let output = command.output().expect("Failed to execute process");
 
     assert!(
@@ -447,7 +447,7 @@ fn eval_subcommand_succeeds() {
     let input = "{{#if true}}hello world{{/if}}";
     let expected_output = "hello world";
 
-    let mut command = soliton_command(&["eval", "--content-directory=/dev/null"]);
+    let mut command = operator_command(&["eval", "--content-directory=/dev/null"]);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -478,7 +478,7 @@ fn eval_subcommand_succeeds() {
 fn get_subcommand_succeeds() {
     let expected_output = "hello world";
 
-    let mut command = soliton_command(&[
+    let mut command = operator_command(&[
         "get",
         &format!(
             "--content-directory={}",

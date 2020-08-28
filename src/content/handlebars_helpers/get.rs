@@ -108,12 +108,12 @@ where
         let context = content_engine.get_render_context(request_route);
 
         let rendered = content_item
-            .render(context, &[target_media_type.into_media_range()]).map_err(|soliton_render_error| {
+            .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the content item being retrieved (\"{}\") \
                     could not be rendered: {}",
                     route,
-                    soliton_render_error,
+                    render_error,
                 ))
             })?;
 
