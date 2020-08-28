@@ -377,7 +377,7 @@ mod tests {
             }
         }
 
-        // Exits with 64 and prints a message to stdout.
+        // Exits with nonzero and prints a message to stdout.
         {
             let executable = Executable::new(
                 "mv",
@@ -394,7 +394,7 @@ mod tests {
                     stderr_contents,
                     ..
                 }) => {
-                    assert_eq!(exit_code, Some(64));
+                    assert!(exit_code.is_some() && exit_code != Some(0));
                     assert!(stderr_contents.is_some());
                     assert!(stderr_contents.unwrap().len() > 0);
                 }
