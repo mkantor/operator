@@ -1,6 +1,6 @@
 #!/bin/sh
 
-printf "\xEF\xBB\xBF" # UTF-8 BOM
+printf "\357\273\277" # UTF-8 BOM
 echo 🔴 Ready…
 sleep 1
 echo 🟡 Set…
