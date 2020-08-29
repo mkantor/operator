@@ -331,7 +331,7 @@ async fn render_via_http_request(
     let request = HttpClient::new()
         .get(format!("http://{}/{}", server_address, route))
         .header("accept", accept)
-        .timeout(time::Duration::from_secs(30));
+        .timeout(time::Duration::from_secs(15));
 
     match request.send().await {
         Err(send_request_error) => panic!(
