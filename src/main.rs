@@ -131,7 +131,7 @@ fn main() {
         .timestamp(stderrlog::Timestamp::Millisecond)
         .init()
         .map_err(anyhow::Error::from)
-        .and_then(|_| handle_subcommand(command.subcommand, &mut input, &mut output));
+        .and_then(|()| handle_subcommand(command.subcommand, &mut input, &mut output));
 
     match result {
         Err(error) => {
