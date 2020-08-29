@@ -178,7 +178,16 @@ where
                             );
                         })
                         .inspect_ok(|bytes| {
-                            log::trace!("Streaming data for response body: {:?}", bytes);
+                            let max_length = 64;
+                            if bytes.len() > max_length {
+                                log::trace!(
+                                    "Streaming data for response body: {:?} ...and {} more bytes",
+                                    bytes.slice(0..max_length),
+                                    bytes.len() - max_length
+                                );
+                            } else {
+                                log::trace!("Streaming data for response body: {:?}", bytes);
+                            }
                         }),
                 )
         }
