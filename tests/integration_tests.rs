@@ -408,13 +408,14 @@ async fn samples_match_snapshots() {
             .collect::<BTreeMap<_, _>>();
 
         let mut insta_settings = insta::Settings::clone_current();
+        insta_settings.set_snapshot_path(sample_path("_snapshots"));
         insta_settings.set_input_file(content_directory_root);
-        let id = content_directory_root
+        let sample_name = content_directory_root
             .strip_prefix(sample_path("."))
-            .unwrap()
-            .to_string_lossy();
-        insta_settings.set_snapshot_suffix(id);
-        insta_settings.bind(|| insta::assert_yaml_snapshot!(contents));
+            .expect("Failed to strip samples directory prefix")
+            .to_str()
+            .expect("Sample path is not UTF-8");
+        insta_settings.bind(|| insta::assert_yaml_snapshot!(sample_name, contents));
     }
 }
 
