@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/partials
+input_file: samples/partials
 ---
 a.html.hbs: "a\n"
 ab.html.hbs: "a\nb\n\n"

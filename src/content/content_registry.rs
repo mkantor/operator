@@ -115,9 +115,9 @@ mod tests {
     use maplit::hashmap;
     use tempfile::tempfile;
 
-    /// Test fixtures. All of these will render to an empty string with media
-    /// type text/plain or text/html.
-    fn examples() -> (impl ContentEngine<(), ()>, Vec<ContentRepresentations>) {
+    /// All of these will render to an empty string with media type text/plain
+    /// or text/html.
+    fn fixtures() -> (impl ContentEngine<(), ()>, Vec<ContentRepresentations>) {
         let text_plain = MediaType::from_media_range(::mime::TEXT_PLAIN).unwrap();
         let text_html = MediaType::from_media_range(::mime::TEXT_HTML).unwrap();
         let mut content_engine = MockContentEngine::new();
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn rendering_with_empty_acceptable_media_ranges_should_fail() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(mock_engine.get_render_context(""), &[]);
             assert!(
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn rendering_with_unacceptable_specific_media_ranges_should_fail() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
                 mock_engine.get_render_context(""),
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn rendering_with_unacceptable_general_media_range_should_fail() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
                 renderable.render(mock_engine.get_render_context(""), &[::mime::IMAGE_STAR]);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn rendering_with_acceptable_media_range_that_is_not_most_preferred_should_succeed() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
                 mock_engine.get_render_context(""),
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn rendering_with_acceptable_range_star_star_should_succeed() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
                 renderable.render(mock_engine.get_render_context(""), &[::mime::STAR_STAR]);
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn rendering_with_acceptable_range_text_star_should_succeed() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
                 renderable.render(mock_engine.get_render_context(""), &[::mime::TEXT_STAR]);
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn can_render_same_content_with_different_representations() {
-        let (mock_engine, renderables) = examples();
+        let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let text_plain_result =
                 renderable.render(mock_engine.get_render_context(""), &[::mime::TEXT_PLAIN]);

@@ -127,7 +127,7 @@ async fn render_everything_for_snapshots(
     let optional_server = match server_result {
         Err(message) => {
             assert!(
-                !example_content_directories_with_valid_contents().contains(content_directory),
+                !sample_content_directories_with_valid_contents().contains(content_directory),
                 "Server failed to start for {}, which should be valid: {}",
                 content_directory.root().to_string_lossy(),
                 message,
@@ -136,7 +136,7 @@ async fn render_everything_for_snapshots(
         }
         Ok(ref server) => {
             assert!(
-                !example_content_directories_with_invalid_contents().contains(content_directory),
+                !sample_content_directories_with_invalid_contents().contains(content_directory),
                 "Server successfully started for {}, which should be invalid",
                 content_directory.root().to_string_lossy(),
             );
@@ -231,7 +231,7 @@ async fn render_multiple_ways_for_snapshots(
                     // We check this down here so all the basic validations
                     // performed up to this point are still applied to files
                     // which do not get snapshotted. We don't want to look at
-                    // the output though (one reason is to allow example files
+                    // the output though (one reason is to allow sample files
                     // that are non-deterministic, as long as they aren't part
                     // of the snapshots).
                     if is_omitted_from_snapshots(route) {
@@ -383,8 +383,8 @@ fn use_into_error_context() {
 // The rest of this file is the actual tests.
 
 #[actix_rt::test]
-async fn examples_match_snapshots() {
-    for content_directory in example_content_directories() {
+async fn samples_match_snapshots() {
+    for content_directory in sample_content_directories() {
         let content_directory_root = &content_directory.root();
 
         let log_prefix_regex = {
@@ -410,7 +410,7 @@ async fn examples_match_snapshots() {
         let mut insta_settings = insta::Settings::clone_current();
         insta_settings.set_input_file(content_directory_root);
         let id = content_directory_root
-            .strip_prefix(example_path("."))
+            .strip_prefix(sample_path("."))
             .unwrap()
             .to_string_lossy();
         insta_settings.set_snapshot_suffix(id);
@@ -482,7 +482,7 @@ fn get_subcommand_succeeds() {
         "get",
         &format!(
             "--content-directory={}",
-            &example_path("hello-world").to_str().unwrap()
+            &sample_path("hello-world").to_str().unwrap()
         ),
         "--route=hello",
         "--accept=text/*",
@@ -507,7 +507,7 @@ fn get_subcommand_succeeds() {
 
 #[actix_rt::test]
 async fn serve_subcommand_succeeds() {
-    let content_directory = ContentDirectory::from_root(&example_path("hello-world")).unwrap();
+    let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
     let server = RunningServer::start(&content_directory).expect("Server failed to start");
 
     let expected_response_body = "hello world";

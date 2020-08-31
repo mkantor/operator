@@ -1,6 +1,6 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/invalid-two-extensions-not-template-or-executable
+input_file: samples/invalid-two-extensions-not-template-or-executable
 ---
 this-file-is-not-executable.txt.html: "Unable to load content.\n\nCaused by:\n    Content file name is not supported: The content file 'this-file-is-not-executable.txt.html' has two extensions ('txt.html'), but is neither a handlebars template nor an executable.\n"

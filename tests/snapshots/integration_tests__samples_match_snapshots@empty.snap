@@ -1,6 +1,6 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/hello-world
+input_file: samples/empty
 ---
-hello.txt: hello world
+{}

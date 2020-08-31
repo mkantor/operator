@@ -1,6 +1,6 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/hidden-content
+input_file: samples/hidden-content
 ---
 {}

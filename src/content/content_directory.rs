@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn directory_root_must_exist() {
-        let result = ContentDirectory::from_root(&example_path("this/does/not/actually/exist"));
+        let result = ContentDirectory::from_root(&sample_path("this/does/not/actually/exist"));
         assert!(
             result.is_err(),
             "Directory was successfully created from non-existent path",

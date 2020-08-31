@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/static-content
+input_file: samples/static-content
 ---
 empty-file.txt: ""
 index.html: "<h1>title</h1><p>content</p>\n"

@@ -381,7 +381,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_may_be_not_found() {
-        let request = test_request(&example_path("empty"), None, None)
+        let request = test_request(&sample_path("empty"), None, None)
             .uri("/nothing/exists/at/this/path")
             .to_http_request();
         let response = get::<(), TestContentEngine>(request).await;
@@ -391,7 +391,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_exact_media_type() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .header("accept", "text/plain")
             .to_http_request();
@@ -419,7 +419,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_media_range() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .header("accept", "text/*")
             .to_http_request();
@@ -447,7 +447,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_star_star_media_range() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .header("accept", "*/*")
             .to_http_request();
@@ -475,7 +475,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_elaborate_accept_header() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
@@ -503,7 +503,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_can_be_retrieved_with_missing_accept_header() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .to_http_request();
 
@@ -530,7 +530,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn multimedia_content_can_be_retrieved() {
-        let request = test_request(&example_path("multimedia"), None, None)
+        let request = test_request(&sample_path("multimedia"), None, None)
             .uri("/dramatic-prairie-dog")
             .header("accept", "video/*")
             .to_http_request();
@@ -563,7 +563,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn content_cannot_be_retrieved_if_no_acceptable_media_type() {
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
@@ -581,7 +581,7 @@ mod tests {
     async fn extension_on_url_takes_precedence_over_accept_header() {
         // Note .txt extension on URL path, but no text/plain (nor any other
         // workable media range) in the accept header.
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.txt")
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
@@ -608,7 +608,7 @@ mod tests {
         // URL path extension has the wrong media type, but accept header has
         // the correct one. Should be HTTP 406 because the accept header is not
         // considered when there is an extension.
-        let request = test_request(&example_path("hello-world"), None, None)
+        let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.doc")
             .header("accept", "text/plain")
             .to_http_request();
@@ -624,7 +624,7 @@ mod tests {
 
     #[actix_rt::test]
     async fn index_route_is_used_for_empty_uri_path() {
-        let request = test_request(&example_path("hello-world"), Some("hello"), None)
+        let request = test_request(&sample_path("hello-world"), Some("hello"), None)
             .header("accept", "text/plain")
             .to_http_request();
 
@@ -645,7 +645,7 @@ mod tests {
     async fn error_handler_is_given_http_status_code() {
         {
             let request_not_found =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
+                test_request(&sample_path("error-handling"), None, Some("error-handler"))
                     .header("accept", "text/plain")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
@@ -668,7 +668,7 @@ mod tests {
 
         {
             let request_not_acceptable_error =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
+                test_request(&sample_path("error-handling"), None, Some("error-handler"))
                     .header("accept", "text/plain")
                     .uri("/json-file")
                     .to_http_request();
@@ -693,7 +693,7 @@ mod tests {
     #[actix_rt::test]
     async fn stream_errors_are_propagated() {
         let request_internal_server_error =
-            test_request(&example_path("error-handling"), None, Some("error-handler"))
+            test_request(&sample_path("error-handling"), None, Some("error-handler"))
                 .header("accept", "text/plain")
                 .uri("/trigger-error")
                 .to_http_request();
@@ -716,7 +716,7 @@ mod tests {
     #[actix_rt::test]
     async fn error_handler_can_be_static_content() {
         let request = test_request(
-            &example_path("error-handling"),
+            &sample_path("error-handling"),
             None,
             Some("static-error-handler"),
         )
@@ -743,7 +743,7 @@ mod tests {
     #[actix_rt::test]
     async fn error_handler_can_be_executable() {
         let request = test_request(
-            &example_path("error-handling"),
+            &sample_path("error-handling"),
             None,
             Some("executable-error-handler"),
         )
@@ -764,7 +764,7 @@ mod tests {
     async fn error_handler_is_content_negotiated() {
         {
             let text_plain_request =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
+                test_request(&sample_path("error-handling"), None, Some("error-handler"))
                     .header("accept", "text/plain")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
@@ -795,7 +795,7 @@ mod tests {
 
         {
             let text_html_request =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
+                test_request(&sample_path("error-handling"), None, Some("error-handler"))
                     .header("accept", "text/html")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
@@ -829,11 +829,10 @@ mod tests {
     async fn use_a_default_error_handler_if_specified_handler_fails() {
         {
             // The error handler itself will trigger a rendering error.
-            let request =
-                test_request(&example_path("error-handling"), None, Some("trigger-error"))
-                    .header("accept", "text/html")
-                    .uri("/not/a/real/path/so/this/should/404")
-                    .to_http_request();
+            let request = test_request(&sample_path("error-handling"), None, Some("trigger-error"))
+                .header("accept", "text/html")
+                .uri("/not/a/real/path/so/this/should/404")
+                .to_http_request();
 
             let mut response = get::<(), TestContentEngine>(request).await;
             let response_body = collect_response_body(response.take_body())
@@ -858,11 +857,10 @@ mod tests {
 
         {
             // The error handler is fine, but is not an acceptable media type.
-            let request =
-                test_request(&example_path("error-handling"), None, Some("error-handler"))
-                    .header("accept", "video/mp4")
-                    .uri("/not/a/real/path/so/this/should/404")
-                    .to_http_request();
+            let request = test_request(&sample_path("error-handling"), None, Some("error-handler"))
+                .header("accept", "video/mp4")
+                .uri("/not/a/real/path/so/this/should/404")
+                .to_http_request();
 
             let mut response = get::<(), TestContentEngine>(request).await;
             let response_body = collect_response_body(response.take_body())
@@ -892,7 +890,7 @@ mod tests {
     #[actix_rt::test]
     async fn error_handler_sees_original_request_route() {
         let request = test_request(
-            &example_path("error-handling"),
+            &sample_path("error-handling"),
             None,
             Some("error-code-and-request-route"),
         )

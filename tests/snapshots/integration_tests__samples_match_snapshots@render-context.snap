@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/render-context
+input_file: samples/render-context
 ---
 a.html: "a\n"
 request-route-wrapper.txt.hbs: "request-route from this file: request-route-wrapper\nrequest-route from file included via partial: request-route-wrapper\nrequest-route from file included via get helper: request-route-wrapper"

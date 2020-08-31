@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/multimedia
+input_file: samples/multimedia
 ---
 dramatic-prairie-dog.mp4: binary data with hash 993ffd47041700b
 wilhelm-scream.ogg: binary data with hash 9eb0b3ab8b7a0069

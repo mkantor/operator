@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/alternative-representations
+input_file: samples/alternative-representations
 ---
 foo.html: "<!DOCTYPE html>\n<title>foo</title>\n"
 foo.json.sh: "{\"value\":\"foo\"}\n"

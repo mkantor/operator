@@ -1,7 +1,7 @@
 ---
 source: tests/integration_tests.rs
 expression: contents
-input_file: src/examples/media-types
+input_file: samples/media-types
 ---
 cannot-become-html.xyz: ""
 echo-target-media-type.html.hbs: text/html
