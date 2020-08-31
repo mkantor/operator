@@ -23,6 +23,9 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
 
 pub fn example_content_directories() -> Vec<ContentDirectory> {
     vec![
+        // The "realistic-advanced" directory is intentionally left out. It
+        // contains a lot of non-deterministic output and some large files
+        // which bog down the tests.
         example_content_directory("alternative-representations"),
         example_content_directory("empty"),
         example_content_directory("error-handling"),

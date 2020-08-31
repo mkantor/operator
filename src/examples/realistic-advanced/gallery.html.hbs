@@ -1,0 +1,38 @@
+{{#>layout.html.hbs page-title="Image gallery"}}
+  <style>
+    #gallery img {
+      height: 50vh;
+      max-height: 500px;
+    }
+    #gallery figcaption {
+      color: rgba(0, 0, 0, 0.25);
+    }
+  </style>
+
+  <header>
+    <h1>Image gallery</h1>
+  </header>
+
+  <nav>{{get "navigation"}}</nav>
+
+  <figure id="gallery">
+    <img src="gallery/1" />
+    <figcaption>
+      {{#each [/].[gallery/]}}
+        {{#unless @first}}-{{/unless}}
+        <a href="{{this}}">{{@key}}</a>
+      {{/each}}
+    </figcaption>
+  </figure>
+
+  <script>
+    window.onload = () => {
+      document.querySelectorAll("#gallery a").forEach((a) => {
+        a.onclick = (event) => {
+          document.querySelector("#gallery img").src = a.href
+          event.preventDefault()
+        }
+      })
+    }
+  </script>
+{{/layout.html.hbs}}

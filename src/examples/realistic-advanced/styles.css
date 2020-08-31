@@ -1,0 +1,43 @@
+article,
+aside,
+div,
+dl,
+footer,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+header,
+hgroup,
+nav,
+ol,
+p,
+section,
+ul {
+  margin: 10px 0;
+}
+
+body {
+  margin: 5vh 5vw;
+  text-align: center;
+  font-family: fantasy;
+  background-color: #ddd;
+}
+
+a {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+nav ul {
+  list-style: none;
+  padding: 0;
+}
+nav ul li {
+  display: inline-block;
+  margin: 0 10px;
+}

@@ -1,0 +1,45 @@
+{{#>layout.html.hbs page-title="Error"}}
+  <header>
+    <h1>Error</h1>
+  </header>
+
+  <nav>{{get "navigation"}}</nav>
+
+  <main>
+    <p>
+      {{#if (eq error-code 404)}}
+        The page for /{{request-route}} does not exist.
+      {{else}}
+        Something went wrong!
+      {{/if}}
+    </p>
+
+    <p>
+      HTTP {{error-code}}
+      {{#if (eq error-code 400)}}Bad Request{{/if}}
+      {{#if (eq error-code 401)}}Unauthorized{{/if}}
+      {{#if (eq error-code 402)}}Payment Required{{/if}}
+      {{#if (eq error-code 403)}}Forbidden{{/if}}
+      {{#if (eq error-code 404)}}Not Found{{/if}}
+      {{#if (eq error-code 405)}}Method Not Allowed{{/if}}
+      {{#if (eq error-code 406)}}Not Acceptable{{/if}}
+      {{#if (eq error-code 407)}}Proxy Authentication Required{{/if}}
+      {{#if (eq error-code 408)}}Request Timeout{{/if}}
+      {{#if (eq error-code 409)}}Conflict{{/if}}
+      {{#if (eq error-code 410)}}Gone{{/if}}
+      {{#if (eq error-code 411)}}Length Required{{/if}}
+      {{#if (eq error-code 412)}}Precondition Failed{{/if}}
+      {{#if (eq error-code 413)}}Request Entity Too Large{{/if}}
+      {{#if (eq error-code 414)}}Request-URI Too Long{{/if}}
+      {{#if (eq error-code 415)}}Unsupported Media Type{{/if}}
+      {{#if (eq error-code 416)}}Requested Range Not Satisfiable{{/if}}
+      {{#if (eq error-code 417)}}Expectation Failed{{/if}}
+      {{#if (eq error-code 500)}}Internal Server Error{{/if}}
+      {{#if (eq error-code 501)}}Not Implemented{{/if}}
+      {{#if (eq error-code 502)}}Bad Gateway{{/if}}
+      {{#if (eq error-code 503)}}Service Unavailable{{/if}}
+      {{#if (eq error-code 504)}}Gateway Timeout{{/if}}
+      {{#if (eq error-code 505)}}HTTP Version Not Supported{{/if}}
+    </p>
+  </main>
+{{/layout.html.hbs}}

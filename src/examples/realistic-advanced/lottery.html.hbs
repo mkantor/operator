@@ -1,0 +1,59 @@
+{{#*inline "smiles"}}
+  <ul class="faces">
+    <li>🤑</li> <li>🤑</li> <li>🤑</li>
+  </ul>
+{{/inline}}
+
+{{#*inline "frowns"}}
+  <ul class="faces">
+    <li>😭</li> <li>😭</li> <li>😭</li>
+  </ul>
+{{/inline}}
+
+{{#>layout.html.hbs page-title="Play The Lottery"}}
+  <style>
+    @keyframes face {
+      from {
+        {{!-- font-size: 2em; --}}
+        transform: rotate(-30deg);
+      }
+      to {
+        {{!-- font-size: 5em; --}}
+        transform: rotate(30deg);
+      }
+    }
+    ul.faces {
+      list-style: none;
+      padding: 0;
+      font-size: 5em;
+    }
+    ul.faces li {
+      display: inline-block;
+      animation-name: face;
+      animation-duration: 0.5s;
+      animation-iteration-count: infinite;
+      animation-direction: alternate;
+      animation-timing-function: ease-in-out;
+    }
+  </style>
+
+  <header>
+    <h1>Play the lottery</h1>
+  </header>
+
+  <nav>{{get "navigation"}}</nav>
+
+  <main>
+    {{#if (get "play-lottery")}}
+      {{>smiles}}
+      <h2>You won!</h2>
+      {{>smiles}}
+    {{else}}
+      {{>frowns}}
+      <h2>You lost.</h2>
+      {{>frowns}}
+    {{/if}}
+  </main>
+
+  <footer>Reload this page to play again.</footer>
+{{/layout.html.hbs}}
