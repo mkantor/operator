@@ -35,6 +35,7 @@ pub fn sample_content_directories() -> Vec<ContentDirectory> {
         sample_content_directory("media-types"),
         sample_content_directory("multimedia"),
         sample_content_directory("partials"),
+        sample_content_directory("realistic-basic"),
         sample_content_directory("render-context"),
         sample_content_directory("static-content"),
         sample_content_directory("invalid-duplicate-media-type-1"),

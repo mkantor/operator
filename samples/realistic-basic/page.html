@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Basic</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <h1>A basic demo</h1>
+
+    <p>
+      This is a simple website powered by <a href="https://github.com/mkantor/operator">Operator</a>.
+      It's just a few static files. <a href="https://github.com/mkantor/operator/tree/master/samples/realistic-basic">The
+      source is on GitHub</a>.
+    </p>
+
+    <p>
+      <a href="https://github.com/mkantor/operator/blob/master/samples/realistic-basic/page.html">This
+      particular file</a> is just boring old HTML. It's served as-is, hopefully
+      the way you'd expect.
+    </p>
+    <p>
+      Operator can tell that this is meant to be HTML (and sets <a href="https://tools.ietf.org/html/rfc7231#section-3.1.1.5">the
+      <code>Content-Type</code> header</a> to <code>text/html</code>) because
+      the file has <code>.html</code> as its extension. If you want examples of
+      other media types, here's <a href="stuff/words.txt">some plain text</a>
+      and <a href="stuff/pixels.jpg">an image</a>.
+    </p>
+
+    <p>
+      If you're looking for something a little more interesting, check out <a
+      href="https://github.com/mkantor/operator/tree/master/samples/realistic-advanced">this
+      fancier demo</a>.
+    </p>
+
+    <details>
+      <summary>Footnote</summary>
+      You can make requests <a href="page.html">with</a> and <a href="page">without</a>
+      an extension on your URI path. Operator performs <a href="https://tools.ietf.org/html/rfc7231#section-3.4">content
+      negotiation</a> using this extension as well as <a href="https://tools.ietf.org/html/rfc7231#section-5.3.2">the
+      <code>Accept</code> header</a>. If multiple content files coexist whose
+      paths only differ by extension, they act as alternative representations
+      for the same resource. "Negotiation" means that Operator automatically
+      picks whichever one best fits the requester's preferences. For example,
+      depending on whether your browser prefers <code>image/png</code> or
+      <code>image/webp</code>, you'll see a different image here:
+      <img class="inline" src="negotiation/image" />.
+    </details>
+  </body>
+</html>
