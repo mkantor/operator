@@ -107,12 +107,8 @@ where
         content_directory: ContentDirectory,
         server_info: ServerInfo,
     ) -> Result<Arc<RwLock<Self>>, ContentLoadingError> {
-        let content_item_entries = content_directory
-            .into_iter()
-            .filter(|entry| !entry.is_hidden());
-
         let (index_entries, content_registry, handlebars_registry) =
-            Self::set_up_registries(content_item_entries)?;
+            Self::set_up_registries(content_directory)?;
 
         let content_engine = FilesystemBasedContentEngine {
             server_info,

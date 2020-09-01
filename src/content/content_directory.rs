@@ -47,7 +47,17 @@ impl ContentDirectory {
         let mut files = Vec::new();
         let walker = WalkDir::new(absolute_root_path)
             .follow_links(true)
-            .min_depth(1);
+            .min_depth(1)
+            .into_iter()
+            .filter_entry(|entry| {
+                // Skip hidden files/directories.
+                let is_hidden = entry
+                    .file_name()
+                    .to_str()
+                    .map(|name| name.starts_with('.'))
+                    .unwrap_or(false);
+                !is_hidden
+            });
         for dir_entry_result in walker {
             let dir_entry = dir_entry_result.map_err(|walkdir_error| {
                 ContentDirectoryFromRootError::WalkDirError {
@@ -82,7 +92,6 @@ impl ContentDirectory {
 pub struct ContentFile {
     absolute_path: String,
     relative_path: String,
-    is_hidden: bool,
     is_executable: bool,
     relative_path_without_extensions: String,
     extensions: Vec<String>,
@@ -154,24 +163,20 @@ impl ContentFile {
         // differ across platforms. It wouldn't be hard to implement this, but
         // Operator does not currently run its CI checks on non-unix platforms
         // so it would be too easy to introduce regressions.
-        let (extensions, is_hidden, is_executable) = if !cfg!(unix) {
+        let (extensions, is_executable) = if !cfg!(unix) {
             return Err(ContentFileError(format!(
                 "Operator does not currently support your operating system ({})",
                 env::consts::OS,
             )));
         } else {
-            // If the basename begins with `.` its first chunk isn't considered an "extension".
+            // If the basename begins with `.` its first chunk isn't considered
+            // an "extension".
             let non_extension_components = if basename.starts_with('.') { 2 } else { 1 };
             let extensions = basename
                 .split('.')
                 .skip(non_extension_components)
                 .map(String::from)
                 .collect::<Vec<String>>();
-
-            // The file is hidden if any of its relative path components starts
-            // with a dot.
-            let is_hidden = relative_path.starts_with('.')
-                || relative_path.contains(&format!("{}.", Self::PATH_SEPARATOR));
 
             let permissions = file
                 .metadata()
@@ -185,7 +190,7 @@ impl ContentFile {
                 .permissions();
             let is_executable = permissions.mode() & 0o111 != 0;
 
-            (extensions, is_hidden, is_executable)
+            (extensions, is_executable)
         };
 
         let relative_path_without_extensions = String::from({
@@ -202,7 +207,6 @@ impl ContentFile {
             relative_path_without_extensions,
             extensions,
             file,
-            is_hidden,
             is_executable,
         })
     }
@@ -213,10 +217,6 @@ impl ContentFile {
 
     pub fn relative_path(&self) -> &str {
         &self.relative_path
-    }
-
-    pub fn is_hidden(&self) -> bool {
-        self.is_hidden
     }
 
     pub fn is_executable(&self) -> bool {

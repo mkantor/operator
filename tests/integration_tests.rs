@@ -146,7 +146,6 @@ async fn render_everything_for_snapshots(
 
     let render_operations = content_directory
         .into_iter()
-        .filter(|content_file| !content_file.is_hidden())
         .map(|content_file| async move {
             let route = content_file.relative_path_without_extensions();
             let empty_string = String::from("");
