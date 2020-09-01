@@ -21,6 +21,37 @@ echo '{{#if true}}Hello, operator!{{/if}}' \
   | ./target/release/operator eval --content-directory=/dev/null
 ```
 
+## Usage
+
+The CLI has three subcommands:
+
+1. `eval` evaluates a handlebars template from STDIN.
+1. `get` renders content from a content directory.
+1. `serve` starts an HTTP server.
+
+`serve` is where the real action is, but the other two come in handy at times.
+
+These commands all require a "content directory", which is just a folder where
+your website content lives. There are a bunch of example content directories in
+[`samples/`](samples).
+
+To learn more, run `operator --help` or `operator <SUBCOMMAND> --help`.
+
+### Example
+
+Let's start a server for [one of the samples](samples/realistic-advanced):
+
+```sh
+operator -vv serve \
+  --content-directory=samples/realistic-advanced \
+  --index-route=home \
+  --error-handler-route=error-handler \
+  --bind-to=127.0.0.1:8080
+```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser of choice
+to see the website!
+
 ---
 
 <p align="center"><img src="operator.jpg" /></p>
