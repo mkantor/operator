@@ -2,7 +2,7 @@
 name = "operator"
 version = "0.0.1"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
-description = "A web server"
+description = "A web server for static and dynamic content"
 edition = "2018"
 
 [dependencies]
