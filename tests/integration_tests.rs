@@ -360,7 +360,7 @@ where
 }
 
 fn is_omitted_from_snapshots(route: &str) -> bool {
-    route.starts_with("SKIP-SNAPSHOT-") || route.contains("/SKIP-SNAPSHOT-")
+    route.starts_with("NO-SNAPSHOT-") || route.contains("/NO-SNAPSHOT-")
 }
 
 /// RenderContext::into_error_context was flagged as unused from this crate
