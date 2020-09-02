@@ -6,6 +6,10 @@ description = "A web server for static and dynamic content"
 repository = "https://github.com/mkantor/operator"
 license = "GPL-3.0"
 edition = "2018"
+exclude = [
+    "samples",
+    "tests",
+]
 
 [dependencies]
 actix-rt = "1.1.1"
