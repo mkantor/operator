@@ -68,8 +68,10 @@ There are three different kinds of content files:
    as the response body. Any program that your operating system can run will
    work (think scripting languages, compiled binaries, etc). The executable is
    invoked with no CLI arguments, no special environment, and with its working
-   directory set to its own parent folder. Operator needs execute permission
-   for these files.
+   directory set to its own parent folder. Operator requires execute
+   permissions on these files, and scripts typically need a
+   [shebang](https://en.wikipedia.org/wiki/Shebang_(Unix)) so your operating
+   system knows how to interpret them.
 1. **Handlebars templates** are compiled during server startup and evaluated at
    request time. The heavy lifting is done by [the `handlebars` Rust
    library](https://crates.io/crates/handlebars) which is largely compatible
@@ -91,7 +93,7 @@ The rules are pretty simple:
   `baz.html.py` would be a Python script that outputs HTML—for executables the
   _file type_ is usually not the same as its _output type_, although if you're
   feeling feisty then things like `wat.js.js` are certainly possible). As
-  mentioned above, make sure you set the executable bit on these files.
+  mentioned previously, make sure you set the executable bit on these files.
 - **Handlebars templates** also have two extensions, but _the second one must
   be `.hbs`_ (`plugh.html.hbs`, `xyzzy.json.hbs`, etc).
 
