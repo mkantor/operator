@@ -20,7 +20,7 @@ Rust](https://doc.rust-lang.org/book/ch01-01-installation.html), then:
 git clone https://github.com/mkantor/operator.git
 cd operator
 cargo build --release # This will take a while.
-echo '{{#if true}}Hello, operator!{{/if}}' \
+echo '{{#if true}}Hello, Operator!{{/if}}' \
   | ./target/release/operator eval --content-directory=/dev/null
 ```
 
@@ -85,11 +85,11 @@ The rules are pretty simple:
 
 - The _first_ extension always indicates the media type of the file's output
   (`.html` is `text/html`, `.js` is `text/javascript`, `.png` is `image/png`,
-  and so on).
+  and [so on](https://crates.io/crates/mime_guess)).
 - **Static files** only need one extension (`foo.html`, `bar.mp4`, etc).
 - **Executables** have _two_ extensions (`baz.html.py`, `quux.css.sh`,
-  `garply.jpg.exe`, etc). Operator actually does not care at all what the
-  second extension is, but you can use it to indicate the file type (so
+  `garply.jpg.exe`, etc). Operator actually does not care what the second
+  extension is, but you can use it to indicate the file type (so
   `baz.html.py` would be a Python script that outputs HTML—for executables the
   _file type_ is usually not the same as its _output type_, although if you're
   feeling feisty then things like `wat.js.js` are certainly possible). As
@@ -99,6 +99,19 @@ The rules are pretty simple:
 
 Hidden files and directories (whose name begins with `.`) are always completely
 ignored by Operator.
+
+## Disclaimer
+
+Operator is very young and has not been battle-hardened. There are known flaws
+and obvious missing features that need to be addressed. The major ones are
+filed as [issues](https://github.com/mkantor/operator/issues). All feedback is
+greatly appreciated.
+
+This is my first nontrivial Rust project and I'm sure there are places where
+things are unidiomatic or non-optimal. The main reason I created Operator was
+to get more experience using the language, so if you notice anything that could
+be improved (no matter how small), please [open an
+issue](https://github.com/mkantor/operator/issues/new) to help me learn! ❤️
 
 ---
 
