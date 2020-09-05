@@ -92,13 +92,12 @@ pub fn eval<I: io::Read, O: io::Write>(
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
-    let shared_content_engine =
-        FilesystemBasedContentEngine::<ServerInfo, ()>::from_content_directory(
-            content_directory,
-            ServerInfo {
-                version: operator_version,
-            },
-        )?;
+    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        content_directory,
+        ServerInfo {
+            version: operator_version,
+        },
+    )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
@@ -134,13 +133,12 @@ pub fn get<O: io::Write>(
     operator_version: ServerVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
-    let shared_content_engine =
-        FilesystemBasedContentEngine::<ServerInfo, ()>::from_content_directory(
-            content_directory,
-            ServerInfo {
-                version: operator_version,
-            },
-        )?;
+    let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+        content_directory,
+        ServerInfo {
+            version: operator_version,
+        },
+    )?;
     let content_engine = shared_content_engine
         .read()
         .expect("RwLock for ContentEngine has been poisoned");

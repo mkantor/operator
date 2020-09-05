@@ -11,11 +11,9 @@ use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
-type HttpStatusCodeNumber = u16;
-
 struct AppData<
     ServerInfo: Clone + Serialize,
-    Engine: 'static + ContentEngine<ServerInfo, HttpStatusCodeNumber> + Send + Sync,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 > {
     shared_content_engine: Arc<RwLock<Engine>>,
     index_route: Option<String>,
@@ -32,7 +30,7 @@ pub fn run_server<ServerInfo, SocketAddress, Engine>(
 where
     ServerInfo: 'static + Clone + Serialize,
     SocketAddress: 'static + ToSocketAddrs,
-    Engine: 'static + ContentEngine<ServerInfo, HttpStatusCodeNumber> + Send + Sync,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     log::info!("Initializing HTTP server");
     let mut system = System::new("server");
@@ -75,7 +73,7 @@ where
 async fn get<ServerInfo, Engine>(request: HttpRequest) -> HttpResponse
 where
     ServerInfo: 'static + Clone + Serialize,
-    Engine: 'static + ContentEngine<ServerInfo, HttpStatusCodeNumber> + Send + Sync,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let app_data = request
         .app_data::<AppData<ServerInfo, Engine>>()
@@ -247,7 +245,7 @@ fn error_response<ServerInfo, Engine>(
 ) -> HttpResponse
 where
     ServerInfo: 'static + Clone + Serialize,
-    Engine: 'static + ContentEngine<ServerInfo, HttpStatusCodeNumber> + Send + Sync,
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
         log::error!(
@@ -350,7 +348,7 @@ mod tests {
     use bytes::{Bytes, BytesMut};
     use std::path::Path;
 
-    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, (), HttpStatusCodeNumber>;
+    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
 
     fn test_request(
         content_directory_path: &Path,

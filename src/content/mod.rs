@@ -92,15 +92,14 @@ pub enum StreamError {
 
 pub trait Render {
     type Output;
-    fn render<'engine, 'accept, ServerInfo, ErrorCode, Engine, Accept>(
+    fn render<'engine, 'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<'engine, ServerInfo, ErrorCode, Engine>,
+        context: RenderContext<'engine, ServerInfo, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
-        ErrorCode: Clone + Serialize,
-        Engine: ContentEngine<ServerInfo, ErrorCode>,
+        Engine: ContentEngine<ServerInfo>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: ByteStream;
 }
@@ -111,34 +110,32 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct RenderData<ServerInfo: Clone + Serialize, ErrorCode: Clone + Serialize> {
+struct RenderData<ServerInfo: Clone + Serialize> {
     #[serde(rename = "/")]
     index: ContentIndex,
     server_info: ServerInfo,
     request_route: String,
     target_media_type: Option<MediaType>,
-    error_code: Option<ErrorCode>,
+    error_code: Option<u16>,
 }
 
 /// Values used during rendering, including the data passed to handlebars
 /// templates.
-pub struct RenderContext<'engine, ServerInfo, ErrorCode, Engine>
+pub struct RenderContext<'engine, ServerInfo, Engine>
 where
     ServerInfo: Clone + Serialize,
-    ErrorCode: Clone + Serialize,
-    Engine: ContentEngine<ServerInfo, ErrorCode>,
+    Engine: ContentEngine<ServerInfo>,
 {
     content_engine: &'engine Engine,
-    data: RenderData<ServerInfo, ErrorCode>,
+    data: RenderData<ServerInfo>,
 }
 
-impl<'engine, ServerInfo, ErrorCode, Engine> RenderContext<'engine, ServerInfo, ErrorCode, Engine>
+impl<'engine, ServerInfo, Engine> RenderContext<'engine, ServerInfo, Engine>
 where
     ServerInfo: Clone + Serialize,
-    ErrorCode: Clone + Serialize,
-    Engine: ContentEngine<ServerInfo, ErrorCode>,
+    Engine: ContentEngine<ServerInfo>,
 {
-    pub fn into_error_context(self, error_code: ErrorCode) -> Self {
+    pub fn into_error_context(self, error_code: u16) -> Self {
         RenderContext {
             data: RenderData {
                 error_code: Some(error_code),

@@ -78,14 +78,13 @@ impl RegisteredTemplate {
         }
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo, ErrorCode>(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo, ErrorCode>,
+        render_data: RenderData<ServerInfo>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
-        ErrorCode: Clone + Serialize,
     {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
@@ -116,14 +115,13 @@ impl UnregisteredTemplate {
         })
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo, ErrorCode>(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo, ErrorCode>,
+        render_data: RenderData<ServerInfo>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
-        ErrorCode: Clone + Serialize,
     {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
@@ -144,15 +142,14 @@ impl UnregisteredTemplate {
 }
 impl Render for UnregisteredTemplate {
     type Output = InMemoryBody;
-    fn render<'accept, ServerInfo, ErrorCode, Engine, Accept>(
+    fn render<'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<ServerInfo, ErrorCode, Engine>,
+        context: RenderContext<ServerInfo, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
-        ErrorCode: Clone + Serialize,
-        Engine: ContentEngine<ServerInfo, ErrorCode>,
+        Engine: ContentEngine<ServerInfo>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: ByteStream,
     {
