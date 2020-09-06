@@ -369,14 +369,14 @@ fn is_omitted_from_snapshots(route: &str) -> bool {
 fn use_into_error_context() {
     use content::{ContentEngine, FilesystemBasedContentEngine};
     use std::path::Path;
-    let shared_engine = FilesystemBasedContentEngine::<(), ()>::from_content_directory(
+    let shared_engine = FilesystemBasedContentEngine::<()>::from_content_directory(
         ContentDirectory::from_root(&Path::new("/dev/null")).unwrap(),
         (),
     )
     .unwrap();
     let engine = shared_engine.read().unwrap();
     let context = engine.get_render_context("");
-    context.into_error_context(());
+    context.into_error_context(0);
 }
 
 // The rest of this file is the actual tests.

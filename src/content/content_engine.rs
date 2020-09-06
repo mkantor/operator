@@ -9,7 +9,6 @@ use mime_guess::MimeGuess;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
@@ -62,14 +61,12 @@ pub enum ContentLoadingError {
     Bug(String),
 }
 
-pub trait ContentEngine<ServerInfo, ErrorCode>
+pub trait ContentEngine<ServerInfo>
 where
     Self: Sized,
     ServerInfo: Clone + Serialize,
-    ErrorCode: Clone + Serialize,
 {
-    fn get_render_context(&self, request_route: &str)
-        -> RenderContext<ServerInfo, ErrorCode, Self>;
+    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self>;
 
     fn new_template(
         &self,
@@ -84,21 +81,18 @@ where
 
 /// A [`ContentEngine`](trait.ContentEngine.html) that serves files from a
 /// [`ContentDirectory`](struct.ContentDirectory.html).
-pub struct FilesystemBasedContentEngine<'engine, ServerInfo, ErrorCode>
+pub struct FilesystemBasedContentEngine<'engine, ServerInfo>
 where
-    ErrorCode: Clone + Serialize,
     ServerInfo: Clone + Serialize,
 {
     server_info: ServerInfo,
     index: ContentIndex,
     content_registry: ContentRegistry,
     handlebars_registry: Handlebars<'engine>,
-    error_code_type: PhantomData<ErrorCode>,
 }
 
-impl<'engine, ServerInfo, ErrorCode> FilesystemBasedContentEngine<'engine, ServerInfo, ErrorCode>
+impl<'engine, ServerInfo> FilesystemBasedContentEngine<'engine, ServerInfo>
 where
-    ErrorCode: 'static + Clone + Serialize + Send + Sync,
     ServerInfo: 'static + Clone + Serialize + Send + Sync,
 {
     const HANDLEBARS_FILE_EXTENSION: &'static str = "hbs";
@@ -115,7 +109,6 @@ where
             index: ContentIndex::Directory(index_entries),
             content_registry,
             handlebars_registry,
-            error_code_type: PhantomData,
         };
 
         let shared_content_engine = Arc::new(RwLock::new(content_engine));
@@ -386,16 +379,12 @@ where
     }
 }
 
-impl<'engine, ServerInfo, ErrorCode> ContentEngine<ServerInfo, ErrorCode>
-    for FilesystemBasedContentEngine<'engine, ServerInfo, ErrorCode>
+impl<'engine, ServerInfo> ContentEngine<ServerInfo>
+    for FilesystemBasedContentEngine<'engine, ServerInfo>
 where
-    ErrorCode: Clone + Serialize,
     ServerInfo: Clone + Serialize,
 {
-    fn get_render_context(
-        &self,
-        request_route: &str,
-    ) -> RenderContext<ServerInfo, ErrorCode, Self> {
+    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
@@ -432,7 +421,7 @@ mod tests {
     use crate::test_lib::*;
     use ::mime;
 
-    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, (), ()>;
+    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
 
     // FIXME: It's not ideal to rely on specific sample directories in these
     // tests. It would be better to mock out contents in each of the tests.
