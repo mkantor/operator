@@ -1,34 +1,28 @@
 use crate::content::*;
+use crate::lib::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
-use serde::Serialize;
 use std::cmp::Ordering;
 use std::io;
-use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
 
-struct AppData<
-    ServerInfo: Clone + Serialize,
-    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
-> {
+struct AppData<Engine: 'static + ContentEngine<ServerInfo> + Send + Sync> {
     shared_content_engine: Arc<RwLock<Engine>>,
     index_route: Option<String>,
     error_handler_route: Option<String>,
-    server_info_type: PhantomData<ServerInfo>,
 }
 
-pub fn run_server<ServerInfo, SocketAddress, Engine>(
+pub fn run_server<SocketAddress, Engine>(
     shared_content_engine: Arc<RwLock<Engine>>,
     index_route: Option<String>,
     error_handler_route: Option<String>,
     socket_address: SocketAddress,
 ) -> Result<(), io::Error>
 where
-    ServerInfo: 'static + Clone + Serialize,
     SocketAddress: 'static + ToSocketAddrs,
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
@@ -41,9 +35,8 @@ where
                     shared_content_engine: shared_content_engine.clone(),
                     index_route: index_route.clone(),
                     error_handler_route: error_handler_route.clone(),
-                    server_info_type: PhantomData,
                 })
-                .default_service(web::get().to(get::<ServerInfo, Engine>))
+                .default_service(web::get().to(get::<Engine>))
         })
         .keep_alive(None)
         .bind(socket_address)?
@@ -70,13 +63,12 @@ where
 /// PDF format, visit http://mysite.com/resume.pdf" to "...first install this
 /// browser extension that lets you customize HTTP headers, then set the accept
 /// header to application/pdf, then visit http://mysite.com/resume").
-async fn get<ServerInfo, Engine>(request: HttpRequest) -> HttpResponse
+async fn get<Engine>(request: HttpRequest) -> HttpResponse
 where
-    ServerInfo: 'static + Clone + Serialize,
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let app_data = request
-        .app_data::<AppData<ServerInfo, Engine>>()
+        .app_data::<AppData<Engine>>()
         .expect("App data was not of the expected type!");
 
     let path = request.uri().path().trim_start_matches('/');
@@ -236,7 +228,7 @@ where
     }
 }
 
-fn error_response<ServerInfo, Engine>(
+fn error_response<Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
     request_route: &str,
@@ -244,7 +236,6 @@ fn error_response<ServerInfo, Engine>(
     acceptable_media_ranges: Vec<&MediaRange>,
 ) -> HttpResponse
 where
-    ServerInfo: 'static + Clone + Serialize,
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
@@ -348,7 +339,10 @@ mod tests {
     use bytes::{Bytes, BytesMut};
     use std::path::Path;
 
-    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
+    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ServerInfo>;
+    const SERVER_INFO: ServerInfo = ServerInfo {
+        version: ServerVersion(""),
+    };
 
     fn test_request(
         content_directory_path: &Path,
@@ -357,14 +351,13 @@ mod tests {
     ) -> TestRequest {
         let directory = ContentDirectory::from_root(&content_directory_path).unwrap();
         let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, ())
+            FilesystemBasedContentEngine::from_content_directory(directory, SERVER_INFO)
                 .expect("Content engine could not be created");
 
         TestRequest::default().app_data(AppData {
             shared_content_engine: shared_content_engine,
             index_route: index_route.map(String::from),
             error_handler_route: error_handler_route.map(String::from),
-            server_info_type: PhantomData,
         })
     }
 
@@ -382,7 +375,7 @@ mod tests {
         let request = test_request(&sample_path("empty"), None, None)
             .uri("/nothing/exists/at/this/path")
             .to_http_request();
-        let response = get::<(), TestContentEngine>(request).await;
+        let response = get::<TestContentEngine>(request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
@@ -394,7 +387,7 @@ mod tests {
             .header("accept", "text/plain")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -422,7 +415,7 @@ mod tests {
             .header("accept", "text/*")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -450,7 +443,7 @@ mod tests {
             .header("accept", "*/*")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -478,7 +471,7 @@ mod tests {
             .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -505,7 +498,7 @@ mod tests {
             .uri("/hello")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -533,7 +526,7 @@ mod tests {
             .header("accept", "video/*")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -566,7 +559,7 @@ mod tests {
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
+        let response = get::<TestContentEngine>(request).await;
 
         assert_eq!(
             response.status(),
@@ -584,7 +577,7 @@ mod tests {
             .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
+        let response = get::<TestContentEngine>(request).await;
         let response_content_type = response
             .headers()
             .get("content-type")
@@ -611,7 +604,7 @@ mod tests {
             .header("accept", "text/plain")
             .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
+        let response = get::<TestContentEngine>(request).await;
 
         assert_eq!(
             response.status(),
@@ -626,7 +619,7 @@ mod tests {
             .header("accept", "text/plain")
             .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -648,7 +641,7 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(request_not_found).await;
+            let mut response = get::<TestContentEngine>(request_not_found).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -671,7 +664,7 @@ mod tests {
                     .uri("/json-file")
                     .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(request_not_acceptable_error).await;
+            let mut response = get::<TestContentEngine>(request_not_acceptable_error).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -696,7 +689,7 @@ mod tests {
                 .uri("/trigger-error")
                 .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request_internal_server_error).await;
+        let mut response = get::<TestContentEngine>(request_internal_server_error).await;
         let response_body = collect_response_body(response.take_body()).await;
 
         assert_eq!(
@@ -722,7 +715,7 @@ mod tests {
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
@@ -749,7 +742,7 @@ mod tests {
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let response = get::<(), TestContentEngine>(request).await;
+        let response = get::<TestContentEngine>(request).await;
 
         assert_eq!(
             response.status(),
@@ -767,7 +760,7 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(text_plain_request).await;
+            let mut response = get::<TestContentEngine>(text_plain_request).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -798,7 +791,7 @@ mod tests {
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(text_html_request).await;
+            let mut response = get::<TestContentEngine>(text_html_request).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -832,7 +825,7 @@ mod tests {
                 .uri("/not/a/real/path/so/this/should/404")
                 .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(request).await;
+            let mut response = get::<TestContentEngine>(request).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -860,7 +853,7 @@ mod tests {
                 .uri("/not/a/real/path/so/this/should/404")
                 .to_http_request();
 
-            let mut response = get::<(), TestContentEngine>(request).await;
+            let mut response = get::<TestContentEngine>(request).await;
             let response_body = collect_response_body(response.take_body())
                 .await
                 .expect("There was an error in the content stream");
@@ -896,7 +889,7 @@ mod tests {
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let mut response = get::<(), TestContentEngine>(request).await;
+        let mut response = get::<TestContentEngine>(request).await;
         let response_body = collect_response_body(response.take_body())
             .await
             .expect("There was an error in the content stream");
