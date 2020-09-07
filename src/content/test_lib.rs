@@ -21,13 +21,13 @@ impl<'a> MockContentEngine<'a> {
     }
 }
 impl<'a> ContentEngine<()> for MockContentEngine<'a> {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<(), Self> {
+    fn get_render_context(&self, request_route: Option<Route>) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
                 server_info: (),
                 index: ContentIndex::Directory(ContentIndexEntries::new()),
-                request_route: String::from(request_route),
+                request_route,
                 target_media_type: None,
                 error_code: None,
             },
@@ -40,7 +40,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
     ) -> Result<UnregisteredTemplate, TemplateParseError> {
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
-    fn get(&self, _: &str) -> Option<&ContentRepresentations> {
+    fn get(&self, _: &Route) -> Option<&ContentRepresentations> {
         None
     }
     fn handlebars_registry(&self) -> &Handlebars {

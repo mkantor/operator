@@ -4,7 +4,7 @@ mod http;
 mod lib;
 mod test_lib;
 
-use crate::content::{ContentDirectory, MediaRange};
+use crate::content::{ContentDirectory, MediaRange, Route};
 use crate::lib::*;
 use anyhow::Context;
 use std::fs;
@@ -52,7 +52,7 @@ enum OperatorSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p content\n",
         "    echo 'hello world' > content/hello.txt\n",
-        "    operator get --content-directory=./content --route=hello --accept=text/*"
+        "    operator get --content-directory=./content --route=/hello --accept=text/*"
     ), display_order = 1)]
     Get {
         /// Path to a directory containing content files.
@@ -64,9 +64,9 @@ enum OperatorSubcommand {
         /// Route specifying which piece of content to get.
         ///
         /// Routes are extension-less slash-delimited paths rooted in the
-        /// content directory.
-        #[structopt(long)]
-        route: String,
+        /// content directory. They must begin with a slash.
+        #[structopt(long, value_name = "route")]
+        route: Route,
 
         /// Declares what types of media are acceptable as output.
         ///
@@ -82,7 +82,7 @@ enum OperatorSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p site\n",
         "    echo '<!doctype html><title>my website</title><blink>under construction</blink>' > site/home.html\n",
-        "    operator -vv serve --bind-to=127.0.0.1:8080 --content-directory=./site --index-route=home",
+        "    operator -vv serve --bind-to=127.0.0.1:8080 --content-directory=./site --index-route=/home",
     ), display_order = 2)]
     Serve {
         /// Path to a directory containing content files.
@@ -96,7 +96,7 @@ enum OperatorSubcommand {
         /// A request for http://mysite.com/ gets a response from this route.
         /// If this option is not set, such requests always receive a 404.
         #[structopt(long, value_name = "route")]
-        index_route: Option<String>,
+        index_route: Option<Route>,
 
         /// What to serve when there are errors.
         ///
@@ -107,7 +107,7 @@ enum OperatorSubcommand {
         /// If the error handler itself fails then a default error message is
         /// used.
         #[structopt(long, value_name = "route")]
-        error_handler_route: Option<String>,
+        error_handler_route: Option<Route>,
 
         /// The TCP address/port that the server should bind to.
         ///

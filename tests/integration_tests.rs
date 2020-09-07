@@ -28,6 +28,7 @@ mod lib;
 #[path = "../src/test_lib.rs"]
 mod test_lib;
 
+use content::Route;
 use test_lib::*;
 
 fn operator_command<I, S>(args: I) -> Command
@@ -147,7 +148,7 @@ async fn render_everything_for_snapshots(
     let render_operations = content_directory
         .into_iter()
         .map(|content_file| async move {
-            let route = content_file.relative_path_without_extensions();
+            let route = content_file.route();
             let empty_string = String::from("");
             let first_filename_extension =
                 content_file.extensions().first().unwrap_or(&empty_string);
@@ -196,7 +197,7 @@ async fn render_everything_for_snapshots(
 async fn render_multiple_ways_for_snapshots(
     server_address: Option<&SocketAddr>,
     content_directory: &ContentDirectory,
-    route: &str,
+    route: &Route,
     accept: &str,
 ) -> Vec<u8> {
     let get_command_output = render_via_get_command(content_directory, route, accept);
@@ -223,7 +224,7 @@ async fn render_multiple_ways_for_snapshots(
             // clumsily hacked around below.
             match http_response_body_result {
                 Err(payload_error) => panic!(
-                    "HTTP request for /{} resulted in payload error: {}",
+                    "HTTP request for {} resulted in payload error: {}",
                     route, payload_error,
                 ),
                 Ok(http_response_body) => {
@@ -233,7 +234,7 @@ async fn render_multiple_ways_for_snapshots(
                     // the output though (one reason is to allow sample files
                     // that are non-deterministic, as long as they aren't part
                     // of the snapshots).
-                    if is_omitted_from_snapshots(route) {
+                    if is_omitted_from_snapshots(route.as_ref()) {
                         Vec::new()
                     } else {
                         // If the HTTP body matches what's on stdout, and the
@@ -267,7 +268,7 @@ async fn render_multiple_ways_for_snapshots(
                         // different enough to be considered a bug.
                         else {
                             panic!(
-                                "Rendering /{} as {} produced different results when done via server and get command!\n    \
+                                "Rendering {} as {} produced different results when done via server and get command!\n    \
                                 get command exit code: {}\n    \
                                 get command stdout: {}\n    \
                                 get command stderr: {}\n    \
@@ -303,7 +304,7 @@ async fn render_multiple_ways_for_snapshots(
 
 fn render_via_get_command(
     content_directory: &ContentDirectory,
-    route: &str,
+    route: &Route,
     accept: &str,
 ) -> Output {
     let mut command = operator_command(&[
@@ -324,17 +325,17 @@ fn render_via_get_command(
 
 async fn render_via_http_request(
     server_address: &SocketAddr,
-    route: &str,
+    route: &Route,
     accept: &str,
 ) -> (StatusCode, Result<Bytes, PayloadError>) {
     let request = HttpClient::new()
-        .get(format!("http://{}/{}", server_address, route))
+        .get(format!("http://{}{}", server_address, route))
         .header("accept", accept)
         .timeout(time::Duration::from_secs(15));
 
     match request.send().await {
         Err(send_request_error) => panic!(
-            "Failed while sending request for http://{}/{}: {}",
+            "Failed while sending request for http://{}{}: {}",
             server_address, route, send_request_error,
         ),
         Ok(response) => {
@@ -358,8 +359,8 @@ where
         .map(BytesMut::freeze)
 }
 
-fn is_omitted_from_snapshots(route: &str) -> bool {
-    route.starts_with("NO-SNAPSHOT-") || route.contains("/NO-SNAPSHOT-")
+fn is_omitted_from_snapshots(route_str: &str) -> bool {
+    route_str.starts_with("NO-SNAPSHOT-") || route_str.contains("/NO-SNAPSHOT-")
 }
 
 /// RenderContext::into_error_context was flagged as unused from this crate
@@ -375,7 +376,7 @@ fn use_into_error_context() {
     )
     .unwrap();
     let engine = shared_engine.read().unwrap();
-    let context = engine.get_render_context("");
+    let context = engine.get_render_context(None);
     context.into_error_context(0);
 }
 
@@ -483,7 +484,7 @@ fn get_subcommand_succeeds() {
             "--content-directory={}",
             &sample_path("hello-world").to_str().unwrap()
         ),
-        "--route=hello",
+        "--route=/hello",
         "--accept=text/*",
     ]);
     let output = command.output().expect("Failed to execute process");
