@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::content::ContentDirectory;
+use crate::content::{ContentDirectory, Route};
 use std::path::{Path, PathBuf};
 
 pub use crate::lib::*;
@@ -20,6 +20,10 @@ pub const INVALID_TEMPLATES: [&str; 3] = [
     "{{",
     "{{#if this is not legit}}",
 ];
+
+pub fn route(input: &str) -> Route {
+    input.parse::<Route>().unwrap()
+}
 
 pub fn sample_content_directories() -> Vec<ContentDirectory> {
     vec![

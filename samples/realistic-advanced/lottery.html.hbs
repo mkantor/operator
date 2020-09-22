@@ -41,10 +41,10 @@
     <h1>Play the lottery</h1>
   </header>
 
-  <nav>{{get "navigation"}}</nav>
+  <nav>{{get "/navigation"}}</nav>
 
   <main>
-    {{#if (get "play-lottery")}}
+    {{#if (get "/play-lottery")}}
       {{>smiles}}
       <h2>You won!</h2>
       {{>smiles}}

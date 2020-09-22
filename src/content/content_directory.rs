@@ -1,3 +1,4 @@
+use super::Route;
 use std::env;
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
@@ -93,7 +94,7 @@ pub struct ContentFile {
     absolute_path: String,
     relative_path: String,
     is_executable: bool,
-    relative_path_without_extensions: String,
+    route: Route,
     extensions: Vec<String>,
     file: File,
 }
@@ -193,18 +194,29 @@ impl ContentFile {
             (extensions, is_executable)
         };
 
-        let relative_path_without_extensions = String::from({
+        let route = {
             let extensions_len = extensions.iter().fold(0, |len, extension| {
                 // Extra 1 is to count . in the extensions.
                 len + extension.len() + 1
             });
-            &relative_path[0..(relative_path.len() - extensions_len)]
-        });
+            let relative_path_without_extensions_len = relative_path.len() - extensions_len;
+            let relative_path_without_extensions =
+                &relative_path[0..relative_path_without_extensions_len];
+
+            let mut route_string = String::with_capacity(relative_path_without_extensions_len + 1);
+            route_string.push(Self::PATH_SEPARATOR);
+            route_string.push_str(relative_path_without_extensions);
+
+            route_string.parse::<Route>().map_err(|error| ContentFileError(format!(
+                "You've encountered a bug! This should never happen: Could not create route from path: {}",
+                error
+            )))
+        }?;
 
         Ok(ContentFile {
             absolute_path,
             relative_path,
-            relative_path_without_extensions,
+            route,
             extensions,
             file,
             is_executable,
@@ -223,8 +235,8 @@ impl ContentFile {
         self.is_executable
     }
 
-    pub fn relative_path_without_extensions(&self) -> &str {
-        &self.relative_path_without_extensions
+    pub fn route(&self) -> &Route {
+        &self.route
     }
 
     pub fn extensions(&self) -> &[String] {

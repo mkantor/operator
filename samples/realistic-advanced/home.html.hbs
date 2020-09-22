@@ -3,14 +3,14 @@
     <h1>Welcome to my fancy website!</h1>
   </header>
 
-  <nav>{{get "navigation"}}</nav>
+  <nav>{{get "/navigation"}}</nav>
 
   <article>
-    <figure><img src="dance" /></figure>
-    <audio controls loop src="song"></audio>
+    <figure><img src="/dance" /></figure>
+    <audio controls loop src="/song"></audio>
   </article>
 
   <footer>
-    The current <a href="now">time</a> is {{get "now"}}.
+    The current <a href="/now">time</a> is {{get "/now"}}.
   </footer>
 {{/layout.html.hbs}}

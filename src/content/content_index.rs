@@ -1,4 +1,4 @@
-use super::content_registry::Route;
+use super::Route;
 use serde::Serialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[error("Failed to add route '{}' to index: {}", .failed_route, .message)]
 pub struct ContentIndexUpdateError {
-    failed_route: String,
+    failed_route: Route,
     message: String,
 }
 
@@ -28,12 +28,12 @@ pub struct ContentIndexUpdateError {
 /// The content index would be:
 ///
 /// ```yaml
-/// foo: foo
-/// bar: bar
+/// foo: /foo
+/// bar: /bar
 /// bar/:
-///   plugh: bar/plugh
+///   plugh: /bar/plugh
 ///   baz/:
-///     quux: bar/baz/quux
+///     quux: /bar/baz/quux
 /// ```
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
@@ -49,11 +49,13 @@ impl ContentIndexEntries {
         Self(HashMap::new())
     }
 
-    pub fn try_add(&mut self, route: &Route) -> Result<(), ContentIndexUpdateError> {
+    pub fn try_add(&mut self, route: Route) -> Result<(), ContentIndexUpdateError> {
         let (dirname_components, basename) = {
-            let mut path_components = route.as_ref().split(Route::PATH_SEPARATOR);
+            let mut path_components = route.as_ref().split('/');
             let basename = path_components.next_back();
-            (path_components, basename)
+            // The first component is an empty root (since routes always begin
+            // with '/'). Skip it.
+            (path_components.skip(1), basename)
         };
 
         match basename {
@@ -77,10 +79,10 @@ impl ContentIndexEntries {
                             // Each component in dirname_components represents
                             // a directory along the path
                             return Err(ContentIndexUpdateError {
-                                failed_route: String::from(route.as_ref()),
+                                failed_route: route.clone(),
                                 message: format!(
                                     "There is already a resource at '{}', but that needs to be a directory to accommodate the new route.",
-                                    conficting_route.as_ref(),
+                                    conficting_route,
                                 )
                             });
                         }
@@ -90,8 +92,8 @@ impl ContentIndexEntries {
                 // Use the last path component to insert a resource.
                 match node.0.get(basename) {
                     Some(ContentIndex::Directory(..)) => Err(ContentIndexUpdateError {
-                        failed_route: String::from(route.as_ref()),
-                        message: format!("There is already a directory at '{}'.", route.as_ref(),),
+                        failed_route: route.clone(),
+                        message: format!("There is already a directory at '{}'.", route),
                     }),
                     Some(ContentIndex::Resource(..)) => {
                         // This route already exists, no need to do anything.
@@ -103,7 +105,7 @@ impl ContentIndexEntries {
                     None => {
                         node.0
                             .entry(String::from(basename))
-                            .or_insert_with(|| ContentIndex::Resource(Route::new(route)));
+                            .or_insert_with(|| ContentIndex::Resource(route));
                         Ok(())
                     }
                 }
@@ -115,26 +117,27 @@ impl ContentIndexEntries {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_lib::*;
     use serde_json::json;
 
     #[test]
     fn index_has_the_correct_structure() {
         let mut index = ContentIndexEntries::new();
-        index.try_add(&Route::new("foo")).unwrap();
-        index.try_add(&Route::new("bar")).unwrap();
-        index.try_add(&Route::new("bar/plugh")).unwrap();
-        index.try_add(&Route::new("bar/baz/quux")).unwrap();
+        index.try_add(route("/foo")).unwrap();
+        index.try_add(route("/bar")).unwrap();
+        index.try_add(route("/bar/plugh")).unwrap();
+        index.try_add(route("/bar/baz/quux")).unwrap();
         // Adding the same route twice should have no effect.
-        index.try_add(&Route::new("bar/baz/quux")).unwrap();
+        index.try_add(route("/bar/baz/quux")).unwrap();
 
         let actual_json = serde_json::to_value(index).unwrap();
         let expected_json = json!({
-            "foo": "foo",
-            "bar": "bar",
+            "foo": "/foo",
+            "bar": "/bar",
             "bar/": {
-              "plugh": "bar/plugh",
+              "plugh": "/bar/plugh",
               "baz/": {
-                "quux": "bar/baz/quux"
+                "quux": "/bar/baz/quux"
               }
             }
         });

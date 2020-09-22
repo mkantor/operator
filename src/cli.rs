@@ -49,7 +49,7 @@ pub enum GetCommandError {
     },
 
     #[error("Content not found at route '{}'.", .route)]
-    ContentNotFound { route: String },
+    ContentNotFound { route: Route },
 
     #[error("Unable to render content.")]
     RenderError {
@@ -109,7 +109,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 
     let content_item =
         content_engine.new_template(&template, MediaType::APPLICATION_OCTET_STREAM)?;
-    let render_context = content_engine.get_render_context("");
+    let render_context = content_engine.get_render_context(None);
     let media = content_item.render(render_context, &[mime::STAR_STAR])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
@@ -128,7 +128,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 /// Renders an item from the content directory and writes it to `output`.
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
-    route: &str,
+    route: &Route,
     accept: MediaRange,
     operator_version: ServerVersion,
     output: &mut O,
@@ -143,12 +143,13 @@ pub fn get<O: io::Write>(
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
-    let content_item = content_engine
-        .get(route)
-        .ok_or(GetCommandError::ContentNotFound {
-            route: String::from(route),
-        })?;
-    let render_context = content_engine.get_render_context(route);
+    let content_item =
+        content_engine
+            .get(route)
+            .ok_or_else(|| GetCommandError::ContentNotFound {
+                route: route.clone(),
+            })?;
+    let render_context = content_engine.get_render_context(Some(route.clone()));
     let media = content_item.render(render_context, &[accept])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
@@ -167,8 +168,8 @@ pub fn get<O: io::Write>(
 /// Starts an HTTP server for the given content directory.
 pub fn serve<A: 'static + ToSocketAddrs>(
     content_directory: ContentDirectory,
-    index_route: Option<String>,
-    error_handler_route: Option<String>,
+    index_route: Option<Route>,
+    error_handler_route: Option<Route>,
     bind_to: A,
     operator_version: ServerVersion,
 ) -> Result<(), ServeCommandError> {
@@ -261,13 +262,13 @@ mod tests {
     #[test]
     fn content_can_be_retrieved_from_content_directory() {
         let mut output = Vec::new();
-        let route = "hello";
+        let route = route("/hello");
         let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
         let result = get(
             directory,
-            route,
+            &route,
             mime::TEXT_PLAIN,
             ServerVersion("0.0.0"),
             &mut output,
@@ -293,12 +294,12 @@ mod tests {
     #[test]
     fn getting_content_which_does_not_exist_is_an_error() {
         let mut output = Vec::new();
-        let route = "this-route-does-not-refer-to-any-content";
+        let route = route("/this-route-does-not-refer-to-any-content");
 
         let directory = arbitrary_content_directory_with_valid_content();
         let result = get(
             directory,
-            route,
+            &route,
             mime::TEXT_HTML,
             ServerVersion("0.0.0"),
             &mut output,

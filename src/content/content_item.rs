@@ -280,7 +280,7 @@ mod tests {
         .expect("Test template was invalid");
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
-            content_engine.get_render_context("test").data,
+            content_engine.get_render_context(None).data,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));
@@ -300,7 +300,7 @@ mod tests {
         );
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
-            content_engine.get_render_context("test").data,
+            content_engine.get_render_context(Some(route("/test"))).data,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));

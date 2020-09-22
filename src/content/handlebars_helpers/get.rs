@@ -52,13 +52,22 @@ where
                 )
             })?
             .value();
-        let route = path_and_json.as_str().ok_or_else(|| {
-            handlebars::RenderError::new(format!(
-                "The `get` helper's first argument must be a string (the route of the content \
+        let route = path_and_json
+            .as_str()
+            .ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper's first argument must be a string (the route of the content \
                     item to get), but it was `{}`.",
-                path_and_json,
-            ))
-        })?;
+                    path_and_json,
+                ))
+            })?
+            .parse::<Route>()
+            .map_err(|error| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper's first argument (`{}`) must be a valid route: {}",
+                    path_and_json, error,
+                ))
+            })?;
 
         let content_item = content_engine.get(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
@@ -87,19 +96,44 @@ where
                 ))
             })?;
 
-        let request_route = current_render_data.get(REQUEST_ROUTE_PROPERTY_NAME)
-            .and_then(|value| value.as_str())
+        let optional_request_route = {
+            let request_route_value = current_render_data.get(REQUEST_ROUTE_PROPERTY_NAME)
             .ok_or_else(|| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the request route could not be found \
                     in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
-                    whose value is a string. The current context is `{}`.",
+                    whose value is a string or null. The current context is `{}`.",
                     REQUEST_ROUTE_PROPERTY_NAME,
                     handlebars_context.data(),
                 ))
             })?;
 
-        let context = content_engine.get_render_context(request_route);
+            if request_route_value.is_null() {
+                None
+            } else {
+                let request_route = request_route_value.as_str()
+                .ok_or_else(|| {
+                    handlebars::RenderError::new(format!(
+                        "The `get` helper call failed because the request route in the handlebars context was \
+                        not a string or null (it was `{}`). The current context is `{}`.",
+                        request_route_value,
+                        handlebars_context.data(),
+                    ))
+                })?
+                .parse::<Route>()
+                .map_err(|error| {
+                    handlebars::RenderError::new(format!(
+                        "The `get` helper call failed because the request route in the handlebars context was invalid ({}). \
+                        The current context is `{}`.",
+                        error,
+                        handlebars_context.data(),
+                    ))
+                })?;
+                Some(request_route)
+            }
+        };
+
+        let context = content_engine.get_render_context(optional_request_route);
 
         let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {
@@ -124,7 +158,7 @@ where
         .map_err(|streaming_error| {
             handlebars::RenderError::new(format!(
                 "The `get` helper call failed because there was an error collecting the rendered content \
-                for \"{}\": {:?}",
+                for \"{}\": {}",
                 route,
                 streaming_error,
             ))

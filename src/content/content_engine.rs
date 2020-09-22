@@ -42,11 +42,8 @@ pub enum ContentLoadingError {
     #[error("Content file name is not supported: {}", .0)]
     ContentFileNameError(String),
 
-    #[error("There are multiple content files for route /{} with the same media type ({}).", .route, .media_type)]
-    DuplicateContent {
-        route: String,
-        media_type: MediaType,
-    },
+    #[error("There are multiple content files for route {} with the same media type ({}).", .route, .media_type)]
+    DuplicateContent { route: Route, media_type: MediaType },
 
     #[error("Content file has an unknown media type: {}", .0)]
     UnknownFileType(String),
@@ -66,7 +63,7 @@ where
     Self: Sized,
     ServerInfo: Clone + Serialize,
 {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self>;
+    fn get_render_context(&self, request_route: Option<Route>) -> RenderContext<ServerInfo, Self>;
 
     fn new_template(
         &self,
@@ -74,7 +71,7 @@ where
         media_type: MediaType,
     ) -> Result<UnregisteredTemplate, TemplateParseError>;
 
-    fn get(&self, route: &str) -> Option<&ContentRepresentations>;
+    fn get(&self, route: &Route) -> Option<&ContentRepresentations>;
 
     fn handlebars_registry(&self) -> &Handlebars;
 }
@@ -184,7 +181,7 @@ where
             )));
         }
 
-        let route = Route::new(file.relative_path_without_extensions());
+        let route = file.route().clone();
         let mime =
             MimeGuess::from_ext(extension)
                 .first()
@@ -219,7 +216,7 @@ where
         content_registry: &mut ContentRegistry,
         handlebars_registry: &mut Handlebars,
     ) -> Result<(), ContentLoadingError> {
-        let route = Route::new(file.relative_path_without_extensions());
+        let route = file.route().clone();
         match [first_extension, second_extension] {
             // Handlebars templates are named like foo.html.hbs and do not
             // have the executable bit set. They are evaluated when rendered.
@@ -358,7 +355,7 @@ where
     where
         F: FnOnce() -> RegisteredContent,
     {
-        content_index.try_add(&route)?;
+        content_index.try_add(route.clone())?;
         let representations = content_registry
             .entry(route.clone())
             .or_insert_with(HashMap::new);
@@ -366,10 +363,7 @@ where
         match representations.entry(media_type) {
             Entry::Occupied(entry) => {
                 let (media_type, _) = entry.remove_entry();
-                Err(ContentLoadingError::DuplicateContent {
-                    route: String::from(route.as_ref()),
-                    media_type,
-                })
+                Err(ContentLoadingError::DuplicateContent { route, media_type })
             }
             Entry::Vacant(entry) => {
                 entry.insert(create_content());
@@ -384,13 +378,13 @@ impl<'engine, ServerInfo> ContentEngine<ServerInfo>
 where
     ServerInfo: Clone + Serialize,
 {
-    fn get_render_context(&self, request_route: &str) -> RenderContext<ServerInfo, Self> {
+    fn get_render_context(&self, request_route: Option<Route>) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
                 server_info: self.server_info.clone(),
                 index: self.index.clone(),
-                request_route: String::from(request_route),
+                request_route,
                 target_media_type: None,
                 error_code: None,
             },
@@ -405,8 +399,8 @@ where
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
 
-    fn get(&self, route: &str) -> Option<&ContentRepresentations> {
-        self.content_registry.get(&Route::new(route))
+    fn get(&self, route: &Route) -> Option<&ContentRepresentations> {
+        self.content_registry.get(route)
     }
 
     fn handlebars_registry(&self) -> &Handlebars {
@@ -462,7 +456,7 @@ mod tests {
                 )
                 .expect("Template could not be parsed");
             let rendered = renderable
-                .render(content_engine.get_render_context(""), &[mime::TEXT_HTML])
+                .render(content_engine.get_render_context(None), &[mime::TEXT_HTML])
                 .expect(&format!("Template rendering failed for `{}`", template));
             let actual_output = media_to_string(rendered);
 
@@ -509,7 +503,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
+            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let renderable = content_engine
             .new_template(
@@ -518,7 +512,7 @@ mod tests {
             )
             .expect("Template could not be parsed");
         let rendered = renderable
-            .render(content_engine.get_render_context(""), &[mime::TEXT_HTML])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_HTML])
             .expect(&format!("Template rendering failed for `{}`", template));
         let actual_output = media_to_string(rendered);
 
@@ -539,14 +533,14 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "abc";
-        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\nsubdirectory/c\n";
+        let route = route("/abc");
+        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let content = content_engine
-            .get(route)
+            .get(&route)
             .expect("Content could not be found");
         let rendered = content
-            .render(content_engine.get_render_context(""), &[mime::TEXT_HTML])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_HTML])
             .expect(&format!(
                 "Template rendering failed for content at '{}'",
                 route
@@ -570,10 +564,10 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "this-route-does-not-refer-to-any-content";
+        let route = route("/this-route-does-not-refer-to-any-content");
 
         assert!(
-            content_engine.get(route).is_none(),
+            content_engine.get(&route).is_none(),
             "Content was found at '{}', but it was not expected to be",
             route
         );
@@ -611,7 +605,7 @@ mod tests {
             )
             .expect("Template could not be parsed");
         let rendered = renderable
-            .render(content_engine.get_render_context(""), &[mime::TEXT_HTML])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_HTML])
             .expect(&format!("Template rendering failed for `{}`", template));
         let actual_output = media_to_string(rendered);
 
@@ -636,7 +630,7 @@ mod tests {
             "no argument: {{get}}",
             "not a string: {{get 3}}",
             "empty string: {{get \"\"}}",
-            "unknown route: {{get \"no/content/at/this/route\"}}",
+            "unknown route: {{get \"/no/content/at/this/route\"}}",
             "non-existent variables: {{get complete garbage}}",
         ];
 
@@ -648,7 +642,7 @@ mod tests {
                 )
                 .expect("Template could not be parsed");
             let result =
-                renderable.render(content_engine.get_render_context(""), &[mime::TEXT_HTML]);
+                renderable.render(content_engine.get_render_context(None), &[mime::TEXT_HTML]);
             assert!(
                 result.is_err(),
                 "Content was successfully rendered for invalid template `{}`, but it should have failed",
@@ -665,14 +659,17 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let routes = ["cannot-become-html", "template-cannot-become-html"];
+        let routes = [
+            route("/cannot-become-html"),
+            route("/template-cannot-become-html"),
+        ];
 
         for route in routes.iter() {
             match content_engine.get(route) {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
                     let result = renderable
-                        .render(content_engine.get_render_context(""), &[mime::TEXT_HTML]);
+                        .render(content_engine.get_render_context(None), &[mime::TEXT_HTML]);
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed \
@@ -699,7 +696,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
             )
             .expect("Template could not be created");
-        let result = template.render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN]);
+        let result = template.render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN]);
 
         assert!(
             result.is_err(),
@@ -716,16 +713,18 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let inputs = vec![
-            (mime::TEXT_PLAIN, "nesting/txt-that-includes-html"),
-            (mime::TEXT_HTML, "nesting/html-that-includes-txt"),
+            (mime::TEXT_PLAIN, route("/nesting/txt-that-includes-html")),
+            (mime::TEXT_HTML, route("/nesting/html-that-includes-txt")),
         ];
 
         for (target_media_type, route) in inputs {
-            match content_engine.get(route) {
+            match content_engine.get(&route) {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
-                    let result = renderable
-                        .render(content_engine.get_render_context(""), &[target_media_type]);
+                    let result = renderable.render(
+                        content_engine.get_render_context(None),
+                        &[target_media_type],
+                    );
                     assert!(
                         result.is_err(),
                         "Content was successfully rendered for `{}`, but this should have failed",
@@ -755,7 +754,7 @@ mod tests {
                             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
                         )
                         .expect("Test template was invalid")
-                        .render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN])
+                        .render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN])
                         .expect("Failed to render unregistered template"),
                 ),
                 mime::TEXT_PLAIN.essence_str(),
@@ -763,9 +762,9 @@ mod tests {
             (
                 media_to_string(
                     content_engine
-                        .get("echo-target-media-type")
+                        .get(&route("/echo-target-media-type"))
                         .expect("Test template does not exist")
-                        .render(content_engine.get_render_context(""), &[mime::TEXT_HTML])
+                        .render(content_engine.get_render_context(None), &[mime::TEXT_HTML])
                         .expect("Failed to render registered template"),
                 ),
                 mime::TEXT_HTML.essence_str(),
@@ -788,14 +787,14 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "count-cli-args";
+        let route = route("/count-cli-args");
         let expected_output = "0\n";
 
         let content = content_engine
-            .get(route)
+            .get(&route)
             .expect("Content could not be found");
         let rendered = content
-            .render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN])
             .expect(&format!("Rendering failed for content at '{}'", route));
         let actual_output = media_to_string(rendered);
 
@@ -816,14 +815,14 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route1 = "pwd";
+        let route1 = route("/pwd");
         let expected_output1 = format!("{}/samples/executables\n", PROJECT_DIRECTORY);
 
         let content = content_engine
-            .get(route1)
+            .get(&route1)
             .expect("Content could not be found");
         let rendered = content
-            .render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN])
             .expect(&format!("Rendering failed for content at '{}'", route1));
         let actual_output = media_to_string(rendered);
 
@@ -836,14 +835,14 @@ mod tests {
             actual_output,
         );
 
-        let route2 = "subdirectory/pwd";
+        let route2 = route("/subdirectory/pwd");
         let expected_output2 = format!("{}/samples/executables/subdirectory\n", PROJECT_DIRECTORY);
 
         let content = content_engine
-            .get(route2)
+            .get(&route2)
             .expect("Content could not be found");
         let rendered = content
-            .render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN])
             .expect(&format!("Rendering failed for content at '{}'", route2));
         let actual_output = media_to_string(rendered);
 
@@ -864,19 +863,19 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "NO-SNAPSHOT-system-info"; // This outputs text/html.
+        let route = route("/NO-SNAPSHOT-system-info"); // This outputs text/html.
         let content = content_engine
-            .get(route)
+            .get(&route)
             .expect("Content could not be found");
 
-        let result1 = content.render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN]); // Not text/html!
+        let result1 = content.render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN]); // Not text/html!
         assert!(
             result1.is_err(),
             "Rendering content at '{}' succeeded when it should have failed",
             route,
         );
 
-        let result2 = content.render(content_engine.get_render_context(""), &[mime::TEXT_HTML]);
+        let result2 = content.render(content_engine.get_render_context(None), &[mime::TEXT_HTML]);
         assert!(
             result2.is_ok(),
             "Rendering content at '{}' failed when it should have succeeded",
@@ -891,14 +890,14 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "NO-SNAPSHOT-random";
+        let route = route("/NO-SNAPSHOT-random");
         let content = content_engine
-            .get(route)
+            .get(&route)
             .expect("Content could not be found");
 
         let media = content
             .render(
-                content_engine.get_render_context(""),
+                content_engine.get_render_context(None),
                 &[mime::APPLICATION_OCTET_STREAM],
             )
             .expect(&format!(
@@ -920,17 +919,17 @@ mod tests {
             .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
-        let route = "template";
+        let route = route("/template");
         let expected_output = format!(
             "this is pwd from subdirectory:\n{}/samples/executables/subdirectory\n",
             PROJECT_DIRECTORY
         );
 
         let content = content_engine
-            .get(route)
+            .get(&route)
             .expect("Content could not be found");
         let rendered = content
-            .render(content_engine.get_render_context(""), &[mime::TEXT_PLAIN])
+            .render(content_engine.get_render_context(None), &[mime::TEXT_PLAIN])
             .expect(&format!("Rendering failed for content at '{}'", route));
         let actual_output = media_to_string(rendered);
 
@@ -952,23 +951,23 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let routes = [
-            "hidden-file",
-            ".hidden-file",
-            "hidden-directory",
-            ".hidden-directory",
-            "hidden-directory/hidden-file",
-            ".hidden-directory/hidden-file",
-            "hidden-directory/.hidden-file",
-            ".hidden-directory/.hidden-file",
-            "hidden-directory/non-hidden-file",
-            ".hidden-directory/non-hidden-file",
-            "hidden-directory/.non-hidden-file",
-            ".hidden-directory/.non-hidden-file",
+            route("/hidden-file"),
+            route("/.hidden-file"),
+            route("/hidden-directory"),
+            route("/.hidden-directory"),
+            route("/hidden-directory/hidden-file"),
+            route("/.hidden-directory/hidden-file"),
+            route("/hidden-directory/.hidden-file"),
+            route("/.hidden-directory/.hidden-file"),
+            route("/hidden-directory/non-hidden-file"),
+            route("/.hidden-directory/non-hidden-file"),
+            route("/hidden-directory/.non-hidden-file"),
+            route("/.hidden-directory/.non-hidden-file"),
         ];
 
         for route in routes.iter() {
             assert!(
-                content_engine.get(route).is_none(),
+                content_engine.get(&route).is_none(),
                 "Content was successfully retrieved for hidden item `{}`, but `get` should have returned None",
                 route,
             );

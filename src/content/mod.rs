@@ -6,6 +6,7 @@ mod content_item;
 mod content_registry;
 mod handlebars_helpers;
 mod mime;
+mod route;
 mod test_lib;
 
 use bytes::Bytes;
@@ -23,6 +24,7 @@ pub use content_engine::{
 };
 pub use content_item::UnregisteredTemplate;
 pub use content_registry::{ContentRepresentations, RegisteredContent};
+pub use route::Route;
 
 // This is just a trait alias to help make type signatures a bit saner.
 pub trait ByteStream: Stream<Item = Result<Bytes, StreamError>>
@@ -114,7 +116,7 @@ struct RenderData<ServerInfo: Clone + Serialize> {
     #[serde(rename = "/")]
     index: ContentIndex,
     server_info: ServerInfo,
-    request_route: String,
+    request_route: Option<Route>,
     target_media_type: Option<MediaType>,
     error_code: Option<u16>,
 }
