@@ -128,32 +128,34 @@ where
         let mut content_registry = ContentRegistry::new();
         handlebars_registry.set_strict_mode(true);
         for entry in content_item_entries {
-            let extensions = entry.extensions().to_owned();
+            let extensions = entry.extensions.to_owned();
             match extensions.as_slice() {
-                [single_extension] => Self::register_file_with_one_extension(
+                [single_extension] => Self::register_content_file_with_one_extension(
                     entry,
                     single_extension,
                     &mut index,
                     &mut content_registry,
                 )?,
-                [first_extension, second_extension] => Self::register_file_with_two_extensions(
-                    entry,
-                    first_extension,
-                    second_extension,
-                    &mut index,
-                    &mut content_registry,
-                    &mut handlebars_registry,
-                )?,
+                [first_extension, second_extension] => {
+                    Self::register_content_file_with_two_extensions(
+                        entry,
+                        first_extension,
+                        second_extension,
+                        &mut index,
+                        &mut content_registry,
+                        &mut handlebars_registry,
+                    )?
+                }
                 [_, _, _, ..] => {
                     return Err(ContentLoadingError::ContentFileNameError(format!(
                         "Content file name '{}' has too many extensions.",
-                        entry.relative_path()
+                        entry.relative_path
                     )))
                 }
                 [] => {
                     return Err(ContentLoadingError::ContentFileNameError(format!(
                         "Content file names must have extensions, but '{}' does not.",
-                        entry.relative_path()
+                        entry.relative_path
                     )))
                 }
             }
@@ -164,31 +166,29 @@ where
 
     /// Content files with one extension indicate static content (e.g. an image
     /// or plain text file). They must not have the executable bit set.
-    fn register_file_with_one_extension(
-        file: ContentFile,
+    fn register_content_file_with_one_extension(
+        content: ContentFile,
         extension: &str,
         index: &mut ContentIndexEntries,
         content_registry: &mut ContentRegistry,
     ) -> Result<(), ContentLoadingError> {
-        if file.is_executable() {
+        if content.is_executable {
             return Err(ContentLoadingError::ContentFileNameError(format!(
                 "The content file '{}' is executable, but only has one extension ('{}'). \
                     Executables must have two extensions: \
                     the first indicates the media type of its output, and the second is arbitrary \
                     but can be used to indicate the executable type ('.sh', '.exe', '.py', etc).",
-                file.relative_path(),
-                extension,
+                content.relative_path, extension,
             )));
         }
 
-        let route = file.route().clone();
         let mime =
             MimeGuess::from_ext(extension)
                 .first()
                 .ok_or_else(|| ContentLoadingError::UnknownFileType(
                     format!(
                         "The filename extension for the file at '{}' ('{}') does not map to any known media type.",
-                        file.relative_path(),
+                        content.relative_path,
                         extension,
                     ),
                 ))?;
@@ -196,37 +196,38 @@ where
             ContentLoadingError::Bug(String::from("Mime guess was not a concrete media type!"))
         })?;
 
-        Self::register_content(content_registry, index, route, media_type.clone(), || {
-            RegisteredContent::StaticContentItem(StaticContentItem::new(
-                file.into_file(),
-                media_type,
-            ))
-        })
+        let file = content.file;
+        Self::register_content(
+            content_registry,
+            index,
+            content.route,
+            media_type.clone(),
+            || RegisteredContent::StaticContentItem(StaticContentItem::new(file, media_type)),
+        )
     }
 
     /// Content files with two extensions are either templates or executables
     /// (depending on the final extension and whether the executable bit is
     /// set). In both cases the first extension indicates the media type that
     /// will be produced when the content is rendered.
-    fn register_file_with_two_extensions(
-        file: ContentFile,
+    fn register_content_file_with_two_extensions(
+        content: ContentFile,
         first_extension: &str,
         second_extension: &str,
         index: &mut ContentIndexEntries,
         content_registry: &mut ContentRegistry,
         handlebars_registry: &mut Handlebars,
     ) -> Result<(), ContentLoadingError> {
-        let route = file.route().clone();
         match [first_extension, second_extension] {
             // Handlebars templates are named like foo.html.hbs and do not
             // have the executable bit set. They are evaluated when rendered.
             [first_extension, Self::HANDLEBARS_FILE_EXTENSION] => {
-                if file.is_executable() {
+                if content.is_executable {
                     return Err(ContentLoadingError::ContentFileNameError(
                         format!(
                             "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), \
                             but it is also executable. It must be one or the other.",
-                            file.relative_path(),
+                            content.relative_path,
                             Self::HANDLEBARS_FILE_EXTENSION,
                         ),
                     ));
@@ -238,7 +239,7 @@ where
                         format!(
                             "The first filename extension for the handlebars template at '{}' ('{}') \
                             does not map to any known media type.",
-                            file.relative_path(),
+                            content.relative_path,
                             first_extension,
                         ),
                     ))?;
@@ -254,8 +255,8 @@ where
                 // representations for templates (foo.html.hbs and foo.md.hbs
                 // need to both live in the handlebars registry under distinct
                 // names).
-                let template_name = file.relative_path();
-                let mut contents = file.file();
+                let template_name = content.relative_path;
+                let mut contents = content.file;
                 if handlebars_registry.has_template(&template_name) {
                     return Err(ContentLoadingError::Bug(format!(
                         "More than one handlebars template has the name '{}'.",
@@ -280,25 +281,31 @@ where
                         }
                     })?;
 
-                Self::register_content(content_registry, index, route, media_type.clone(), || {
-                    RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
-                        template_name,
-                        media_type,
-                    ))
-                })
+                Self::register_content(
+                    content_registry,
+                    index,
+                    content.route,
+                    media_type.clone(),
+                    || {
+                        RegisteredContent::RegisteredTemplate(RegisteredTemplate::new(
+                            template_name,
+                            media_type,
+                        ))
+                    },
+                )
             }
 
             // Executable programs are named like foo.html.py and must have the
             // executable bit set in their file permissions. When rendered they
             // will executed by the OS in a separate process.
-            [first_extension, _arbitrary_second_extension] if file.is_executable() => {
+            [first_extension, _arbitrary_second_extension] if content.is_executable => {
                 let mime =
                     MimeGuess::from_ext(first_extension)
                         .first()
                         .ok_or_else(|| ContentLoadingError::UnknownFileType(
                             format!(
                                 "The first filename extension for the executable at '{}' ('{}') does not map to any known media type.",
-                                file.relative_path(),
+                                content.relative_path,
                                 first_extension,
                             ),
                         ))?;
@@ -308,36 +315,43 @@ where
                     ))
                 })?;
 
+                let absolute_path = content.absolute_path;
+
                 // The working directory for the executable is the immediate
                 // parent directory it resides in (which may be a child of the
                 // content directory).
-                let working_directory =
-                    Path::new(file.absolute_path()).parent().ok_or_else(|| {
-                        // This indicates a bug because it can only occur if
-                        // `entry.absolute_path()` is the filesystem root, but
-                        // we should have already verified that `entry` is a
-                        // file (not a directory). If it's the filesystem root
-                        // then it is a directory.
-                        ContentLoadingError::Bug(format!(
-                            "Failed to get a parent directory for the executable at '{}'.",
-                            file.absolute_path(),
-                        ))
-                    })?;
-
-                Self::register_content(content_registry, index, route, media_type.clone(), || {
-                    RegisteredContent::Executable(Executable::new(
-                        file.absolute_path(),
-                        working_directory,
-                        media_type,
+                let working_directory = Path::new(&absolute_path).parent().ok_or_else(|| {
+                    // This indicates a bug because it can only occur if
+                    // the absolute path is the filesystem root, but we
+                    // should have already verified that `entry` is a file
+                    // (not a directory). If it's the filesystem root then
+                    // it is a directory.
+                    ContentLoadingError::Bug(format!(
+                        "Failed to get a parent directory for the executable at '{}'.",
+                        absolute_path,
                     ))
-                })
+                })?;
+
+                Self::register_content(
+                    content_registry,
+                    index,
+                    content.route,
+                    media_type.clone(),
+                    || {
+                        RegisteredContent::Executable(Executable::new(
+                            &absolute_path,
+                            working_directory,
+                            media_type,
+                        ))
+                    },
+                )
             }
 
             [first_unsupported_extension, second_unsupported_extension] => {
                 Err(ContentLoadingError::ContentFileNameError(format!(
                     "The content file '{}' has two extensions ('{}.{}'), but is \
                         neither a handlebars template nor an executable.",
-                    file.relative_path(),
+                    content.relative_path,
                     first_unsupported_extension,
                     second_unsupported_extension
                 )))
