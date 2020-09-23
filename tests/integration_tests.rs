@@ -148,10 +148,8 @@ async fn render_everything_for_snapshots(
     let render_operations = content_directory
         .into_iter()
         .map(|content_file| async move {
-            let route = content_file.route();
             let empty_string = String::from("");
-            let first_filename_extension =
-                content_file.extensions().first().unwrap_or(&empty_string);
+            let first_filename_extension = content_file.extensions.first().unwrap_or(&empty_string);
 
             // Target media type is just the source media type.
             let target_media_type = MimeGuess::from_ext(first_filename_extension)
@@ -161,7 +159,7 @@ async fn render_everything_for_snapshots(
             let output = render_multiple_ways_for_snapshots(
                 optional_server.map(RunningServer::address),
                 content_directory,
-                route,
+                &content_file.route,
                 &target_media_type.to_string(),
             )
             .await;
@@ -178,10 +176,7 @@ async fn render_everything_for_snapshots(
                 }
             };
 
-            (
-                String::from(content_file.relative_path()),
-                output_or_error_message,
-            )
+            (content_file.relative_path.clone(), output_or_error_message)
         });
 
     let content = future::join_all(render_operations)

@@ -91,12 +91,12 @@ impl ContentDirectory {
 }
 
 pub struct ContentFile {
-    absolute_path: String,
-    relative_path: String,
-    is_executable: bool,
-    route: Route,
-    extensions: Vec<String>,
-    file: File,
+    pub absolute_path: String,
+    pub relative_path: String,
+    pub is_executable: bool,
+    pub route: Route,
+    pub extensions: Vec<String>,
+    pub file: File,
 }
 impl ContentFile {
     pub const PATH_SEPARATOR: char = '/';
@@ -221,34 +221,6 @@ impl ContentFile {
             file,
             is_executable,
         })
-    }
-
-    pub fn absolute_path(&self) -> &str {
-        &self.absolute_path
-    }
-
-    pub fn relative_path(&self) -> &str {
-        &self.relative_path
-    }
-
-    pub fn is_executable(&self) -> bool {
-        self.is_executable
-    }
-
-    pub fn route(&self) -> &Route {
-        &self.route
-    }
-
-    pub fn extensions(&self) -> &[String] {
-        &self.extensions
-    }
-
-    pub fn file(&self) -> &File {
-        &self.file
-    }
-
-    pub fn into_file(self) -> File {
-        self.file
     }
 }
 
