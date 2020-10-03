@@ -275,12 +275,12 @@ async fn render_multiple_ways_for_snapshots(
                                 if get_command_output.stdout.len() > 64 {
                                     format!("{} bytes", get_command_output.stdout.len())
                                 } else {
-                                    format!("{:?}", Bytes::from(get_command_output.stdout))
+                                    String::from(format!("{:?}", Bytes::from(get_command_output.stdout)).trim_end())
                                 },
                                 if get_command_output.stderr.len() > 64 {
                                     format!("{} bytes", get_command_output.stderr.len())
                                 } else {
-                                    format!("{:?}", Bytes::from(get_command_output.stderr))
+                                    String::from(format!("{:?}", Bytes::from(get_command_output.stderr)).trim_end())
                                 },
                                 http_response_status,
                                 if http_response_body.len() > 64 {
