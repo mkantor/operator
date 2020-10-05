@@ -117,7 +117,7 @@ impl ContentIndexEntries {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use serde_json::json;
 
     #[test]

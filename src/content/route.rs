@@ -47,6 +47,7 @@ impl fmt::Display for Route {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_lib::test;
 
     #[test]
     fn valid_routes_succeed() {

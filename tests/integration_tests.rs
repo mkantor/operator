@@ -29,7 +29,7 @@ mod lib;
 mod test_lib;
 
 use content::Route;
-use test_lib::*;
+use test_lib::{test, *};
 
 fn operator_command<I, S>(args: I) -> Command
 where

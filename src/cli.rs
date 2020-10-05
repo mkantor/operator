@@ -214,7 +214,7 @@ pub fn serve<A: 'static + ToSocketAddrs>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use std::str;
 
     #[test]
