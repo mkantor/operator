@@ -243,7 +243,9 @@ async fn render_multiple_ways_for_snapshots(
                         // Just like the previous case, but the get command
                         // failed. This is necessary because streaming errors
                         // result in non-zero exit code but a 200 HTTP status.
-                        else if http_response_body == get_command_output.stdout
+                        // In this case the HTTP body might be incomplete (if
+                        // the failure occurred before the client got it all).
+                        else if get_command_output.stdout.starts_with(&http_response_body)
                             && http_response_status.is_success()
                             && !get_command_output.status.success()
                         {
