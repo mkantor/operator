@@ -345,7 +345,7 @@ fn acceptable_media_ranges_from_accept_header<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use actix_web::body::{Body, ResponseBody};
     use actix_web::http::StatusCode;
     use actix_web::test::TestRequest;

@@ -250,7 +250,7 @@ impl PartialEq for ContentDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use std::fs;
 
     #[test]

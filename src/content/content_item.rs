@@ -225,7 +225,7 @@ impl Executable {
 mod tests {
     use super::super::test_lib::*;
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use ::mime;
     use std::fs;
     use std::io::Write;

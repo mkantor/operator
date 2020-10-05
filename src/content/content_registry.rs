@@ -92,10 +92,9 @@ fn box_media<'o, O: ByteStream + 'o>(media: Media<O>) -> Media<Box<dyn ByteStrea
 
 #[cfg(test)]
 mod tests {
-
     use super::super::test_lib::*;
     use super::*;
-    use crate::test_lib::*;
+    use crate::test_lib::{test, *};
     use maplit::hashmap;
     use tempfile::tempfile;
 
