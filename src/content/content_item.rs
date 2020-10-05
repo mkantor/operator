@@ -2,7 +2,7 @@ use super::*;
 use body::{FileBody, InMemoryBody, ProcessBody};
 use handlebars::{self, Handlebars, Renderable as _};
 use std::fs;
-use std::io::{self, Seek, SeekFrom};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
@@ -55,11 +55,8 @@ impl StaticContentItem {
         &self,
     ) -> Result<Media<FileBody>, RenderingFailedError> {
         // We clone the file handle and operate on that to avoid taking
-        // self as mut. Note that all clones share a cursor, so seeking
-        // back to the beginning is necessary to ensure we read the
-        // entire file.
-        let mut file = self.contents.try_clone()?;
-        file.seek(SeekFrom::Start(0))?;
+        // self as mut.
+        let file = self.contents.try_clone()?;
         let stream = FileBody::try_from_file(file)?;
         Ok(Media::new(self.media_type.clone(), stream))
     }

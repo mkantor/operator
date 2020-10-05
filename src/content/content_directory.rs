@@ -91,11 +91,17 @@ impl ContentDirectory {
 }
 
 pub struct ContentFile {
+    pub route: Route,
     pub absolute_path: String,
     pub relative_path: String,
-    pub is_executable: bool,
-    pub route: Route,
     pub extensions: Vec<String>,
+    pub is_executable: bool,
+
+    // All files are eagerly opened. The benefit is that content can be served
+    // quickly (at request time we can immediately start reading from the
+    // already-opened file), but the cost is that there can be many file
+    // descriptors open at once (so you might need to adjust ulimits to serve
+    // large content directories).
     pub file: File,
 }
 impl ContentFile {
