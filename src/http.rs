@@ -127,6 +127,11 @@ where
         }
     };
 
+    let content_engine = app_data
+        .shared_content_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
+
     // Use the media type from the URL path extension if there was one,
     // otherwise use the accept header.
     let mut parsed_accept_header_value = header::Accept::parse(&request);
@@ -136,22 +141,22 @@ where
             Ok(ref mut accept_value) => acceptable_media_ranges_from_accept_header(accept_value),
             Err(error) => {
                 log::warn!(
-                    "Malformed Accept header value `{:?}` in request for \"{}\": {}",
-                    request.headers().get(header::ACCEPT),
+                    "Responding with {} for {}. Malformed Accept header value `{:?}`: {}",
+                    http::StatusCode::BAD_REQUEST,
                     route,
+                    request.headers().get(header::ACCEPT),
                     error
                 );
-                return HttpResponse::BadRequest()
-                    .content_type(mime::TEXT_PLAIN.essence_str())
-                    .body("Malformed Accept header value.");
+                return error_response(
+                    http::StatusCode::BAD_REQUEST,
+                    &*content_engine,
+                    route,
+                    &app_data.error_handler_route,
+                    vec![&mime::TEXT_PLAIN],
+                );
             }
         },
     };
-
-    let content_engine = app_data
-        .shared_content_engine
-        .read()
-        .expect("RwLock for ContentEngine has been poisoned");
 
     let render_result = content_engine.get(&route).map(|content| {
         let render_context = content_engine.get_render_context(Some(route.clone()));
