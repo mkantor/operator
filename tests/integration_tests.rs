@@ -350,10 +350,25 @@ where
     response
         .try_fold(BytesMut::new(), |mut accumulator, bytes| {
             accumulator.extend_from_slice(&bytes);
+            let max_length = 64;
+            if bytes.len() > max_length {
+                log::trace!("HTTP client accumulated {:?}... and {} more bytes for response body ({} bytes collected so far)",
+                bytes.slice(0..max_length),
+                bytes.len() - max_length, accumulator.len());
+            } else {
+                log::trace!("HTTP client accumulated {:?} for response body ({} bytes collected so far)", bytes, accumulator.len());
+            }
             async { Ok(accumulator) }
         })
         .await
-        .map(BytesMut::freeze)
+        .map(|bytes| {
+            log::trace!("HTTP client finished accumulating response body ({} bytes total)", bytes.len());
+            bytes.freeze()
+        })
+        .map_err(|error| {
+            log::error!("HTTP client encountered an error error while accumulating response body: {}", error);
+            error
+        })
 }
 
 fn is_omitted_from_snapshots(route_str: &str) -> bool {
