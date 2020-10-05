@@ -327,7 +327,7 @@ async fn render_via_http_request(
 ) -> (StatusCode, Result<Bytes, PayloadError>) {
     let request = HttpClient::new()
         .get(format!("http://{}{}", server_address, route))
-        .header("accept", accept)
+        .header("Accept", accept)
         .timeout(time::Duration::from_secs(15));
 
     match request.send().await {
@@ -527,7 +527,7 @@ async fn serve_subcommand_succeeds() {
     let request = HttpClient::new()
         .get(format!("http://{}/hello", server.address()))
         .header(
-            "accept",
+            "Accept",
             "application/msword, text/*;q=0.9, image/gif;q=0.1",
         );
 
@@ -535,8 +535,8 @@ async fn serve_subcommand_succeeds() {
     let response_body = response.body().await.expect("Unable to get response body");
     let response_content_type = response
         .headers()
-        .get("content-type")
-        .expect("Response was missing content-type header");
+        .get("Content-Type")
+        .expect("Response was missing Content-Type header");
 
     assert_eq!(
         response.status(),
@@ -545,7 +545,7 @@ async fn serve_subcommand_succeeds() {
     );
     assert_eq!(
         response_content_type, "text/plain",
-        "Response content-type was not text/plain",
+        "Response Content-Type was not text/plain",
     );
     assert_eq!(
         response_body, expected_response_body,

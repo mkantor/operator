@@ -74,7 +74,7 @@ where
     let path = request.uri().path();
 
     log::info!(
-        // e.g. "GET /styles.css HTTP/1.1 with accept: text/css,*/*;q=0.1"
+        // e.g. "Handling request GET /styles.css HTTP/1.1 with Accept: text/css,*/*;q=0.1"
         "Handling request {} {} {}{}",
         request.method(),
         request.uri(),
@@ -90,7 +90,7 @@ where
             .headers()
             .get(header::ACCEPT)
             .and_then(|value| value.to_str().ok())
-            .map(|value| format!(" with accept: {}", value))
+            .map(|value| format!(" with Accept: {}", value))
             .unwrap_or_default()
     );
 
@@ -136,14 +136,14 @@ where
             Ok(ref mut accept_value) => acceptable_media_ranges_from_accept_header(accept_value),
             Err(error) => {
                 log::warn!(
-                    "Malformed accept header value `{:?}` in request for \"{}\": {}",
-                    request.headers().get("accept"),
+                    "Malformed Accept header value `{:?}` in request for \"{}\": {}",
+                    request.headers().get(header::ACCEPT),
                     route,
                     error
                 );
                 return HttpResponse::BadRequest()
                     .content_type(mime::TEXT_PLAIN.essence_str())
-                    .body("Malformed accept header value.");
+                    .body("Malformed Accept header value.");
             }
         },
     };
@@ -164,11 +164,13 @@ where
             media_type,
         })) => {
             log::info!(
-                "Sending {} response for {} as {}",
+                "Responding with {}, body from {} as {}",
                 http::StatusCode::OK,
                 route,
                 media_type,
             );
+            let loggable_media_type = media_type.clone();
+            let loggable_route = route.clone();
             HttpResponse::Ok()
                 .content_type(media_type.to_string())
                 .streaming(
@@ -179,16 +181,23 @@ where
                                 error,
                             );
                         })
-                        .inspect_ok(|bytes| {
+                        .inspect_ok(move |bytes| {
                             let max_length = 64;
                             if bytes.len() > max_length {
                                 log::trace!(
-                                    "Streaming data for response body: {:?} ...and {} more bytes",
+                                    "Streaming data for {} as {}: {:?} ...and {} more bytes",
+                                    loggable_route,
+                                    loggable_media_type,
                                     bytes.slice(0..max_length),
                                     bytes.len() - max_length
                                 );
                             } else {
-                                log::trace!("Streaming data for response body: {:?}", bytes);
+                                log::trace!(
+                                    "Streaming data for {} as {}: {:?}",
+                                    loggable_route,
+                                    loggable_media_type,
+                                    bytes
+                                );
                             }
                         }),
                 )
@@ -397,7 +406,7 @@ mod tests {
     async fn content_can_be_retrieved_with_exact_media_type() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "text/plain")
+            .header(header::ACCEPT, "text/plain")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -406,8 +415,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -416,7 +425,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
@@ -425,7 +434,7 @@ mod tests {
     async fn content_can_be_retrieved_with_media_range() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "text/*")
+            .header(header::ACCEPT, "text/*")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -434,8 +443,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -444,7 +453,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
@@ -453,7 +462,7 @@ mod tests {
     async fn content_can_be_retrieved_with_star_star_media_range() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "*/*")
+            .header(header::ACCEPT, "*/*")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -462,8 +471,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -472,7 +481,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
@@ -481,7 +490,7 @@ mod tests {
     async fn content_can_be_retrieved_with_elaborate_accept_header() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "audio/aac, text/*;q=0.9, image/gif;q=0.1")
+            .header(header::ACCEPT, "audio/aac, text/*;q=0.9, image/gif;q=0.1")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -490,8 +499,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -500,7 +509,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
@@ -517,8 +526,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -527,7 +536,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
@@ -536,7 +545,7 @@ mod tests {
     async fn multimedia_content_can_be_retrieved() {
         let request = test_request(&sample_path("multimedia"), None, None)
             .uri("/dramatic-prairie-dog")
-            .header("accept", "video/*")
+            .header(header::ACCEPT, "video/*")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -545,8 +554,8 @@ mod tests {
             .expect("There was an error in the content stream");
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -555,7 +564,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "video/mp4",
-            "Response content-type was not video/mp4",
+            "Response Content-Type was not video/mp4",
         );
 
         assert_eq!(
@@ -569,7 +578,10 @@ mod tests {
     async fn content_cannot_be_retrieved_if_no_acceptable_media_type() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
+            .header(
+                header::ACCEPT,
+                "application/msword, font/otf, audio/3gpp2;q=0.1",
+            )
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
@@ -587,14 +599,17 @@ mod tests {
         // workable media range) in the accept header.
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.txt")
-            .header("accept", "application/msword, font/otf, audio/3gpp2;q=0.1")
+            .header(
+                header::ACCEPT,
+                "application/msword, font/otf, audio/3gpp2;q=0.1",
+            )
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
         let response_content_type = response
             .headers()
-            .get("content-type")
-            .expect("Response was missing content-type header");
+            .get(header::CONTENT_TYPE)
+            .expect("Response was missing Content-Type header");
 
         assert_eq!(
             response.status(),
@@ -603,7 +618,7 @@ mod tests {
         );
         assert_eq!(
             response_content_type, "text/plain",
-            "Response content-type was not text/plain",
+            "Response Content-Type was not text/plain",
         );
     }
 
@@ -614,7 +629,7 @@ mod tests {
         // considered when there is an extension.
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.doc")
-            .header("accept", "text/plain")
+            .header(header::ACCEPT, "text/plain")
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
@@ -629,7 +644,7 @@ mod tests {
     #[actix_rt::test]
     async fn index_route_is_used_for_empty_uri_path() {
         let request = test_request(&sample_path("hello-world"), Some("/hello"), None)
-            .header("accept", "text/plain")
+            .header(header::ACCEPT, "text/plain")
             .to_http_request();
 
         let mut response = get::<TestContentEngine>(request).await;
@@ -650,7 +665,7 @@ mod tests {
         {
             let request_not_found =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header("accept", "text/plain")
+                    .header(header::ACCEPT, "text/plain")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
@@ -673,7 +688,7 @@ mod tests {
         {
             let request_not_acceptable_error =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header("accept", "text/plain")
+                    .header(header::ACCEPT, "text/plain")
                     .uri("/json-file")
                     .to_http_request();
 
@@ -698,7 +713,7 @@ mod tests {
     async fn stream_errors_are_propagated() {
         let request_internal_server_error =
             test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                .header("accept", "text/plain")
+                .header(header::ACCEPT, "text/plain")
                 .uri("/trigger-error")
                 .to_http_request();
 
@@ -724,7 +739,7 @@ mod tests {
             None,
             Some("/static-error-handler"),
         )
-        .header("accept", "text/plain")
+        .header(header::ACCEPT, "text/plain")
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
@@ -751,7 +766,7 @@ mod tests {
             None,
             Some("/executable-error-handler"),
         )
-        .header("accept", "text/plain")
+        .header(header::ACCEPT, "text/plain")
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
@@ -769,7 +784,7 @@ mod tests {
         {
             let text_plain_request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header("accept", "text/plain")
+                    .header(header::ACCEPT, "text/plain")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
@@ -779,8 +794,8 @@ mod tests {
                 .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
-                .get("content-type")
-                .expect("Response was missing content-type header");
+                .get(header::CONTENT_TYPE)
+                .expect("Response was missing Content-Type header");
 
             assert_eq!(
                 response.status(),
@@ -793,14 +808,14 @@ mod tests {
             );
             assert_eq!(
                 response_content_type, "text/plain",
-                "Response content-type was not text/plain",
+                "Response Content-Type was not text/plain",
             );
         }
 
         {
             let text_html_request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header("accept", "text/html")
+                    .header(header::ACCEPT, "text/html")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
@@ -810,8 +825,8 @@ mod tests {
                 .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
-                .get("content-type")
-                .expect("Response was missing content-type header");
+                .get(header::CONTENT_TYPE)
+                .expect("Response was missing Content-Type header");
 
             assert_eq!(
                 response.status(),
@@ -824,7 +839,7 @@ mod tests {
             );
             assert_eq!(
                 response_content_type, "text/html",
-                "Response content-type was not text/html",
+                "Response Content-Type was not text/html",
             );
         }
     }
@@ -835,7 +850,7 @@ mod tests {
             // The error handler itself will trigger a rendering error.
             let request =
                 test_request(&sample_path("error-handling"), None, Some("/trigger-error"))
-                    .header("accept", "text/html")
+                    .header(header::ACCEPT, "text/html")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
@@ -845,8 +860,8 @@ mod tests {
                 .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
-                .get("content-type")
-                .expect("Response was missing content-type header");
+                .get(header::CONTENT_TYPE)
+                .expect("Response was missing Content-Type header");
 
             assert_eq!(
                 response.status(),
@@ -856,7 +871,7 @@ mod tests {
             assert_eq!(response_body, "Not Found", "Response body was incorrect");
             assert_eq!(
                 response_content_type, "text/plain",
-                "Response content-type was not text/plain",
+                "Response Content-Type was not text/plain",
             );
         }
 
@@ -864,7 +879,7 @@ mod tests {
             // The error handler is fine, but is not an acceptable media type.
             let request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header("accept", "video/mp4")
+                    .header(header::ACCEPT, "video/mp4")
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
@@ -874,8 +889,8 @@ mod tests {
                 .expect("There was an error in the content stream");
             let response_content_type = response
                 .headers()
-                .get("content-type")
-                .expect("Response was missing content-type header");
+                .get(header::CONTENT_TYPE)
+                .expect("Response was missing Content-Type header");
 
             assert_eq!(
                 response.status(),
@@ -888,7 +903,7 @@ mod tests {
                 // of the accept header.
                 response_content_type,
                 "text/plain",
-                "Response content-type was not text/plain",
+                "Response Content-Type was not text/plain",
             );
         }
     }
@@ -900,7 +915,7 @@ mod tests {
             None,
             Some("/error-code-and-request-route"),
         )
-        .header("accept", "text/plain")
+        .header(header::ACCEPT, "text/plain")
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
