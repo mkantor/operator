@@ -1,0 +1,104 @@
+name: release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        tag="${GITHUB_REF#refs/tags/}"
+        package_version="$(cargo read-manifest | jq --raw-output .version)"
+        echo "Git tag name: ${tag}"
+        echo "Cargo.toml version: ${package_version}"
+        test "$tag" == "$package_version"
+
+  # Run the tests and create a fresh cache before releasing. Make sure that the
+  # same code that was tested is what gets released.
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+    - run: cargo test
+
+  publish-binary:
+    needs:
+      - verify-version
+      - test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+        include:
+          - os: macos-latest
+            artifact_prefix: macos
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            artifact_prefix: linux
+            target: x86_64-unknown-linux-gnu
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+    - run: cargo build --release --target ${{ matrix.target }}
+    - name: package binary
+      shell: bash
+      run: |
+        cd target/${{ matrix.target }}/release
+        strip ${{ github.event.repository.name }}
+        tar czvf \
+          ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
+          ${{ github.event.repository.name }}
+        shasum -a 256 ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
+          > ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
+    - name: publish release to github
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz
+          target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crate:
+    needs:
+      - verify-version
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: cargo publish --token ${{ secrets.CARGO_API_TOKEN }} --allow-dirty
