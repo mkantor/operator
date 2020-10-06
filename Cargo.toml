@@ -4,6 +4,7 @@ version = "0.0.1"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
 description = "A web server for static and dynamic content"
 repository = "https://github.com/mkantor/operator"
+readme = "README.md"
 license = "GPL-3.0"
 edition = "2018"
 exclude = [
