@@ -22,7 +22,7 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
     - run: cargo test
     # There is a bug with BSD tar on macOS where the first 8MB of the file are
     # sometimes all NUL bytes. See https://github.com/actions/cache/issues/403
@@ -42,7 +42,7 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
     - run: cargo clippy -- -D warnings
 
   format:
