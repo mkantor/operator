@@ -12,17 +12,9 @@ until there's a 1.0 release.
 
 ## Installation
 
-Operator is a single self-contained binary. At the moment, the best way to get
-a binary for your platform is to build one yourself. First [install
-Rust](https://doc.rust-lang.org/book/ch01-01-installation.html), then:
-
-```sh
-git clone https://github.com/mkantor/operator.git
-cd operator
-cargo build --release # This will take a while.
-echo '{{#if true}}Hello, Operator!{{/if}}' \
-  | ./target/release/operator eval --content-directory=/dev/null
-```
+Operator is a single self-contained binary. You can download a build from [the
+releases list](https://github.com/mkantor/operator/releases) and run it from
+anywhere.
 
 ## Usage
 
