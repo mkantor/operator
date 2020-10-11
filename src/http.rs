@@ -1,5 +1,5 @@
 use crate::content::*;
-use crate::lib::*;
+use crate::*;
 use actix_rt::System;
 use actix_web::http::header::{self, Header};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
@@ -359,12 +359,13 @@ fn acceptable_media_ranges_from_accept_header<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use actix_web::body::{Body, ResponseBody};
     use actix_web::http::StatusCode;
     use actix_web::test::TestRequest;
     use bytes::{Bytes, BytesMut};
     use std::path::Path;
+    use test_env_log::test;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ServerInfo>;
     const SERVER_INFO: ServerInfo = ServerInfo {

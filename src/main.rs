@@ -1,12 +1,6 @@
-mod cli;
-mod content;
-mod http;
-mod lib;
-mod test_lib;
-
-use crate::content::{ContentDirectory, MediaRange, Route};
-use crate::lib::*;
 use anyhow::Context;
+use operator::content::{ContentDirectory, MediaRange, Route};
+use operator::*;
 use std::fs;
 use std::io;
 use std::net::SocketAddr;

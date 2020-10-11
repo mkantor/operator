@@ -1,6 +1,5 @@
 use crate::content::*;
-use crate::http;
-use crate::lib::*;
+use crate::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
 use std::io;
@@ -214,8 +213,9 @@ pub fn serve<A: 'static + ToSocketAddrs>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use std::str;
+    use test_env_log::test;
 
     #[test]
     fn valid_templates_can_be_evaluated() {

@@ -117,8 +117,9 @@ impl ContentIndexEntries {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use serde_json::json;
+    use test_env_log::test;
 
     #[test]
     fn index_has_the_correct_structure() {

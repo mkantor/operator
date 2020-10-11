@@ -222,12 +222,13 @@ impl Executable {
 mod tests {
     use super::super::test_lib::*;
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use ::mime;
     use std::fs;
     use std::io::Write;
     use std::str;
     use tempfile::tempfile;
+    use test_env_log::test;
 
     #[test]
     fn static_content_can_be_rendered() {

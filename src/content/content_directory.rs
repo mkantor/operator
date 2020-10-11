@@ -29,7 +29,6 @@ pub struct ContentFileError(String);
 /// A filesystem directory containing content.
 pub struct ContentDirectory {
     files: Vec<ContentFile>,
-    #[cfg(test)]
     root: PathBuf,
 }
 
@@ -79,12 +78,10 @@ impl ContentDirectory {
 
         Ok(ContentDirectory {
             files,
-            #[cfg(test)]
-            root: absolute_root_path.into(),
+            root: PathBuf::from(absolute_root_path),
         })
     }
 
-    #[cfg(test)]
     pub fn root(&self) -> &Path {
         &self.root
     }
@@ -246,7 +243,6 @@ impl<'a> IntoIterator for &'a ContentDirectory {
     }
 }
 
-#[cfg(test)]
 impl PartialEq for ContentDirectory {
     fn eq(&self, other: &Self) -> bool {
         self.root() == other.root()
@@ -256,8 +252,9 @@ impl PartialEq for ContentDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use std::fs;
+    use test_env_log::test;
 
     #[test]
     fn directory_can_be_created_from_valid_root() {

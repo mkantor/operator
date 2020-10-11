@@ -1,10 +1,5 @@
-#![cfg(test)]
-
 use crate::content::{ContentDirectory, Route};
 use std::path::{Path, PathBuf};
-
-pub use crate::lib::*;
-pub use test_env_log::test;
 
 pub const PROJECT_DIRECTORY: &str = env!("CARGO_MANIFEST_DIR");
 

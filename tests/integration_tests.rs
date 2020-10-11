@@ -3,9 +3,10 @@ use actix_web::error::PayloadError;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
 use bytes::{Bytes, BytesMut};
-use content::ContentDirectory;
 use futures::{future, Stream, TryStreamExt};
 use mime_guess::MimeGuess;
+use operator::content::{ContentDirectory, Route};
+use operator::test_lib::*;
 use regex::Regex;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
@@ -19,17 +20,7 @@ use std::process::{Child, Command, Output, Stdio};
 use std::str;
 use std::thread;
 use std::time;
-
-// Pull in some utilities from the main crate.
-#[path = "../src/content/mod.rs"]
-mod content;
-#[path = "../src/lib.rs"]
-mod lib;
-#[path = "../src/test_lib.rs"]
-mod test_lib;
-
-use content::Route;
-use test_lib::{test, *};
+use test_env_log::test;
 
 fn operator_command<I, S>(args: I) -> Command
 where
@@ -373,23 +364,6 @@ where
 
 fn is_omitted_from_snapshots(route_str: &str) -> bool {
     route_str.starts_with("NO-SNAPSHOT-") || route_str.contains("/NO-SNAPSHOT-")
-}
-
-/// RenderContext::into_error_context was flagged as unused from this crate
-/// (because it is). Tooling complains about this even though it's used from
-/// the main crate, so here's a function to "use" it.
-#[allow(dead_code)]
-fn use_into_error_context() {
-    use content::{ContentEngine, FilesystemBasedContentEngine};
-    use std::path::Path;
-    let shared_engine = FilesystemBasedContentEngine::<()>::from_content_directory(
-        ContentDirectory::from_root(&Path::new("/dev/null")).unwrap(),
-        (),
-    )
-    .unwrap();
-    let engine = shared_engine.read().unwrap();
-    let context = engine.get_render_context(None);
-    context.into_error_context(0);
 }
 
 // The rest of this file is the actual tests.
