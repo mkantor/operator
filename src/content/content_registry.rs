@@ -94,9 +94,10 @@ fn box_media<'o, O: ByteStream + 'o>(media: Media<O>) -> Media<Box<dyn ByteStrea
 mod tests {
     use super::super::test_lib::*;
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use maplit::hashmap;
     use tempfile::tempfile;
+    use test_env_log::test;
 
     /// All of these will render to an empty string with media type text/plain
     /// or text/html.

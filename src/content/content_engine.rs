@@ -426,8 +426,9 @@ where
 mod tests {
     use super::test_lib::*;
     use super::*;
-    use crate::test_lib::{test, *};
+    use crate::test_lib::*;
     use ::mime;
+    use test_env_log::test;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
 

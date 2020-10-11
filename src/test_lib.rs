@@ -1,10 +1,5 @@
-#![cfg(test)]
-
 use crate::content::{ContentDirectory, Route};
 use std::path::{Path, PathBuf};
-
-pub use crate::lib::*;
-pub use test_env_log::test;
 
 pub const PROJECT_DIRECTORY: &str = env!("CARGO_MANIFEST_DIR");
 
@@ -86,10 +81,8 @@ pub fn sample_path(relative_path: &str) -> PathBuf {
 
 pub fn sample_content_directory(relative_path: &str) -> ContentDirectory {
     let root = sample_path(relative_path);
-    ContentDirectory::from_root(&root).expect(&format!(
-        "Test fixture data is broken in path '{}'",
-        root.display()
-    ))
+    ContentDirectory::from_root(&root)
+        .unwrap_or_else(|_| panic!("Test fixture data is broken in path '{}'", root.display()))
 }
 
 /// By convention, samples whose root folder start with "invalid-" are ones
