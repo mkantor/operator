@@ -63,4 +63,4 @@ issue](https://github.com/mkantor/operator/issues/new) to help me learn! ❤️
 
 ---
 
-![An old-timey switchboard operator](operator.jpg)
+[![Operator](operator.jpg)](http://operator.mattkantor.com)
