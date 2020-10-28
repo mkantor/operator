@@ -128,7 +128,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &Route,
-    accept: MediaRange,
+    accept: Option<MediaRange>,
     operator_version: ServerVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
@@ -149,7 +149,7 @@ pub fn get<O: io::Write>(
                 route: route.clone(),
             })?;
     let render_context = content_engine.get_render_context(Some(route.clone()));
-    let media = content_item.render(render_context, &[accept])?;
+    let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
         let result = match output.write(&bytes) {
@@ -269,10 +269,36 @@ mod tests {
         let result = get(
             directory,
             &route,
-            mime::TEXT_PLAIN,
+            Some(mime::TEXT_PLAIN),
             ServerVersion("0.0.0"),
             &mut output,
         );
+
+        assert!(
+            result.is_ok(),
+            "Template rendering failed for content at '{}': {}",
+            route,
+            result.unwrap_err(),
+        );
+        let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
+        assert_eq!(
+            output_as_str,
+            expected_output,
+            "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
+            route,
+            expected_output,
+            output_as_str
+        );
+    }
+
+    #[test]
+    fn accept_is_optional_when_retrieving_content() {
+        let mut output = Vec::new();
+        let route = route("/hello");
+        let expected_output = "hello world";
+
+        let directory = arbitrary_content_directory_with_valid_content();
+        let result = get(directory, &route, None, ServerVersion("0.0.0"), &mut output);
 
         assert!(
             result.is_ok(),
@@ -300,7 +326,7 @@ mod tests {
         let result = get(
             directory,
             &route,
-            mime::TEXT_HTML,
+            Some(mime::TEXT_HTML),
             ServerVersion("0.0.0"),
             &mut output,
         );
