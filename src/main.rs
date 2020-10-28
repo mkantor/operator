@@ -66,9 +66,9 @@ enum OperatorSubcommand {
         ///
         /// This serves the same purpose as the HTTP Accept header: to drive
         /// content negotiation. Unlike the Accept header it is only a single
-        /// media range.
+        /// media range. Defaults to "*/*".
         #[structopt(long, value_name = "media-range")]
-        accept: MediaRange,
+        accept: Option<MediaRange>,
     },
 
     /// Starts an HTTP server.

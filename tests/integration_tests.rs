@@ -116,7 +116,6 @@ fn get_subcommand_succeeds() {
             &sample_path("hello-world").to_str().unwrap()
         ),
         "--route=/hello",
-        "--accept=text/*",
     ]);
     let output = command.output().expect("Failed to execute process");
 
