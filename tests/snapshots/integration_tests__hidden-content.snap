@@ -3,5 +3,7 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: samples/hidden-content
 ---
+_partially-hidden-directory/non-hidden-file.html: "Content not found at route '/_partially-hidden-directory/non-hidden-file'.\n"
 _partially-hidden-file.html: "Content not found at route '/_partially-hidden-file'.\n"
-includes-partially-hidden-file.html.hbs: this filename is prefixed with _
+includes-partially-hidden-files.html.hbs: "1: i am prefixed with _\n\n2: i am not hidden, but my parent directory is\n\n3: i am prefixed with _, but my parent directory is not prefixed with _\n\n"
+non-hidden-directory/_partially-hidden-file.html: "Content not found at route '/non-hidden-directory/_partially-hidden-file'.\n"
