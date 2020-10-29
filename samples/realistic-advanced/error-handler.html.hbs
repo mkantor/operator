@@ -1,9 +1,9 @@
-{{#>layout.html.hbs page-title="Error"}}
+{{#>_layout.html.hbs page-title="Error"}}
   <header>
     <h1>Error</h1>
   </header>
 
-  <nav>{{get "navigation"}}</nav>
+  <nav>{{get "/_navigation"}}</nav>
 
   <main>
     <p>
@@ -42,4 +42,4 @@
       {{#if (eq error-code 505)}}HTTP Version Not Supported{{/if}}
     </p>
   </main>
-{{/layout.html.hbs}}
+{{/_layout.html.hbs}}

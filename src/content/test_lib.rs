@@ -43,6 +43,9 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
     fn get(&self, _: &Route) -> Option<&ContentRepresentations> {
         None
     }
+    fn get_internal(&self, _: &Route) -> Option<&ContentRepresentations> {
+        None
+    }
     fn handlebars_registry(&self) -> &Handlebars {
         &self.0
     }

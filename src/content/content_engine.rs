@@ -7,7 +7,6 @@ use super::*;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -70,6 +69,8 @@ where
         template_source: &str,
         media_type: MediaType,
     ) -> Result<UnregisteredTemplate, TemplateParseError>;
+
+    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations>;
 
     fn get(&self, route: &Route) -> Option<&ContentRepresentations>;
 
@@ -370,9 +371,7 @@ where
         F: FnOnce() -> RegisteredContent,
     {
         content_index.try_add(route.clone())?;
-        let representations = content_registry
-            .entry(route.clone())
-            .or_insert_with(HashMap::new);
+        let representations = content_registry.entry_or_insert_default(route.clone());
 
         match representations.entry(media_type) {
             Entry::Occupied(entry) => {
@@ -415,6 +414,10 @@ where
 
     fn get(&self, route: &Route) -> Option<&ContentRepresentations> {
         self.content_registry.get(route)
+    }
+
+    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations> {
+        self.content_registry.get_internal(route)
     }
 
     fn handlebars_registry(&self) -> &Handlebars {

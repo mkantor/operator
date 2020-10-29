@@ -1,9 +1,9 @@
-{{#>layout.html.hbs}}
+{{#>_layout.html.hbs}}
   <header>
     <h1>Welcome to my fancy website!</h1>
   </header>
 
-  <nav>{{get "/navigation"}}</nav>
+  <nav>{{get "/_navigation"}}</nav>
 
   <article>
     <figure><img src="/dance" /></figure>
@@ -13,4 +13,4 @@
   <footer>
     The current <a href="/now">time</a> is {{get "/now"}}.
   </footer>
-{{/layout.html.hbs}}
+{{/_layout.html.hbs}}

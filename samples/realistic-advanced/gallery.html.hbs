@@ -1,4 +1,4 @@
-{{#>layout.html.hbs page-title="Image gallery"}}
+{{#>_layout.html.hbs page-title="Image gallery"}}
   <style>
     #gallery img {
       height: 50vh;
@@ -13,7 +13,7 @@
     <h1>Image gallery</h1>
   </header>
 
-  <nav>{{get "navigation"}}</nav>
+  <nav>{{get "/_navigation"}}</nav>
 
   <figure id="gallery">
     <img src="gallery/1" />
@@ -35,4 +35,4 @@
       })
     }
   </script>
-{{/layout.html.hbs}}
+{{/_layout.html.hbs}}

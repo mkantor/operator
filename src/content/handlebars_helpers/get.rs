@@ -69,7 +69,7 @@ where
                 ))
             })?;
 
-        let content_item = content_engine.get(&route).ok_or_else(|| {
+        let content_item = content_engine.get_internal(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
                 "No content found at route passed to `get` helper (\"{}\").",
                 route,
