@@ -2,7 +2,31 @@ use super::content_item::*;
 use super::*;
 use std::collections::HashMap;
 
-pub type ContentRegistry = HashMap<Route, ContentRepresentations>;
+pub struct ContentRegistry(HashMap<Route, ContentRepresentations>);
+impl ContentRegistry {
+    pub fn new() -> Self {
+        ContentRegistry(HashMap::new())
+    }
+
+    /// Routes that begin with underscore are ignored for external requests
+    /// (they always 404).
+    pub fn get(&self, route: &Route) -> Option<&ContentRepresentations> {
+        if route.as_ref().contains("/_") {
+            None
+        } else {
+            self.get_internal(route)
+        }
+    }
+
+    pub fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations> {
+        self.0.get(route)
+    }
+
+    pub fn entry_or_insert_default(&mut self, key: Route) -> &mut ContentRepresentations {
+        self.0.entry(key).or_insert_with(HashMap::default)
+    }
+}
+
 pub type ContentRepresentations = HashMap<MediaType, RegisteredContent>;
 
 /// A renderable item from the content directory.

@@ -3,4 +3,5 @@ source: tests/integration_tests.rs
 expression: contents
 input_file: samples/hidden-content
 ---
-{}
+_partially-hidden-file.html: "Content not found at route '/_partially-hidden-file'.\n"
+includes-partially-hidden-file.html.hbs: this filename is prefixed with _

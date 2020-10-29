@@ -10,7 +10,7 @@
   </ul>
 {{/inline}}
 
-{{#>layout.html.hbs page-title="Play The Lottery"}}
+{{#>_layout.html.hbs page-title="Play The Lottery"}}
   <style>
     @keyframes face {
       from {
@@ -41,10 +41,10 @@
     <h1>Play the lottery</h1>
   </header>
 
-  <nav>{{get "/navigation"}}</nav>
+  <nav>{{get "/_navigation"}}</nav>
 
   <main>
-    {{#if (get "/play-lottery")}}
+    {{#if (get "/_play-lottery")}}
       {{>smiles}}
       <h2>You won!</h2>
       {{>smiles}}
@@ -56,4 +56,4 @@
   </main>
 
   <footer>Reload this page to play again.</footer>
-{{/layout.html.hbs}}
+{{/_layout.html.hbs}}
