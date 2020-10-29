@@ -7,5 +7,5 @@ a.html: "a\n"
 request-route-wrapper.txt.hbs: "request-route from this file: /request-route-wrapper\nrequest-route from file included via partial: /request-route-wrapper\nrequest-route from file included via get helper: /request-route-wrapper"
 request-route.txt.hbs: /request-route
 routes.txt.hbs: "a: /a\nrequest-route: /request-route\nrequest-route-wrapper: /request-route-wrapper\nroutes: /routes\nserver-info: /server-info\nwith-empty-context: /with-empty-context\n\n"
-server-info.txt.hbs: "version: 0.0.2\n"
+server-info.txt.hbs: "version: 0.0.3\n"
 with-empty-context.html.hbs: "this with normal context: [object]\n\n"
