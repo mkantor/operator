@@ -30,7 +30,10 @@ const CONCURRENT_REQUESTS_PER_ROUTE: u8 = 10;
 criterion_main!(benchmark_all_samples);
 
 fn benchmark_all_samples() {
-    let mut criterion = Criterion::default().configure_from_args();
+    let mut criterion = Criterion::default()
+        .noise_threshold(0.1)
+        .sample_size(10)
+        .configure_from_args();
     let mut runtime = actix_rt::System::new("load_test");
     for sample_name in BENCHMARKED_SAMPLES {
         let content_directory = sample_content_directory(sample_name);
