@@ -3,7 +3,7 @@ use actix_web::error::PayloadError;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
 use bytes::{Bytes, BytesMut};
-use criterion::{criterion_main, Criterion};
+use criterion::{criterion_main, BenchmarkId, Criterion};
 use futures::FutureExt;
 use futures::{future, Stream, TryStreamExt};
 use mime_guess::MimeGuess;
@@ -39,14 +39,19 @@ fn benchmark_all_samples() {
         let content_directory = sample_content_directory(sample_name);
         let server = RunningServer::start(&content_directory).expect("Server failed to start");
         let server_address = server.address().clone();
-        criterion.bench_function(&format!("{} load test", sample_name), |bencher| {
-            bencher.iter(|| {
-                runtime.block_on(load_test(
-                    sample_content_directory(sample_name),
-                    server_address,
-                ))
-            })
-        });
+
+        criterion.bench_with_input(
+            BenchmarkId::new("load-test", sample_name),
+            sample_name,
+            |bencher, sample_name| {
+                bencher.iter(|| {
+                    runtime.block_on(load_test(
+                        sample_content_directory(sample_name),
+                        server_address,
+                    ))
+                })
+            },
+        );
     }
 }
 
