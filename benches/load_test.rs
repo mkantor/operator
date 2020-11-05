@@ -1,3 +1,4 @@
+use actix_rt::SystemRunner;
 use actix_web::client::{Client as HttpClient, ClientResponse};
 use actix_web::error::PayloadError;
 use actix_web::http::StatusCode;
@@ -6,10 +7,12 @@ use bytes::{Bytes, BytesMut};
 use criterion::{criterion_main, BenchmarkId, Criterion};
 use futures::FutureExt;
 use futures::{future, Stream, TryStreamExt};
+use lazy_static::lazy_static;
 use mime_guess::MimeGuess;
 use operator::content::ContentDirectory;
 use operator::content::Route;
 use operator::test_lib::*;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
 use std::net::SocketAddr;
@@ -18,14 +21,19 @@ use std::str;
 use std::thread;
 use std::time;
 
-const BENCHMARKED_SAMPLES: &'static [&'static str] = &[
-    "empty",
-    "hello-world",
-    "realistic-basic",
-    "realistic-advanced",
-];
-
 const CONCURRENT_REQUESTS_PER_ROUTE: u8 = 10;
+
+lazy_static! {
+    static ref BENCHMARKED_SAMPLES: HashMap<&'static str, ContentDirectory> = [
+        "empty",
+        "hello-world",
+        "realistic-basic",
+        "realistic-advanced",
+    ]
+    .iter()
+    .map(|name| (*name, sample_content_directory(name)))
+    .collect();
+}
 
 criterion_main!(benchmark_all_samples);
 
@@ -35,56 +43,54 @@ fn benchmark_all_samples() {
         .sample_size(10)
         .configure_from_args();
     let mut runtime = actix_rt::System::new("load_test");
-    for sample_name in BENCHMARKED_SAMPLES {
-        let content_directory = sample_content_directory(sample_name);
-        let server = RunningServer::start(&content_directory).expect("Server failed to start");
-        let server_address = server.address().clone();
 
+    for (sample_name, content_directory) in BENCHMARKED_SAMPLES.iter() {
+        let server = RunningServer::start(&content_directory).expect("Server failed to start");
         criterion.bench_with_input(
             BenchmarkId::new("load-test", sample_name),
-            sample_name,
-            |bencher, sample_name| {
-                bencher.iter(|| {
-                    runtime.block_on(load_test(
-                        sample_content_directory(sample_name),
-                        server_address,
-                    ))
-                })
+            &content_directory,
+            |bencher, content_directory| {
+                benchmark_load_test(bencher, &mut runtime, content_directory, &server)
             },
         );
     }
 }
 
-async fn load_test(content_directory: ContentDirectory, server_address: SocketAddr) {
-    let borrowed_content_directory = &content_directory;
-    let requests = borrowed_content_directory
-        .into_iter()
-        .flat_map(|content_file| {
-            let empty_string = String::from("");
-            let first_filename_extension = content_file.extensions.first().unwrap_or(&empty_string);
+fn benchmark_load_test(
+    bencher: &mut criterion::Bencher,
+    runtime: &mut SystemRunner,
+    content_directory: &'static ContentDirectory,
+    server: &RunningServer,
+) {
+    bencher.iter(|| runtime.block_on(load_test(content_directory, *server.address())))
+}
 
-            // Target media type is just the source media type.
-            let target_media_type = MimeGuess::from_ext(first_filename_extension)
-                .first()
-                .unwrap_or(mime::STAR_STAR);
+async fn load_test(content_directory: &'static ContentDirectory, server_address: SocketAddr) {
+    let requests = content_directory.into_iter().flat_map(|content_file| {
+        let empty_string = String::from("");
+        let first_filename_extension = content_file.extensions.first().unwrap_or(&empty_string);
 
-            let mut requests_for_this_route =
-                Vec::with_capacity(CONCURRENT_REQUESTS_PER_ROUTE as usize);
-            for _ in 0..CONCURRENT_REQUESTS_PER_ROUTE {
-                let server_address = server_address.clone();
-                let target_media_type = target_media_type.clone();
-                requests_for_this_route.push(async move {
-                    render_via_http_request(
-                        &server_address,
-                        &content_file.route,
-                        &target_media_type.to_string(),
-                    )
-                    .map(|result| result.1.expect("Payload error"))
-                    .await
-                });
-            }
-            requests_for_this_route
-        });
+        // Target media type is just the source media type.
+        let target_media_type = MimeGuess::from_ext(first_filename_extension)
+            .first()
+            .unwrap_or(mime::STAR_STAR);
+
+        let mut requests_for_this_route =
+            Vec::with_capacity(CONCURRENT_REQUESTS_PER_ROUTE as usize);
+        for _ in 0..CONCURRENT_REQUESTS_PER_ROUTE {
+            let target_media_type = target_media_type.clone();
+            requests_for_this_route.push(async move {
+                render_via_http_request(
+                    &server_address,
+                    &content_file.route,
+                    &target_media_type.to_string(),
+                )
+                .map(|result| result.1.expect("Payload error"))
+                .await
+            });
+        }
+        requests_for_this_route
+    });
 
     future::join_all(requests).await;
 }

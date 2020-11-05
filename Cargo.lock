@@ -1414,6 +1414,7 @@ dependencies = [
  "futures",
  "handlebars",
  "insta",
+ "lazy_static",
  "log",
  "maplit",
  "mime",
