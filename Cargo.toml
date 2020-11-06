@@ -14,28 +14,28 @@ exclude = [
 
 [dependencies]
 actix-rt = "1.1.1"
-actix-web = "3.1.0"
-anyhow = "1.0.33"
+actix-web = "3.2.0"
+anyhow = "1.0.34"
 bytes = "0.5.6"
-futures = "0.3.6"
-handlebars = "3.5.0"
+futures = "0.3.7"
+handlebars = "3.5.1"
 log = "0.4.11"
 mime = "0.3.16"
 mime_guess = "2.0.3"
-serde = { version = "1.0.116", features = ["derive"] }
+serde = { version = "1.0.117", features = ["derive"] }
 stderrlog = "0.5.0"
-structopt = "0.3.18"
-thiserror = "1.0.21"
+structopt = "0.3.20"
+thiserror = "1.0.22"
 walkdir = "2.3.1"
 
 [dev-dependencies]
 criterion = "0.3.3"
-env_logger = "0.7.1"
-insta = "1.0.0"
+env_logger = "0.8.1"
+insta = "1.1.0"
 lazy_static = "1.4.0"
 maplit = "1.0.2"
-regex = "1.3.9"
-serde_json = "1.0.58"
+regex = "1.4.2"
+serde_json = "1.0.59"
 tempfile = "3.1.0"
 test-env-log = "0.2.2"
 
