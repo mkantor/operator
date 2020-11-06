@@ -7,9 +7,14 @@ repository = "https://github.com/mkantor/operator"
 readme = "README.md"
 license = "GPL-3.0"
 edition = "2018"
-exclude = [
-    "samples",
-    "tests",
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "README.md",
+
+    # Ideally this would not be necessary, but when `cargo publish` verifies
+    # the package tarball it checks [[bench]] and fails without this.
+    "benches/**/*",
 ]
 
 [dependencies]
