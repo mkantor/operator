@@ -4,6 +4,7 @@ use super::content_item::*;
 use super::content_registry::*;
 use super::handlebars_helpers::*;
 use super::*;
+use crate::bug_message;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
 use std::collections::hash_map::Entry;
@@ -53,7 +54,7 @@ pub enum ContentLoadingError {
         source: ContentIndexUpdateError,
     },
 
-    #[error("You've encountered a bug! This should never happen: {}", .0)]
+    #[error("{} This should never happen: {}", bug_message!(), .0)]
     Bug(String),
 }
 

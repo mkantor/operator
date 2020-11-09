@@ -98,17 +98,16 @@ where
         let media_range_from_url = MimeGuess::from_path(path).first();
         let path_without_extension = if media_range_from_url.is_some() {
             // Drop the extension from the path.
-            path.rsplitn(2, '.').last().expect(
-                "You've encountered a bug! This should never happen: Calling rsplitn(2, ..) on \
-                a non-empty string returned an empty iterator. This should be impossible!",
-            )
+            path.rsplitn(2, '.').last().expect(bug_message!(
+                "Calling rsplitn(2, ..) on a non-empty string returned an empty iterator. This should be impossible!",
+            ))
         } else {
             path
         };
 
         match path_without_extension.parse::<Route>() {
             Err(error) => panic!(
-                "You've encountered a bug! This should never happen: HTTP request path could not be parsed into a Route: {}",
+                bug_message!("This should never happen: HTTP request path could not be parsed into a Route: {}"),
                 error,
             ),
             Ok(request_route) => {
@@ -266,9 +265,10 @@ where
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
         log::error!(
-            "You've encountered a bug! This should never happen: \
-            The HTTP status code given to the error handler ({}) does not indicate an error.",
-            status_code
+            bug_message!(
+                "This should never happen: The HTTP status code given to the error handler ({}) does not indicate an error.",
+            ),
+            status_code,
         );
         http::StatusCode::INTERNAL_SERVER_ERROR
     } else {

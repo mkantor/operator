@@ -12,3 +12,13 @@ pub struct ServerVersion(pub &'static str);
 pub struct ServerInfo {
     pub version: ServerVersion,
 }
+
+#[macro_export]
+macro_rules! bug_message {
+    () => {
+        "You've encountered a bug in Operator! Please open an issue at <https://github.com/mkantor/operator/issues>."
+    };
+    ($detail:expr$(,)?) => {
+        concat!(bug_message!(), " ", $detail)
+    };
+}
