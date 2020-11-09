@@ -9,6 +9,7 @@ mod mime;
 mod route;
 mod test_lib;
 
+use crate::bug_message;
 use bytes::Bytes;
 use content_index::ContentIndex;
 use content_item::RenderingFailedError;
@@ -58,7 +59,7 @@ pub enum RenderError {
     #[error("The requested content cannot be rendered as an acceptable media type.")]
     CannotProvideAcceptableMediaType,
 
-    #[error("You've encountered a bug! This should never happen: {}", .0)]
+    #[error("{} This should never happen: {}", bug_message!(), .0)]
     Bug(String),
 }
 

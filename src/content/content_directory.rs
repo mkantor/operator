@@ -1,4 +1,5 @@
 use super::Route;
+use crate::bug_message;
 use std::env;
 use std::fs::File;
 use std::os::unix::fs::PermissionsExt;
@@ -210,10 +211,12 @@ impl ContentFile {
             route_string.push(Self::PATH_SEPARATOR);
             route_string.push_str(relative_path_without_extensions);
 
-            route_string.parse::<Route>().map_err(|error| ContentFileError(format!(
-                "You've encountered a bug! This should never happen: Could not create route from path: {}",
-                error
-            )))
+            route_string.parse::<Route>().map_err(|error| {
+                ContentFileError(format!(
+                    bug_message!("This should never happen: Could not create route from path: {}"),
+                    error,
+                ))
+            })
         }?;
 
         Ok(ContentFile {
