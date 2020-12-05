@@ -4,6 +4,19 @@ version = "0.1.0"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
 description = "A web server for static and dynamic content"
 repository = "https://github.com/mkantor/operator"
+homepage = "https://operator.mattkantor.com"
+categories = [
+    "web-programming::http-server",
+    "command-line-utilities",
+    "network-programming",
+]
+keywords = [
+    "web",
+    "server",
+    "http",
+    "templating",
+    "handlebars",
+]
 readme = "README.md"
 license = "GPL-3.0"
 edition = "2018"
