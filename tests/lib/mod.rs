@@ -13,6 +13,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::hash::Hasher;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
 use std::str;
 use std::thread;
@@ -251,14 +252,20 @@ async fn render_multiple_ways_for_snapshots(
                         // behavior of the get command and HTTP request is
                         // different enough to be considered a bug.
                         else {
+                            let sample_name = content_directory
+                                .root()
+                                .strip_prefix(sample_path("."))
+                                .unwrap_or(Path::new("unknown"))
+                                .display();
                             panic!(
-                                "Rendering {} as {} produced different results when done via server and get command!\n    \
+                                "Rendering {} from {} as {} produced different results when done via server and get command!\n    \
                                 get command exit code: {}\n    \
                                 get command stdout: {}\n    \
                                 get command stderr: {}\n    \
                                 HTTP status code: {}\n    \
                                 HTTP response body: {}\n",
                                 route,
+                                sample_name,
                                 accept,
                                 get_command_output.status,
                                 if get_command_output.stdout.len() > 64 {
