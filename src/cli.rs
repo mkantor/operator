@@ -112,10 +112,7 @@ pub fn eval<I: io::Read, O: io::Write>(
     let media = content_item.render(render_context, &[mime::STAR_STAR])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
-        let result = match output.write(&bytes) {
-            Err(error) => Err(StreamError::from(error)),
-            Ok(_) => Ok(()),
-        };
+        let result = output.write_all(&bytes).map_err(StreamError::from);
         async { result }
     }))?;
 
@@ -152,10 +149,7 @@ pub fn get<O: io::Write>(
     let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
-        let result = match output.write(&bytes) {
-            Err(error) => Err(StreamError::from(error)),
-            Ok(_) => Ok(()),
-        };
+        let result = output.write_all(&bytes).map_err(StreamError::from);
         async { result }
     }))?;
 
