@@ -251,7 +251,7 @@ mod tests {
         assert!(str::from_utf8(non_utf8_bytes).is_err());
 
         let mut file = tempfile().expect("Failed to create temporary file");
-        file.write(non_utf8_bytes)
+        file.write_all(non_utf8_bytes)
             .expect("Failed to write to temporary file");
         let static_content = StaticContentItem {
             media_type: MediaType::from_media_range(mime::APPLICATION_OCTET_STREAM).unwrap(),
