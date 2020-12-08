@@ -3,6 +3,7 @@
 //! types have an impl for Stream<Item=Result<Bytes, StreamError>>.
 
 use super::StreamError;
+use crate::bug_message;
 use bytes::Bytes;
 use futures::future::{Future, FutureExt, LocalBoxFuture};
 use futures::Stream;
@@ -92,10 +93,12 @@ impl Stream for FileBody {
         if size == counter {
             Poll::Ready(None)
         } else {
-            let mut file = self.file.take().expect("Use after completion");
+            let mut file = self.file.take().expect(bug_message!(
+                "Stream for FileBody is in an inconsistent state (attempted to use the file after it was released).",
+            ));
             self.next = Some(
                 web::block(move || {
-                    let max_bytes = cmp::min(size.saturating_sub(counter), 65_536);
+                    let max_bytes = cmp::min(size.saturating_sub(counter), 65536);
                     let mut buffer = Vec::with_capacity(max_bytes as usize);
                     file.seek(io::SeekFrom::Start(offset))?;
                     file.by_ref().take(max_bytes).read_to_end(&mut buffer)?;
