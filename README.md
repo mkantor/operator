@@ -9,7 +9,7 @@ templates](samples/realistic-advanced/home.html.hbs) or
 [executables](samples/realistic-advanced/play-lottery.html.sh).
 
 More information is available on [the Operator
-website](http://operator.mattkantor.com).
+website](https://operator.mattkantor.com).
 
 ## Installation
 
