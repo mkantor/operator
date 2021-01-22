@@ -8,8 +8,6 @@ use std::path::{Path, PathBuf};
 use std::process;
 use structopt::StructOpt;
 
-const VERSION: ServerVersion = ServerVersion(env!("CARGO_PKG_VERSION"));
-
 #[derive(StructOpt)]
 #[structopt(about)]
 struct OperatorCommand {
@@ -144,13 +142,10 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        OperatorSubcommand::Eval { content_directory } => cli::eval(
-            get_content_directory(content_directory)?,
-            VERSION,
-            input,
-            output,
-        )
-        .map_err(anyhow::Error::from),
+        OperatorSubcommand::Eval { content_directory } => {
+            cli::eval(get_content_directory(content_directory)?, input, output)
+                .map_err(anyhow::Error::from)
+        }
 
         OperatorSubcommand::Get {
             content_directory,
@@ -160,7 +155,6 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
             get_content_directory(content_directory)?,
             &route,
             accept,
-            VERSION,
             output,
         )
         .map_err(anyhow::Error::from),
@@ -175,7 +169,6 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
             index_route,
             error_handler_route,
             bind_to,
-            VERSION,
         )
         .map_err(anyhow::Error::from),
     }
