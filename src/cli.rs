@@ -87,15 +87,12 @@ pub enum ServeCommandError {
 /// Reads a template from `input`, renders it, and writes it to `output`.
 pub fn eval<I: io::Read, O: io::Write>(
     content_directory: ContentDirectory,
-    operator_version: ServerVersion,
     input: &mut I,
     output: &mut O,
 ) -> Result<(), RenderCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo {
-            version: operator_version,
-        },
+        ServerInfo::default(),
     )?;
     let content_engine = shared_content_engine
         .read()
@@ -126,14 +123,11 @@ pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &Route,
     accept: Option<MediaRange>,
-    operator_version: ServerVersion,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo {
-            version: operator_version,
-        },
+        ServerInfo::default(),
     )?;
     let content_engine = shared_content_engine
         .read()
@@ -164,13 +158,10 @@ pub fn serve<A: 'static + ToSocketAddrs>(
     index_route: Option<Route>,
     error_handler_route: Option<Route>,
     bind_to: A,
-    operator_version: ServerVersion,
 ) -> Result<(), ServeCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo {
-            version: operator_version,
-        },
+        ServerInfo::default(),
     )?;
 
     // If index or error handler are set, validate that they refer to an
@@ -217,7 +208,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = eval(directory, ServerVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, &mut input, &mut output);
 
             assert!(
                 result.is_ok(),
@@ -243,7 +234,7 @@ mod tests {
             let mut input = template.as_bytes();
             let mut output = Vec::new();
             let directory = arbitrary_content_directory_with_valid_content();
-            let result = eval(directory, ServerVersion("0.0.0"), &mut input, &mut output);
+            let result = eval(directory, &mut input, &mut output);
 
             assert!(
                 result.is_err(),
@@ -260,13 +251,7 @@ mod tests {
         let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(
-            directory,
-            &route,
-            Some(mime::TEXT_PLAIN),
-            ServerVersion("0.0.0"),
-            &mut output,
-        );
+        let result = get(directory, &route, Some(mime::TEXT_PLAIN), &mut output);
 
         assert!(
             result.is_ok(),
@@ -292,7 +277,7 @@ mod tests {
         let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, &route, None, ServerVersion("0.0.0"), &mut output);
+        let result = get(directory, &route, None, &mut output);
 
         assert!(
             result.is_ok(),
@@ -317,13 +302,7 @@ mod tests {
         let route = route("/this-route-does-not-refer-to-any-content");
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(
-            directory,
-            &route,
-            Some(mime::TEXT_HTML),
-            ServerVersion("0.0.0"),
-            &mut output,
-        );
+        let result = get(directory, &route, Some(mime::TEXT_HTML), &mut output);
 
         match result {
             Ok(_) => panic!(

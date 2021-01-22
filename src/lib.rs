@@ -5,12 +5,20 @@ pub mod content;
 pub mod http;
 pub mod test_lib;
 
+const VERSION: ServerVersion = ServerVersion(env!("CARGO_PKG_VERSION"));
+
 #[derive(Clone, Copy, Serialize)]
 pub struct ServerVersion(pub &'static str);
 
 #[derive(Clone, Serialize)]
 pub struct ServerInfo {
     pub version: ServerVersion,
+}
+
+impl Default for ServerInfo {
+    fn default() -> Self {
+        ServerInfo { version: VERSION }
+    }
 }
 
 #[macro_export]
