@@ -33,12 +33,14 @@ where your website lives. There are a bunch of sample content directories in
 
 To learn more, run `operator --help` or `operator <SUBCOMMAND> --help`.
 
-### Example
+## Developer Quick Start
 
-Let's start a server for [one of the samples](samples/realistic-advanced):
+Let's run a server for [one of the samples](samples/realistic-advanced):
 
 ```sh
-operator -vv serve \
+git clone git@github.com:mkantor/operator.git
+cd operator
+cargo run -- -vv serve \
   --content-directory=samples/realistic-advanced \
   --index-route=/home \
   --error-handler-route=/error-handler \
