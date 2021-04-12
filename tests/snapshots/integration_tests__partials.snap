@@ -2,10 +2,12 @@
 source: tests/integration_tests.rs
 expression: contents
 input_file: samples/partials
+
 ---
 a.html.hbs: "a\n"
 ab.html.hbs: "a\nb\n\n"
-abc.html.hbs: "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n"
+abc.html.hbs: "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c"
 b.html: "b\n"
-subdirectory.html.hbs: "subdirectory entries:\n/subdirectory/c\n"
+subdirectory.html.hbs: "subdirectory entries:\n/subdirectory/c"
 subdirectory/c.html.hbs: "c\n"
+

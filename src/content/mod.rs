@@ -21,7 +21,7 @@ use thiserror::Error;
 pub use self::mime::{MediaRange, MediaType};
 pub use content_directory::ContentDirectory;
 pub use content_engine::{
-    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, TemplateParseError,
+    ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, TemplateError,
 };
 pub use content_item::UnregisteredTemplate;
 pub use content_registry::{ContentRepresentations, RegisteredContent};

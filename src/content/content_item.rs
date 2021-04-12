@@ -104,8 +104,8 @@ impl UnregisteredTemplate {
     pub fn from_source<S: AsRef<str>>(
         handlebars_source: S,
         rendered_media_type: MediaType,
-    ) -> Result<Self, TemplateParseError> {
-        let template = handlebars::Template::compile2(handlebars_source, true)?;
+    ) -> Result<Self, TemplateError> {
+        let template = handlebars::Template::compile(handlebars_source.as_ref())?;
         Ok(UnregisteredTemplate {
             template,
             rendered_media_type,

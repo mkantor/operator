@@ -20,7 +20,7 @@ pub enum RenderCommandError {
     #[error("Unable to parse template from input.")]
     TemplateParseError {
         #[from]
-        source: TemplateParseError,
+        source: TemplateError,
     },
 
     #[error("Unable to render content.")]
