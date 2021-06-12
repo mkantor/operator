@@ -63,9 +63,9 @@ impl Render for ContentRepresentations {
                                 context.data.clone(),
                             )
                             .map(box_media),
-                        RegisteredContent::Executable(renderable) => {
-                            renderable.render_to_native_media_type().map(box_media)
-                        }
+                        RegisteredContent::Executable(renderable) => renderable
+                            .render_to_native_media_type(context.data.clone())
+                            .map(box_media),
                     };
 
                     // If rendering succeeded, return immediately. Otherwise

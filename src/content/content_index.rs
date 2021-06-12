@@ -1,6 +1,6 @@
 use super::Route;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -43,10 +43,10 @@ pub enum ContentIndex {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct ContentIndexEntries(HashMap<String, ContentIndex>);
+pub struct ContentIndexEntries(BTreeMap<String, ContentIndex>);
 impl ContentIndexEntries {
     pub fn new() -> Self {
-        Self(HashMap::new())
+        Self(BTreeMap::new())
     }
 
     pub fn try_add(&mut self, route: Route) -> Result<(), ContentIndexUpdateError> {

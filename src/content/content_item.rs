@@ -31,6 +31,15 @@ pub enum RenderingFailedError {
         message: String,
     },
 
+    #[error(
+        "Render data could not be serialized: {}",
+        .source,
+    )]
+    RenderDataSerializationError {
+        #[from]
+        source: serde_json::error::Error,
+    },
+
     #[error("Input/output error during rendering")]
     IOError {
         #[from]
@@ -174,8 +183,8 @@ impl Render for UnregisteredTemplate {
 /// output is the contents of standard output. Otherwise a rendering failure
 /// occurs.
 ///
-/// Currently the render context is not accessible from the program. A future
-/// version could provide it via environment variables or some other mechanism.
+/// Render data is available as JSON in the OPERATOR_RENDER_DATA environment
+/// variable.
 pub struct Executable {
     program: String,
     working_directory: PathBuf,
@@ -194,16 +203,28 @@ impl Executable {
         }
     }
 
-    pub(super) fn render_to_native_media_type(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
-    ) -> Result<Media<ProcessBody>, RenderingFailedError> {
-        let mut command = Command::new(self.program.clone());
+        render_data: RenderData<ServerInfo>,
+    ) -> Result<Media<ProcessBody>, RenderingFailedError>
+    where
+        ServerInfo: Clone + Serialize,
+    {
+        let render_data = RenderData {
+            target_media_type: Some(self.output_media_type.clone()),
+            ..render_data
+        };
 
+        let mut command = Command::new(self.program.clone());
         let child = command
             .current_dir(self.working_directory.clone())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .env(
+                "OPERATOR_RENDER_DATA",
+                serde_json::ser::to_string(&render_data)?,
+            )
             .spawn()
             .map_err(|io_error| RenderingFailedError::ExecutableError {
                 message: format!("Unable to execute program: {}", io_error),
@@ -222,13 +243,25 @@ impl Executable {
 mod tests {
     use super::super::test_lib::*;
     use super::*;
+    use crate::content::content_index::ContentIndexEntries;
     use crate::test_lib::*;
+    use crate::ServerInfo;
     use ::mime;
     use std::fs;
     use std::io::Write;
     use std::str;
     use tempfile::tempfile;
     use test_env_log::test;
+
+    fn test_render_data() -> RenderData<ServerInfo> {
+        RenderData {
+            server_info: ServerInfo::default(),
+            index: ContentIndex::Directory(ContentIndexEntries::new()),
+            request_route: None,
+            target_media_type: None,
+            error_code: None,
+        }
+    }
 
     #[test]
     fn static_content_can_be_rendered() {
@@ -316,7 +349,7 @@ mod tests {
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
         let output = executable
-            .render_to_native_media_type()
+            .render_to_native_media_type(test_render_data())
             .expect("Executable failed but it should have succeeded");
 
         assert_eq!(
@@ -333,8 +366,7 @@ mod tests {
             working_directory,
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
-
-        let result = executable.render_to_native_media_type();
+        let result = executable.render_to_native_media_type(test_render_data());
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"
@@ -355,7 +387,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type()
+                .render_to_native_media_type(test_render_data())
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
@@ -380,7 +412,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type()
+                .render_to_native_media_type(test_render_data())
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
