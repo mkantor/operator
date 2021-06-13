@@ -220,12 +220,12 @@ impl ContentFile {
         }?;
 
         Ok(ContentFile {
+            route,
             absolute_path,
             relative_path,
-            route,
             extensions,
-            file,
             is_executable,
+            file,
         })
     }
 }

@@ -8,18 +8,17 @@ use crate::bug_message;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
 use std::collections::hash_map::Entry;
-use std::io;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
-/// A handlebars template had invalid syntax.
+/// A handlebars template could not be registered.
 #[derive(Error, Debug)]
 #[error(
-  "Failed to parse handlebars template{}.",
+  "Failed to register handlebars template{}.",
   .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
 )]
-pub struct TemplateParseError {
+pub struct TemplateError {
     #[from]
     source: handlebars::TemplateError,
 }
@@ -28,16 +27,7 @@ pub struct TemplateParseError {
 #[derive(Error, Debug)]
 pub enum ContentLoadingError {
     #[error(transparent)]
-    TemplateParseError(#[from] TemplateParseError),
-
-    #[error(
-        "Input/output error when loading{} from content directory.",
-        .name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_else(|| String::from(" content")),
-    )]
-    IOError {
-        source: io::Error,
-        name: Option<String>,
-    },
+    TemplateRegistrationError(#[from] TemplateError),
 
     #[error("Content file name is not supported: {}", .0)]
     ContentFileNameError(String),
@@ -69,7 +59,7 @@ where
         &self,
         template_source: &str,
         media_type: MediaType,
-    ) -> Result<UnregisteredTemplate, TemplateParseError>;
+    ) -> Result<UnregisteredTemplate, TemplateError>;
 
     fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations>;
 
@@ -258,7 +248,6 @@ where
                 // need to both live in the handlebars registry under distinct
                 // names).
                 let template_name = content.relative_path;
-                let mut contents = content.file;
                 if handlebars_registry.has_template(&template_name) {
                     return Err(ContentLoadingError::Bug(format!(
                         "More than one handlebars template has the name '{}'.",
@@ -266,22 +255,9 @@ where
                     )));
                 }
                 handlebars_registry
-                    .register_template_source(&template_name, &mut contents)
-                    .map_err(|template_render_error| match template_render_error {
-                        handlebars::TemplateFileError::TemplateError(source) => {
-                            ContentLoadingError::TemplateParseError(TemplateParseError { source })
-                        }
-                        handlebars::TemplateFileError::IOError(source, original_name) => {
-                            // Handlebars-rust will use an empty string when the
-                            // error does not correspond to a specific path.
-                            let name = if original_name.is_empty() {
-                                None
-                            } else {
-                                Some(original_name)
-                            };
-                            ContentLoadingError::IOError { source, name }
-                        }
-                    })?;
+                    .register_template_file(&template_name, content.absolute_path)
+                    .map_err(TemplateError::from)
+                    .map_err(ContentLoadingError::TemplateRegistrationError)?;
 
                 Self::register_content(
                     content_registry,
@@ -409,7 +385,7 @@ where
         &self,
         handlebars_source: &str,
         media_type: MediaType,
-    ) -> Result<UnregisteredTemplate, TemplateParseError> {
+    ) -> Result<UnregisteredTemplate, TemplateError> {
         UnregisteredTemplate::from_source(handlebars_source, media_type)
     }
 
@@ -522,7 +498,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c";
 
         let renderable = content_engine
             .new_template(
@@ -553,7 +529,7 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = route("/abc");
-        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c";
 
         let content = content_engine
             .get(&route)
