@@ -11,7 +11,6 @@ mod test_lib;
 
 use crate::bug_message;
 use bytes::Bytes;
-use content_index::ContentIndex;
 use content_item::RenderingFailedError;
 use futures::Stream;
 use serde::Serialize;
@@ -23,6 +22,7 @@ pub use content_directory::ContentDirectory;
 pub use content_engine::{
     ContentEngine, ContentLoadingError, FilesystemBasedContentEngine, TemplateError,
 };
+pub use content_index::ContentIndex;
 pub use content_item::UnregisteredTemplate;
 pub use content_registry::{ContentRepresentations, RegisteredContent};
 pub use route::Route;
@@ -49,8 +49,9 @@ impl<Content: ByteStream> Media<Content> {
     }
 }
 
-/// Could not produce rendered output, either because rendering was attempted
-/// and failed or because no acceptable media types are available.
+/// Indicates that it was not possible to produce rendered output, either
+/// because rendering was attempted and failed or because no acceptable media
+/// types are available.
 #[derive(Error, Debug)]
 pub enum RenderError {
     #[error(transparent)]
@@ -59,11 +60,12 @@ pub enum RenderError {
     #[error("The requested content cannot be rendered as an acceptable media type.")]
     CannotProvideAcceptableMediaType,
 
+    #[doc(hidden)]
     #[error("{} This should never happen: {}", bug_message!(), .0)]
     Bug(String),
 }
 
-/// Something went wrong after starting to stream content.
+/// Indicates that something went wrong after starting to stream content.
 #[derive(Error, Debug)]
 pub enum StreamError {
     #[error(
@@ -111,19 +113,20 @@ pub trait Render {
 const REQUEST_ROUTE_PROPERTY_NAME: &str = "request-route";
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
+/// Data passed to handlebars templates and executables.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct RenderData<ServerInfo: Clone + Serialize> {
+pub struct RenderData<ServerInfo: Clone + Serialize> {
     #[serde(rename = "/")]
-    index: ContentIndex,
-    server_info: ServerInfo,
-    request_route: Option<Route>,
-    target_media_type: Option<MediaType>,
-    error_code: Option<u16>,
+    pub index: ContentIndex,
+    pub server_info: ServerInfo,
+    pub request_route: Option<Route>,
+    pub target_media_type: Option<MediaType>,
+    pub error_code: Option<u16>,
 }
 
 /// Values used during rendering, including the data passed to handlebars
-/// templates.
+/// templates and executables.
 pub struct RenderContext<'engine, ServerInfo, Engine>
 where
     ServerInfo: Clone + Serialize,

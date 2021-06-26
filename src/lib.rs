@@ -3,6 +3,8 @@ use serde::Serialize;
 pub mod cli;
 pub mod content;
 pub mod http;
+
+#[doc(hidden)]
 pub mod test_lib;
 
 const VERSION: ServerVersion = ServerVersion(env!("CARGO_PKG_VERSION"));
@@ -21,6 +23,7 @@ impl Default for ServerInfo {
     }
 }
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! bug_message {
     () => {

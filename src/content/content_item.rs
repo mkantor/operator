@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
 
-/// There was an error during rendering.
+/// Indicates that there was an error during rendering.
 #[derive(Error, Debug)]
 pub enum RenderingFailedError {
     #[error(
