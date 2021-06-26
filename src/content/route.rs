@@ -25,7 +25,7 @@ fn canonicalize_route(route: &str) -> Result<String, InvalidRouteError> {
     }
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize)]
+#[derive(Debug, Clone, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Route(String);
 impl FromStr for Route {
     type Err = InvalidRouteError;

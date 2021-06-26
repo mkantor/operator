@@ -2,15 +2,18 @@
 source: tests/integration_tests.rs
 expression: contents
 input_file: samples/executables
+
 ---
 cat.txt.sh: ""
 count-cli-args.txt.sh: "0\n"
 error.txt.sh: "Unable to emit rendered content.\n\nCaused by:\n    Process exited with code 1: boom!\n    \n"
-ls.txt.sh: "NO-SNAPSHOT-random.bin.sh\nNO-SNAPSHOT-system-info.html.sh\ncat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\noutput-and-error.txt.sh\npwd.txt.sh\nslow-error.txt.sh\nslow-template.txt.hbs\nslow.txt.sh\nsubdirectory\ntemplate.txt.hbs\n"
+ls.txt.sh: "NO-SNAPSHOT-random.bin.sh\nNO-SNAPSHOT-system-info.html.sh\ncat.txt.sh\ncount-cli-args.txt.sh\nerror.txt.sh\nls.txt.sh\noutput-and-error.txt.sh\npwd.txt.sh\nrender-data.txt.sh\nslow-error.txt.sh\nslow-template.txt.hbs\nslow.txt.sh\nsubdirectory\ntemplate.txt.hbs\n"
 output-and-error.txt.sh: "Unable to emit rendered content.\n\nCaused by:\n    Process exited with code 1\n"
 pwd.txt.sh: "$PROJECT_DIRECTORY/samples/executables\n"
+render-data.txt.sh: "{\"/\":{\"NO-SNAPSHOT-random\":\"/NO-SNAPSHOT-random\",\"NO-SNAPSHOT-system-info\":\"/NO-SNAPSHOT-system-info\",\"cat\":\"/cat\",\"count-cli-args\":\"/count-cli-args\",\"error\":\"/error\",\"ls\":\"/ls\",\"output-and-error\":\"/output-and-error\",\"pwd\":\"/pwd\",\"render-data\":\"/render-data\",\"slow\":\"/slow\",\"slow-error\":\"/slow-error\",\"slow-template\":\"/slow-template\",\"subdirectory/\":{\"pwd\":\"/subdirectory/pwd\"},\"template\":\"/template\"},\"server-info\":{\"version\":\"0.1.2\"},\"request-route\":\"/render-data\",\"target-media-type\":\"text/plain\",\"error-code\":null}\n"
 slow-error.txt.sh: "Unable to emit rendered content.\n\nCaused by:\n    Process exited with code 1: Boom!\n    \n"
 slow-template.txt.hbs: "﻿🔴 Ready…\n🟡 Set…\n🟢 Go!\n🏁 Finished!\n"
 slow.txt.sh: "﻿🔴 Ready…\n🟡 Set…\n🟢 Go!\n"
 subdirectory/pwd.txt.sh: "$PROJECT_DIRECTORY/samples/executables/subdirectory\n"
 template.txt.hbs: "this is pwd from subdirectory:\n$PROJECT_DIRECTORY/samples/executables/subdirectory\n"
+
