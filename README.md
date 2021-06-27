@@ -6,7 +6,7 @@ directory](samples/realistic-advanced) and Operator serves it over HTTP.
 It serves static files the way you'd expect, but it can also serve dynamic
 content that is generated at request time by [handlebars
 templates](samples/realistic-advanced/home.html.hbs) or
-[executables](samples/realistic-advanced/play-lottery.html.sh).
+[executables](samples/realistic-advanced/_play-lottery.html.sh).
 
 More information is available on [the Operator
 website](https://operator.mattkantor.com).
