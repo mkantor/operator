@@ -114,14 +114,29 @@ const REQUEST_ROUTE_PROPERTY_NAME: &str = "request-route";
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 
 /// Data passed to handlebars templates and executables.
+///
+/// Fields serialize into kebab-case (e.g. `server_info` becomes `server-info`).
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct RenderData<ServerInfo: Clone + Serialize> {
+    /// A hierarchial index of the content. This is serialized with the name
+    /// `/` (with handlebars escaping this looks like `[/].[foo/].bar`).
     #[serde(rename = "/")]
     pub index: ContentIndex,
+
+    /// Metadata about the server, such as its version.
     pub server_info: ServerInfo,
+
+    /// The request [`Route`] that caused this content to be rendered, if any.
     pub request_route: Option<Route>,
+
+    /// The best [`MediaType`] as determined by content negotiation. Rendering
+    /// must emit content in this media type.
     pub target_media_type: Option<MediaType>,
+
+    /// An [HTTP `4xx` or `5xx` status code](https://datatracker.ietf.org/doc/html/rfc7231#section-6)
+    /// indicating that something went wrong. This will be set while rendering
+    /// content for the `--error-handler-route`.
     pub error_code: Option<u16>,
 }
 
