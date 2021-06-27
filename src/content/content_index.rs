@@ -114,6 +114,12 @@ impl ContentIndexEntries {
     }
 }
 
+impl Default for ContentIndexEntries {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
