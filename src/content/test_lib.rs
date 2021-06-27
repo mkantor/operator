@@ -21,7 +21,7 @@ impl<'a> MockContentEngine<'a> {
     }
 }
 impl<'a> ContentEngine<()> for MockContentEngine<'a> {
-    fn get_render_context(&self, request_route: Option<Route>) -> RenderContext<(), Self> {
+    fn render_context(&self, request_route: Option<Route>) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {

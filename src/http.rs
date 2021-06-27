@@ -158,7 +158,7 @@ where
     };
 
     let render_result = content_engine.get(&route).map(|content| {
-        let render_context = content_engine.get_render_context(Some(route.clone()));
+        let render_context = content_engine.render_context(Some(route.clone()));
         content.render(render_context, acceptable_media_ranges.clone())
     });
 
@@ -282,7 +282,7 @@ where
         .and_then(|route| {
             content_engine.get(&route).and_then(|content| {
                 let error_context = content_engine
-                    .get_render_context(Some(request_route))
+                    .render_context(Some(request_route))
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
