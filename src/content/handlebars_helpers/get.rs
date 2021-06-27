@@ -1,3 +1,4 @@
+use crate::content::content_engine::InternalContentEngine;
 use crate::content::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
@@ -29,7 +30,7 @@ where
 impl<ServerInfo, Engine> handlebars::HelperDef for GetHelper<ServerInfo, Engine>
 where
     ServerInfo: Clone + Serialize,
-    Engine: ContentEngine<ServerInfo>,
+    Engine: ContentEngine<ServerInfo> + InternalContentEngine,
 {
     fn call<'registry: 'context, 'context>(
         &self,
