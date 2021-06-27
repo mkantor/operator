@@ -27,6 +27,7 @@ impl ContentRegistry {
     }
 }
 
+/// Alternative representations of the same resource.
 pub type ContentRepresentations = HashMap<MediaType, RegisteredContent>;
 
 /// A renderable item from the content directory.

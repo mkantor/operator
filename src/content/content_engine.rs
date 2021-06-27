@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
-/// A handlebars template could not be registered.
+/// Indicates that a handlebars template could not be registered.
 #[derive(Error, Debug)]
 #[error(
   "Failed to register handlebars template{}.",
@@ -23,7 +23,7 @@ pub struct TemplateError {
     source: handlebars::TemplateError,
 }
 
-/// There was a problem loading content from the filesystem.
+/// Indicates that there was a problem loading content from the filesystem.
 #[derive(Error, Debug)]
 pub enum ContentLoadingError {
     #[error(transparent)]

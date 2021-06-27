@@ -4,6 +4,7 @@ use std::fmt;
 use std::str::FromStr;
 use thiserror::Error;
 
+/// See [IETF RFC 7231](https://tools.ietf.org/html/rfc7231#section-5.3.2).
 pub type MediaRange = Mime;
 
 /// See [IETF RFC 2046](https://tools.ietf.org/html/rfc2046).

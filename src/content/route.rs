@@ -25,6 +25,7 @@ fn canonicalize_route(route: &str) -> Result<String, InvalidRouteError> {
     }
 }
 
+/// A canonicalized absolute URI path.
 #[derive(Debug, Clone, Hash, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Route(String);
 impl FromStr for Route {
