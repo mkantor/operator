@@ -61,11 +61,12 @@ where
         media_type: MediaType,
     ) -> Result<UnregisteredTemplate, TemplateError>;
 
-    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations>;
-
     fn get(&self, route: &Route) -> Option<&ContentRepresentations>;
 
     fn handlebars_registry(&self) -> &Handlebars;
+}
+pub trait InternalContentEngine {
+    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations>;
 }
 
 /// A [`ContentEngine`](trait.ContentEngine.html) that serves files from a
@@ -393,12 +394,18 @@ where
         self.content_registry.get(route)
     }
 
-    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations> {
-        self.content_registry.get_internal(route)
-    }
-
     fn handlebars_registry(&self) -> &Handlebars {
         &self.handlebars_registry
+    }
+}
+
+impl<'engine, ServerInfo> InternalContentEngine
+    for FilesystemBasedContentEngine<'engine, ServerInfo>
+where
+    ServerInfo: Clone + Serialize,
+{
+    fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations> {
+        self.content_registry.get_internal(route)
     }
 }
 
