@@ -505,7 +505,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c";
+            "this is partial: a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let renderable = content_engine
             .new_template(
@@ -536,7 +536,7 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = route("/abc");
-        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c";
+        let expected_output = "a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let content = content_engine
             .get(&route)
