@@ -134,7 +134,7 @@ where
             }
         };
 
-        let context = content_engine.get_render_context(optional_request_route);
+        let context = content_engine.render_context(optional_request_route);
 
         let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {

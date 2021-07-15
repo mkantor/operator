@@ -177,7 +177,7 @@ mod tests {
     fn rendering_with_empty_acceptable_media_ranges_should_fail() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result = renderable.render(mock_engine.get_render_context(None), &[]);
+            let render_result = renderable.render(mock_engine.render_context(None), &[]);
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with an empty list of acceptable media types did not fail as expected",
@@ -191,7 +191,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.get_render_context(None),
+                mock_engine.render_context(None),
                 &[::mime::IMAGE_GIF, ::mime::APPLICATION_PDF, ::mime::TEXT_CSS],
             );
             assert!(
@@ -207,7 +207,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
-                renderable.render(mock_engine.get_render_context(None), &[::mime::IMAGE_STAR]);
+                renderable.render(mock_engine.render_context(None), &[::mime::IMAGE_STAR]);
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with unacceptable media types did not fail as expected",
@@ -221,7 +221,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.get_render_context(None),
+                mock_engine.render_context(None),
                 &[::mime::IMAGE_GIF, ::mime::TEXT_PLAIN, ::mime::TEXT_CSS],
             );
             assert!(
@@ -244,7 +244,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
-                renderable.render(mock_engine.get_render_context(None), &[::mime::STAR_STAR]);
+                renderable.render(mock_engine.render_context(None), &[::mime::STAR_STAR]);
             assert!(
                 render_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -259,7 +259,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result =
-                renderable.render(mock_engine.get_render_context(None), &[::mime::TEXT_STAR]);
+                renderable.render(mock_engine.render_context(None), &[::mime::TEXT_STAR]);
             assert!(
                 render_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -282,7 +282,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let text_plain_result =
-                renderable.render(mock_engine.get_render_context(None), &[::mime::TEXT_PLAIN]);
+                renderable.render(mock_engine.render_context(None), &[::mime::TEXT_PLAIN]);
             assert!(
                 text_plain_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -296,7 +296,7 @@ mod tests {
             );
 
             let text_html_result =
-                renderable.render(mock_engine.get_render_context(None), &[::mime::TEXT_HTML]);
+                renderable.render(mock_engine.render_context(None), &[::mime::TEXT_HTML]);
             assert!(
                 text_html_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
