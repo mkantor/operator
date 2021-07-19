@@ -131,6 +131,28 @@ where
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
+    let query_string = request.query_string();
+    let query_parameters = match web::Query::<serde_json::Value>::from_query(query_string) {
+        Ok(query_parameters) => query_parameters,
+        Err(error) => {
+            log::warn!(
+                "Responding with {} for {}. Malformed query string `{}`: {}",
+                http::StatusCode::BAD_REQUEST,
+                route,
+                query_string,
+                error
+            );
+            return error_response(
+                http::StatusCode::BAD_REQUEST,
+                &*content_engine,
+                route,
+                serde_json::Value::Null,
+                &app_data.error_handler_route,
+                vec![&mime::TEXT_PLAIN],
+            );
+        }
+    };
+
     // Use the media type from the URL path extension if there was one,
     // otherwise use the accept header.
     let mut parsed_accept_header_value = header::Accept::parse(&request);
@@ -150,6 +172,7 @@ where
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
                     route,
+                    query_parameters.clone(),
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
                 );
@@ -158,7 +181,8 @@ where
     };
 
     let render_result = content_engine.get(&route).map(|content| {
-        let render_context = content_engine.render_context(Some(route.clone()));
+        let render_context =
+            content_engine.render_context(Some(route.clone()), query_parameters.clone());
         content.render(render_context, acceptable_media_ranges.clone())
     });
 
@@ -217,6 +241,7 @@ where
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
                 route,
+                query_parameters.clone(),
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -232,6 +257,7 @@ where
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
                 route,
+                query_parameters.clone(),
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -246,6 +272,7 @@ where
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
                 route,
+                query_parameters.clone(),
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -253,15 +280,17 @@ where
     }
 }
 
-fn error_response<Engine>(
+fn error_response<Engine, QueryParameters>(
     status_code: http::StatusCode,
     content_engine: &Engine,
     request_route: Route,
+    query_parameters: QueryParameters,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
 ) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+    QueryParameters: Clone + Serialize,
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
         log::error!(
@@ -280,9 +309,9 @@ where
     error_handler_route
         .as_ref()
         .and_then(|route| {
-            content_engine.get(&route).and_then(|content| {
+            content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .render_context(Some(request_route))
+                    .render_context(Some(request_route), query_parameters)
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
@@ -922,7 +951,7 @@ mod tests {
         let request = test_request(
             &sample_path("error-handling"),
             None,
-            Some("/error-code-and-request-route"),
+            Some("/error-code-and-request-info"),
         )
         .header(header::ACCEPT, "text/plain")
         .uri("/not/a/real/path/so/this/should/404")
@@ -942,5 +971,59 @@ mod tests {
             response_body, "404 /not/a/real/path/so/this/should/404",
             "Response body was incorrect"
         );
+    }
+
+    #[actix_rt::test]
+    async fn query_parameters_are_handled() {
+        let request = test_request(&sample_path("executables"), None, None)
+            .uri("/render-data?a=hello&b=1&b=2&c")
+            .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
+            .expect("Could not parse JSON");
+
+        assert_eq!(&response_json["request"]["query-parameters"]["a"], "hello");
+        assert_eq!(&response_json["request"]["query-parameters"]["b"], "2");
+        assert_eq!(&response_json["request"]["query-parameters"]["c"], "");
+    }
+
+    #[actix_rt::test]
+    async fn query_parameters_are_forwarded_to_getted_content() {
+        let request = test_request(&sample_path("executables"), None, None)
+            .uri("/get-render-data?hello=world")
+            .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
+            .expect("Could not parse JSON");
+
+        assert_eq!(
+            &response_json["request"]["query-parameters"]["hello"],
+            "world"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn query_parameters_are_forwarded_to_error_handler() {
+        let request = test_request(
+            &sample_path("error-handling"),
+            None,
+            Some("/error-code-and-request-info"),
+        )
+        .uri("/this-route-will-404?hello=world")
+        .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        assert_eq!(&response_body, "404 /this-route-will-404\nhello: world");
     }
 }

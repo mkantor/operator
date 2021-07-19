@@ -56,7 +56,7 @@ pub fn sample_content_directories_with_valid_contents() -> Vec<ContentDirectory>
     sample_content_directories()
         .into_iter()
         .filter(|content_directory| {
-            sample_path_is_for_valid_content_directory(&content_directory.root())
+            sample_path_is_for_valid_content_directory(content_directory.root())
         })
         .collect()
 }
@@ -65,7 +65,7 @@ pub fn sample_content_directories_with_invalid_contents() -> Vec<ContentDirector
     sample_content_directories()
         .into_iter()
         .filter(|content_directory| {
-            !sample_path_is_for_valid_content_directory(&content_directory.root())
+            !sample_path_is_for_valid_content_directory(content_directory.root())
         })
         .collect()
 }

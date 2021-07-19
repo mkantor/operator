@@ -2,11 +2,13 @@
 source: tests/integration_tests.rs
 expression: contents
 input_file: samples/error-handling
+
 ---
-error-code-and-request-route.txt.hbs: " /error-code-and-request-route"
+error-code-and-request-info.txt.hbs: " /error-code-and-request-info"
 error-handler.html.hbs: "<p>no error!</p>"
 error-handler.txt.hbs: no error!
 executable-error-handler.txt.sh: "this is executable error handler, and my working directory is $PROJECT_DIRECTORY/samples/error-handling\n"
 json-file.json: "{}"
 static-error-handler.txt: "this is static error handler\n"
 trigger-error.txt.sh: "Unable to emit rendered content.\n\nCaused by:\n    Process exited with code 1: boom!\n    \n"
+

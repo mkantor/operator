@@ -8,7 +8,7 @@
   <main>
     <p>
       {{#if (eq error-code 404)}}
-        The page for /{{request-route}} does not exist.
+        The page for /{{request.route}} does not exist.
       {{else}}
         Something went wrong!
       {{/if}}
