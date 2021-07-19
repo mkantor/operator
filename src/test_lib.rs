@@ -34,6 +34,7 @@ pub fn sample_content_directories() -> Vec<ContentDirectory> {
         sample_content_directory("hidden-content"),
         sample_content_directory("media-types"),
         sample_content_directory("multimedia"),
+        sample_content_directory("ouroboros"),
         sample_content_directory("partials"),
         sample_content_directory("realistic-basic"),
         sample_content_directory("render-context"),

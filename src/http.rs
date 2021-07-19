@@ -368,9 +368,6 @@ mod tests {
     use test_env_log::test;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ServerInfo>;
-    const SERVER_INFO: ServerInfo = ServerInfo {
-        version: ServerVersion(""),
-    };
 
     fn test_request(
         content_directory_path: &Path,
@@ -378,9 +375,15 @@ mod tests {
         error_handler_route: Option<&str>,
     ) -> TestRequest {
         let directory = ContentDirectory::from_root(&content_directory_path).unwrap();
-        let shared_content_engine =
-            FilesystemBasedContentEngine::from_content_directory(directory, SERVER_INFO)
-                .expect("Content engine could not be created");
+        let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
+            directory,
+            ServerInfo {
+                version: ServerVersion(""),
+                operator_path: PathBuf::new(),
+                socket_address: None,
+            },
+        )
+        .expect("Content engine could not be created");
 
         TestRequest::default().app_data(AppData {
             shared_content_engine: shared_content_engine,

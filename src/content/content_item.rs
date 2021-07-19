@@ -255,7 +255,7 @@ mod tests {
 
     fn test_render_data() -> RenderData<ServerInfo> {
         RenderData {
-            server_info: ServerInfo::default(),
+            server_info: ServerInfo::without_socket_address().expect("Unable to create ServerInfo"),
             index: ContentIndex::Directory(ContentIndexEntries::new()),
             request_route: None,
             target_media_type: None,
