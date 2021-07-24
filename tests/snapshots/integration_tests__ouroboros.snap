@@ -1,0 +1,9 @@
+---
+source: tests/integration_tests.rs
+expression: contents
+input_file: samples/ouroboros
+
+---
+boros.txt.hbs: "boros: /boros\nouro: /boros\n"
+ouro.txt.sh: "ouro: /ouro\nboros: /boros\nouro: /boros\n"
+

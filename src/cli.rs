@@ -11,6 +11,12 @@ pub enum RenderCommandError {
     #[error("Failed to read input.")]
     ReadError { source: io::Error },
 
+    #[error("Unable to collect server info.")]
+    ServerInfoError {
+        #[from]
+        source: ServerInfoError,
+    },
+
     #[error("Unable to load content.")]
     ContentLoadingError {
         #[from]
@@ -41,6 +47,12 @@ pub enum RenderCommandError {
 
 #[derive(Error, Debug)]
 pub enum GetCommandError {
+    #[error("Unable to collect server info.")]
+    ServerInfoError {
+        #[from]
+        source: ServerInfoError,
+    },
+
     #[error("Unable to load content.")]
     ContentLoadingError {
         #[from]
@@ -68,6 +80,12 @@ pub enum GetCommandError {
 
 #[derive(Error, Debug)]
 pub enum ServeCommandError {
+    #[error("Unable to collect server info.")]
+    ServerInfoError {
+        #[from]
+        source: ServerInfoError,
+    },
+
     #[error("Unable to load content.")]
     ContentLoadingError {
         #[from]
@@ -92,7 +110,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 ) -> Result<(), RenderCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo::default(),
+        ServerInfo::without_socket_address()?,
     )?;
     let content_engine = shared_content_engine
         .read()
@@ -127,7 +145,7 @@ pub fn get<O: io::Write>(
 ) -> Result<(), GetCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo::default(),
+        ServerInfo::without_socket_address()?,
     )?;
     let content_engine = shared_content_engine
         .read()
@@ -161,7 +179,7 @@ pub fn serve<A: 'static + ToSocketAddrs>(
 ) -> Result<(), ServeCommandError> {
     let shared_content_engine = FilesystemBasedContentEngine::from_content_directory(
         content_directory,
-        ServerInfo::default(),
+        ServerInfo::with_socket_address(&bind_to)?,
     )?;
 
     // If index or error handler are set, validate that they refer to an

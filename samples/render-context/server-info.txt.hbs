@@ -1,2 +1,4 @@
-{{#each server-info}}{{@key}}: {{this}}
-{{~/each}}
+{{#each server-info~}}
+    {{!-- Ensure that we get the same output whether served over HTTP or not. --}}
+    {{@key}}: {{#if (eq @key "socket-address")}}$SOCKET_ADDRESS{{else}}{{this}}{{/if}}
+{{/each}}
