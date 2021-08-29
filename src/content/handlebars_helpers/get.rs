@@ -90,7 +90,7 @@ where
             .ok_or_else(|| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because a valid target media type could not be found \
-                    in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
+                    in the handlebars context. The context JSON must contain a property at `{}` \
                     whose value is a valid media type essence string. The current context is `{}`.",
                     TARGET_MEDIA_TYPE_PROPERTY_NAME,
                     handlebars_context.data(),
@@ -98,16 +98,19 @@ where
             })?;
 
         let optional_request_route = {
-            let request_route_value = current_render_data.get(REQUEST_ROUTE_PROPERTY_NAME)
-            .ok_or_else(|| {
-                handlebars::RenderError::new(format!(
+            let request_route_value = current_render_data
+                .get(REQUEST_DATA_PROPERTY_NAME)
+                .and_then(|request_data| request_data.get(ROUTE_PROPERTY_NAME))
+                .ok_or_else(|| {
+                    handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the request route could not be found \
-                    in the handlebars context. The context JSON must contain a top-level property named \"{}\" \
+                    in the handlebars context. The context JSON must contain a property at `{}.{}` \
                     whose value is a string or null. The current context is `{}`.",
-                    REQUEST_ROUTE_PROPERTY_NAME,
+                    REQUEST_DATA_PROPERTY_NAME,
+                    ROUTE_PROPERTY_NAME,
                     handlebars_context.data(),
                 ))
-            })?;
+                })?;
 
             if request_route_value.is_null() {
                 None
@@ -134,7 +137,21 @@ where
             }
         };
 
-        let context = content_engine.render_context(optional_request_route);
+        let query_parameters = current_render_data
+            .get(REQUEST_DATA_PROPERTY_NAME)
+            .and_then(|request_data| request_data.get(QUERY_PARAMETERS_PROPERTY_NAME))
+            .ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the query parameters could not be found \
+                    in the handlebars context. The context JSON must contain a property at `{}.{}` \
+                    whose value is a valid media type essence string. The current context is `{}`.",
+                    REQUEST_DATA_PROPERTY_NAME,
+                    QUERY_PARAMETERS_PROPERTY_NAME,
+                    handlebars_context.data(),
+                ))
+            })?;
+
+        let context = content_engine.render_context(optional_request_route, query_parameters);
 
         let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {

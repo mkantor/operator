@@ -8,7 +8,7 @@ render_data() {
     | sed -e 's/^"//' -e 's/"$//'
 }
 
-request_route=$(render_data '"request-route"')
+request_route=$(render_data '"request","route"')
 socket_address=$(render_data '"server-info","socket-address"')
 operator=$(render_data '"server-info","operator-path"')
 

@@ -21,15 +21,22 @@ impl<'a> MockContentEngine<'a> {
     }
 }
 impl<'a> ContentEngine<()> for MockContentEngine<'a> {
-    fn render_context(&self, request_route: Option<Route>) -> RenderContext<(), Self> {
+    fn render_context<QueryParameters: Clone + Serialize>(
+        &self,
+        route: Option<Route>,
+        query_parameters: QueryParameters,
+    ) -> RenderContext<(), QueryParameters, Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {
                 server_info: (),
                 index: ContentIndex::Directory(ContentIndexEntries::new()),
-                request_route,
                 target_media_type: None,
                 error_code: None,
+                request: RequestData {
+                    route,
+                    query_parameters,
+                },
             },
         }
     }

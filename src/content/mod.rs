@@ -97,28 +97,42 @@ pub enum StreamError {
 
 pub trait Render {
     type Output;
-    fn render<'engine, 'accept, ServerInfo, Engine, Accept>(
+    fn render<'engine, 'accept, ServerInfo, QueryParameters, Engine, Accept>(
         &self,
-        context: RenderContext<'engine, ServerInfo, Engine>,
+        context: RenderContext<'engine, ServerInfo, QueryParameters, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
+        QueryParameters: Clone + Serialize,
         Engine: ContentEngine<ServerInfo>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: ByteStream;
 }
 
-// These must match up with serialized property names in RenderData.
-const REQUEST_ROUTE_PROPERTY_NAME: &str = "request-route";
+// These must match up with serialized property names in RequestData & RenderData.
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
+const REQUEST_DATA_PROPERTY_NAME: &str = "request";
+const ROUTE_PROPERTY_NAME: &str = "route";
+const QUERY_PARAMETERS_PROPERTY_NAME: &str = "query-parameters";
+
+/// Render data that comes from requests.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct RequestData<QueryParameters: Clone + Serialize> {
+    /// The request [`Route`] that caused this content to be rendered, if any.
+    pub route: Option<Route>,
+
+    /// A parsed version of the request URI's query string.
+    pub query_parameters: QueryParameters,
+}
 
 /// Data passed to handlebars templates and executables.
 ///
 /// Fields serialize into kebab-case (e.g. `server_info` becomes `server-info`).
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct RenderData<ServerInfo: Clone + Serialize> {
+pub struct RenderData<ServerInfo: Clone + Serialize, QueryParameters: Clone + Serialize> {
     /// A hierarchial index of the content. This is serialized with the name
     /// `/` (with handlebars escaping this looks like `[/].[foo/].bar`).
     #[serde(rename = "/")]
@@ -127,12 +141,12 @@ pub struct RenderData<ServerInfo: Clone + Serialize> {
     /// Metadata about the server, such as its version.
     pub server_info: ServerInfo,
 
-    /// The request [`Route`] that caused this content to be rendered, if any.
-    pub request_route: Option<Route>,
-
     /// The best [`MediaType`] as determined by content negotiation. Rendering
     /// must emit content in this media type.
     pub target_media_type: Option<MediaType>,
+
+    /// Data that comes from requests.
+    pub request: RequestData<QueryParameters>,
 
     /// An [HTTP `4xx` or `5xx` status code](https://datatracker.ietf.org/doc/html/rfc7231#section-6)
     /// indicating that something went wrong. This will be set while rendering
@@ -142,19 +156,22 @@ pub struct RenderData<ServerInfo: Clone + Serialize> {
 
 /// Values used during rendering, including the data passed to handlebars
 /// templates and executables.
-pub struct RenderContext<'engine, ServerInfo, Engine>
+pub struct RenderContext<'engine, ServerInfo, QueryParameters, Engine>
 where
     ServerInfo: Clone + Serialize,
+    QueryParameters: Clone + Serialize,
     Engine: ContentEngine<ServerInfo>,
 {
     content_engine: &'engine Engine,
-    data: RenderData<ServerInfo>,
+    data: RenderData<ServerInfo, QueryParameters>,
 }
 
-impl<'engine, ServerInfo, Engine> RenderContext<'engine, ServerInfo, Engine>
+impl<'engine, ServerInfo, QueryParameters, Engine>
+    RenderContext<'engine, ServerInfo, QueryParameters, Engine>
 where
     ServerInfo: Clone + Serialize,
     Engine: ContentEngine<ServerInfo>,
+    QueryParameters: Clone + Serialize,
 {
     pub fn into_error_context(self, error_code: u16) -> Self {
         RenderContext {
