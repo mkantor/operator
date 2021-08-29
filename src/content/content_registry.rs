@@ -98,10 +98,9 @@ impl Render for ContentRepresentations {
         // an error.
         //
         // If the loop didn't accumulate any errors it means there weren't even
-        // any attempted renders anything because none of the available media
-        // ranges were acceptable. Otherwise rendering was attempted and
-        // failed, perhaps multiple times, in which case the first error is
-        // returned.
+        // any attempted renders because none of the available media ranges
+        // were acceptable. Otherwise rendering was attempted and failed,
+        // perhaps multiple times, in which case the first error is returned.
         Err(match errors.into_iter().next() {
             None => RenderError::CannotProvideAcceptableMediaType,
             Some(first_error) => RenderError::RenderingFailed(first_error),

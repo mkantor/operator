@@ -110,7 +110,8 @@ pub trait Render {
         Self::Output: ByteStream;
 }
 
-// These must match up with serialized property names in RequestData & RenderData.
+// These must match up with serialized property names in RequestData and
+// RenderData.
 const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 const REQUEST_DATA_PROPERTY_NAME: &str = "request";
 const ROUTE_PROPERTY_NAME: &str = "route";

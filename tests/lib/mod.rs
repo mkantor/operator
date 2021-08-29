@@ -74,7 +74,8 @@ impl RunningServer {
         // connection is refused.
         thread::sleep(time::Duration::from_millis(500));
 
-        // The server may have failed to start if the content directory was invalid.
+        // The server may have failed to start if the content directory was
+        // invalid.
         if let Ok(Some(_)) = process.try_wait() {
             Err(match process.wait_with_output() {
                 Err(error) => format!(
