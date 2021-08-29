@@ -165,8 +165,8 @@ impl Stream for ProcessBody {
                         Ok(0) => {
                             match process.try_wait()? {
                                 None => {
-                                    // The process is still running, there was just
-                                    // no new output.
+                                    // The process is still running, there was
+                                    // just no new output.
                                     Ok((Some(process), Bytes::new()))
                                 }
                                 Some(exit_status) => {

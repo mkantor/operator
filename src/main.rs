@@ -11,11 +11,11 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 #[structopt(about)]
 struct OperatorCommand {
-    /// Silence all output
+    /// Silence all output.
     #[structopt(long, short = "q", global = true)]
     quiet: bool,
 
-    /// Verbose mode; multiple -v options increase the verbosity
+    /// Verbose mode; multiple -v options increase the verbosity.
     #[structopt(long, short = "v", parse(from_occurrences), global = true)]
     verbose: usize,
 

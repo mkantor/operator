@@ -361,12 +361,12 @@ fn acceptable_media_ranges_from_accept_header<'a>(
         // representation is first).
         //
         // Note that QualityItem only implements PartialOrd, not Ord. I thought
-        // that might be because the parser lossily converts decimal strings into
-        // integers (for the `q` parameter), but it turns out the implementation
-        // actually never returns None (as of actix-web v3.0.0). If that ever
-        // changes and there is some scenario where a pair of items from the
-        // accept header can't be ordered then they will be given equal
-        // preference. ¯\_(ツ)_/¯
+        // that might be because the parser lossily converts decimal strings
+        // into integers (for the `q` parameter), but it turns out the
+        // implementation actually never returns None (as of actix-web v3.0.0).
+        // If that ever changes and there is some scenario where a pair of
+        // items from the accept header can't be ordered then they will be
+        // given equal preference. ¯\_(ツ)_/¯
         accept_value.sort_by(|a, b| {
             b.partial_cmp(a).unwrap_or_else(|| {
                 log::warn!(
