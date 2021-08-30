@@ -34,6 +34,10 @@ async fn samples_match_snapshots() {
             // If dynamic content files mention where the repo is checked
             // out, redact it to keep tests portable.
             .map(|(key, value)| (key, value.replace(PROJECT_DIRECTORY, "$PROJECT_DIRECTORY")))
+            // Also redact release modes in paths so we can release with
+            // snapshots generated during debug builds.
+            .map(|(key, value)| (key, value.replace("target/debug", "target/$PROFILE")))
+            .map(|(key, value)| (key, value.replace("target/release", "target/$PROFILE")))
             // Also remove the prefix used on log messages.
             .map(|(key, value)| (key, String::from(log_prefix_regex.replace_all(&value, ""))))
             .collect::<BTreeMap<_, _>>();
