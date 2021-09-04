@@ -84,14 +84,13 @@ impl RegisteredTemplate {
         }
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo, QueryParameters>(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo, QueryParameters>,
+        render_data: RenderData<ServerInfo>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
-        QueryParameters: Clone + Serialize,
     {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
@@ -122,14 +121,13 @@ impl UnregisteredTemplate {
         })
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo, QueryParameters>(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         handlebars_registry: &Handlebars,
-        render_data: RenderData<ServerInfo, QueryParameters>,
+        render_data: RenderData<ServerInfo>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
-        QueryParameters: Clone + Serialize,
     {
         let render_data = RenderData {
             target_media_type: Some(self.rendered_media_type.clone()),
@@ -150,14 +148,13 @@ impl UnregisteredTemplate {
 }
 impl Render for UnregisteredTemplate {
     type Output = InMemoryBody;
-    fn render<'accept, ServerInfo, QueryParameters, Engine, Accept>(
+    fn render<'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<ServerInfo, QueryParameters, Engine>,
+        context: RenderContext<ServerInfo, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
-        QueryParameters: Clone + Serialize,
         Engine: ContentEngine<ServerInfo>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: ByteStream,
@@ -206,13 +203,12 @@ impl Executable {
         }
     }
 
-    pub(super) fn render_to_native_media_type<ServerInfo, QueryParameters>(
+    pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
-        render_data: RenderData<ServerInfo, QueryParameters>,
+        render_data: RenderData<ServerInfo>,
     ) -> Result<Media<ProcessBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
-        QueryParameters: Clone + Serialize,
     {
         let render_data = RenderData {
             target_media_type: Some(self.output_media_type.clone()),
@@ -251,13 +247,14 @@ mod tests {
     use crate::test_lib::*;
     use crate::ServerInfo;
     use ::mime;
+    use std::collections::HashMap;
     use std::fs;
     use std::io::Write;
     use std::str;
     use tempfile::tempfile;
     use test_env_log::test;
 
-    fn test_render_data() -> RenderData<ServerInfo, ()> {
+    fn test_render_data() -> RenderData<ServerInfo> {
         RenderData {
             server_info: ServerInfo::without_socket_address().expect("Unable to create ServerInfo"),
             index: ContentIndex::Directory(ContentIndexEntries::new()),
@@ -265,7 +262,7 @@ mod tests {
             error_code: None,
             request: RequestData {
                 route: None,
-                query_parameters: (),
+                query_parameters: HashMap::new(),
             },
         }
     }
@@ -318,7 +315,7 @@ mod tests {
         .expect("Test template was invalid");
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
-            content_engine.render_context(None, ()).data,
+            content_engine.render_context(None, HashMap::new()).data,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));
@@ -338,7 +335,9 @@ mod tests {
         );
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
-            content_engine.render_context(Some(route("/test")), ()).data,
+            content_engine
+                .render_context(Some(route("/test")), HashMap::new())
+                .data,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));

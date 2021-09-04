@@ -3,6 +3,7 @@ use crate::content::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
 use handlebars::{self, Handlebars};
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
@@ -149,7 +150,18 @@ where
                     QUERY_PARAMETERS_PROPERTY_NAME,
                     handlebars_context.data(),
                 ))
-            })?;
+            })?.as_object().ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the query parameters in the handlebars context \
+                    was not a map. The current context is `{}`.",
+                    handlebars_context.data(),
+                ))
+            })?
+            .into_iter()
+            .flat_map(|(key, value)| {
+                value.as_str().map(|value| (key.clone(), String::from(value)))
+            })
+            .collect::<HashMap<String, String>>();
 
         let context = content_engine.render_context(optional_request_route, query_parameters);
 

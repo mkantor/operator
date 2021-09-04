@@ -124,7 +124,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 
     let content_item =
         content_engine.new_template(&template, MediaType::APPLICATION_OCTET_STREAM)?;
-    let render_context = content_engine.render_context(None, HashMap::<(), ()>::new());
+    let render_context = content_engine.render_context(None, HashMap::new());
     let media = content_item.render(render_context, &[mime::STAR_STAR])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
@@ -158,8 +158,7 @@ pub fn get<O: io::Write>(
             .ok_or_else(|| GetCommandError::ContentNotFound {
                 route: route.clone(),
             })?;
-    let render_context =
-        content_engine.render_context(Some(route.clone()), HashMap::<(), ()>::new());
+    let render_context = content_engine.render_context(Some(route.clone()), HashMap::new());
     let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
