@@ -1,5 +1,6 @@
 use anyhow::Context;
 use operator::content::{ContentDirectory, MediaRange, Route};
+use operator::http::QueryString;
 use operator::*;
 use std::fs;
 use std::io;
@@ -37,6 +38,13 @@ enum OperatorSubcommand {
         /// handlebars template.
         #[structopt(long, parse(from_os_str), value_name = "path")]
         content_directory: PathBuf,
+
+        /// Optional query parameters.
+        ///
+        /// This uses the same format as HTTP requests (without a leading "?").
+        /// For example: --query="a=1&b=2".
+        #[structopt(long, value_name = "query-string")]
+        query: Option<QueryString>,
     },
 
     /// Renders content from a content directory.
@@ -44,7 +52,7 @@ enum OperatorSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p content\n",
         "    echo 'hello world' > content/hello.txt\n",
-        "    operator get --content-directory=./content --route=/hello --accept=text/*"
+        "    operator get --content-directory=./content --route=/hello"
     ), display_order = 1)]
     Get {
         /// Path to a directory containing content files.
@@ -59,6 +67,13 @@ enum OperatorSubcommand {
         /// content directory. They must begin with a slash.
         #[structopt(long, value_name = "route")]
         route: Route,
+
+        /// Optional query parameters.
+        ///
+        /// This uses the same format as HTTP requests (without a leading "?").
+        /// For example: --query="a=1&b=2".
+        #[structopt(long, value_name = "query-string")]
+        query: Option<QueryString>,
 
         /// Declares what types of media are acceptable as output.
         ///
@@ -142,18 +157,26 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        OperatorSubcommand::Eval { content_directory } => {
-            cli::eval(get_content_directory(content_directory)?, input, output)
-                .map_err(anyhow::Error::from)
-        }
+        OperatorSubcommand::Eval {
+            content_directory,
+            query,
+        } => cli::eval(
+            get_content_directory(content_directory)?,
+            query,
+            input,
+            output,
+        )
+        .map_err(anyhow::Error::from),
 
         OperatorSubcommand::Get {
             content_directory,
             route,
+            query,
             accept,
         } => cli::get(
             get_content_directory(content_directory)?,
             &route,
+            query,
             accept,
             output,
         )
