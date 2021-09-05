@@ -1,4 +1,5 @@
 use crate::content::*;
+use crate::http::QueryString;
 use crate::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
@@ -141,6 +142,7 @@ pub fn eval<I: io::Read, O: io::Write>(
 pub fn get<O: io::Write>(
     content_directory: ContentDirectory,
     route: &Route,
+    query_string: Option<QueryString>,
     accept: Option<MediaRange>,
     output: &mut O,
 ) -> Result<(), GetCommandError> {
@@ -158,7 +160,11 @@ pub fn get<O: io::Write>(
             .ok_or_else(|| GetCommandError::ContentNotFound {
                 route: route.clone(),
             })?;
-    let render_context = content_engine.render_context(Some(route.clone()), HashMap::new());
+
+    let query_parameters = query_string.unwrap_or_default();
+
+    let render_context =
+        content_engine.render_context(Some(route.clone()), query_parameters.into());
     let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
@@ -270,7 +276,7 @@ mod tests {
         let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, &route, Some(mime::TEXT_PLAIN), &mut output);
+        let result = get(directory, &route, None, Some(mime::TEXT_PLAIN), &mut output);
 
         assert!(
             result.is_ok(),
@@ -296,7 +302,7 @@ mod tests {
         let expected_output = "hello world";
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, &route, None, &mut output);
+        let result = get(directory, &route, None, None, &mut output);
 
         assert!(
             result.is_ok(),
@@ -321,7 +327,7 @@ mod tests {
         let route = route("/this-route-does-not-refer-to-any-content");
 
         let directory = arbitrary_content_directory_with_valid_content();
-        let result = get(directory, &route, Some(mime::TEXT_HTML), &mut output);
+        let result = get(directory, &route, None, Some(mime::TEXT_HTML), &mut output);
 
         match result {
             Ok(_) => panic!(
@@ -336,5 +342,31 @@ mod tests {
             ),
             Err(_) => panic!("Wrong type of error was produced, expected ContentNotFound"),
         };
+    }
+
+    #[test]
+    fn query_string_can_be_provided_when_retrieving_content() {
+        let mut output = Vec::new();
+        let route = route("/query-string");
+        let query = "a=1&b=2"
+            .parse::<QueryString>()
+            .expect("Test query string was invalid");
+
+        let directory = sample_content_directory("render-context");
+        let result = get(directory, &route, Some(query), None, &mut output);
+
+        assert!(
+            result.is_ok(),
+            "Template rendering failed for content at '{}': {}",
+            route,
+            result.unwrap_err(),
+        );
+        let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
+        assert!(
+            output_as_str == "a=1&b=2" || output_as_str == "b=2&a=1",
+            "Template rendering for content at '{}' did not produce the expected output (\"a=1&b=2\" or \"b=2&a=1\"), instead got \"{}\"",
+            route,
+            output_as_str
+        );
     }
 }

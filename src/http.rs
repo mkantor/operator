@@ -1,6 +1,7 @@
 use crate::content::*;
 use crate::*;
 use actix_rt::System;
+use actix_web::error::QueryPayloadError;
 use actix_web::http::header::{self, Header};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
@@ -9,7 +10,41 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io;
 use std::net::ToSocketAddrs;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+
+#[derive(Error, Debug)]
+#[error("Invalid query string '{}'", .query_string)]
+pub struct InvalidQueryStringError {
+    query_string: String,
+    source: QueryPayloadError,
+}
+
+pub struct QueryString(HashMap<String, String>);
+
+impl Default for QueryString {
+    fn default() -> Self {
+        QueryString(HashMap::new())
+    }
+}
+
+impl From<QueryString> for HashMap<String, String> {
+    fn from(query_string: QueryString) -> HashMap<String, String> {
+        query_string.0
+    }
+}
+
+impl FromStr for QueryString {
+    type Err = InvalidQueryStringError;
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        web::Query::<HashMap<String, String>>::from_query(input)
+            .map(|query_parameters| QueryString(query_parameters.to_owned()))
+            .map_err(|source| InvalidQueryStringError {
+                query_string: String::from(input),
+                source,
+            })
+    }
+}
 
 struct AppData<Engine: 'static + ContentEngine<ServerInfo> + Send + Sync> {
     shared_content_engine: Arc<RwLock<Engine>>,
@@ -133,8 +168,8 @@ where
         .expect("RwLock for ContentEngine has been poisoned");
 
     let query_string = request.query_string();
-    let query_parameters = match web::Query::<HashMap<String, String>>::from_query(query_string) {
-        Ok(query_parameters) => query_parameters.to_owned(),
+    let query_parameters = match query_string.parse::<QueryString>() {
+        Ok(query_parameters) => query_parameters.into(),
         Err(error) => {
             log::warn!(
                 "Responding with {} for {}. Malformed query string `{}`: {}",

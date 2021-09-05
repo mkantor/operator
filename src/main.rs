@@ -1,5 +1,6 @@
 use anyhow::Context;
 use operator::content::{ContentDirectory, MediaRange, Route};
+use operator::http::QueryString;
 use operator::*;
 use std::fs;
 use std::io;
@@ -44,7 +45,7 @@ enum OperatorSubcommand {
         "EXAMPLE:\n",
         "    mkdir -p content\n",
         "    echo 'hello world' > content/hello.txt\n",
-        "    operator get --content-directory=./content --route=/hello --accept=text/*"
+        "    operator get --content-directory=./content --route=/hello"
     ), display_order = 1)]
     Get {
         /// Path to a directory containing content files.
@@ -59,6 +60,13 @@ enum OperatorSubcommand {
         /// content directory. They must begin with a slash.
         #[structopt(long, value_name = "route")]
         route: Route,
+
+        /// Optional query parameters.
+        ///
+        /// This uses the same format as HTTP requests (without a leading "?").
+        /// For example: --query="a=1&b=2".
+        #[structopt(long, value_name = "query-string")]
+        query: Option<QueryString>,
 
         /// Declares what types of media are acceptable as output.
         ///
@@ -150,10 +158,12 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
         OperatorSubcommand::Get {
             content_directory,
             route,
+            query,
             accept,
         } => cli::get(
             get_content_directory(content_directory)?,
             &route,
+            query,
             accept,
             output,
         )
