@@ -38,6 +38,13 @@ enum OperatorSubcommand {
         /// handlebars template.
         #[structopt(long, parse(from_os_str), value_name = "path")]
         content_directory: PathBuf,
+
+        /// Optional query parameters.
+        ///
+        /// This uses the same format as HTTP requests (without a leading "?").
+        /// For example: --query="a=1&b=2".
+        #[structopt(long, value_name = "query-string")]
+        query: Option<QueryString>,
     },
 
     /// Renders content from a content directory.
@@ -150,10 +157,16 @@ fn handle_subcommand<I: io::Read, O: io::Write>(
     output: &mut O,
 ) -> Result<(), anyhow::Error> {
     match subcommand {
-        OperatorSubcommand::Eval { content_directory } => {
-            cli::eval(get_content_directory(content_directory)?, input, output)
-                .map_err(anyhow::Error::from)
-        }
+        OperatorSubcommand::Eval {
+            content_directory,
+            query,
+        } => cli::eval(
+            get_content_directory(content_directory)?,
+            query,
+            input,
+            output,
+        )
+        .map_err(anyhow::Error::from),
 
         OperatorSubcommand::Get {
             content_directory,
