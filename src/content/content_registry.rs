@@ -39,14 +39,13 @@ pub enum RegisteredContent {
 
 impl Render for ContentRepresentations {
     type Output = Box<dyn ByteStream>;
-    fn render<'accept, ServerInfo, QueryParameters, Engine, Accept>(
+    fn render<'accept, ServerInfo, Engine, Accept>(
         &self,
-        context: RenderContext<ServerInfo, QueryParameters, Engine>,
+        context: RenderContext<ServerInfo, Engine>,
         acceptable_media_ranges: Accept,
     ) -> Result<Media<Self::Output>, RenderError>
     where
         ServerInfo: Clone + Serialize,
-        QueryParameters: Clone + Serialize,
         Engine: ContentEngine<ServerInfo>,
         Accept: IntoIterator<Item = &'accept MediaRange>,
         Self::Output: ByteStream,
@@ -177,7 +176,8 @@ mod tests {
     fn rendering_with_empty_acceptable_media_ranges_should_fail() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result = renderable.render(mock_engine.render_context(None, ()), &[]);
+            let render_result =
+                renderable.render(mock_engine.render_context(None, HashMap::new()), &[]);
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with an empty list of acceptable media types did not fail as expected",
@@ -191,7 +191,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, ()),
+                mock_engine.render_context(None, HashMap::new()),
                 &[::mime::IMAGE_GIF, ::mime::APPLICATION_PDF, ::mime::TEXT_CSS],
             );
             assert!(
@@ -206,8 +206,10 @@ mod tests {
     fn rendering_with_unacceptable_general_media_range_should_fail() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result =
-                renderable.render(mock_engine.render_context(None, ()), &[::mime::IMAGE_STAR]);
+            let render_result = renderable.render(
+                mock_engine.render_context(None, HashMap::new()),
+                &[::mime::IMAGE_STAR],
+            );
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with unacceptable media types did not fail as expected",
@@ -221,7 +223,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, ()),
+                mock_engine.render_context(None, HashMap::new()),
                 &[::mime::IMAGE_GIF, ::mime::TEXT_PLAIN, ::mime::TEXT_CSS],
             );
             assert!(
@@ -243,8 +245,10 @@ mod tests {
     fn rendering_with_acceptable_range_star_star_should_succeed() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result =
-                renderable.render(mock_engine.render_context(None, ()), &[::mime::STAR_STAR]);
+            let render_result = renderable.render(
+                mock_engine.render_context(None, HashMap::new()),
+                &[::mime::STAR_STAR],
+            );
             assert!(
                 render_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -258,8 +262,10 @@ mod tests {
     fn rendering_with_acceptable_range_text_star_should_succeed() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result =
-                renderable.render(mock_engine.render_context(None, ()), &[::mime::TEXT_STAR]);
+            let render_result = renderable.render(
+                mock_engine.render_context(None, HashMap::new()),
+                &[::mime::TEXT_STAR],
+            );
             assert!(
                 render_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -281,8 +287,10 @@ mod tests {
     fn can_render_same_content_with_different_representations() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let text_plain_result =
-                renderable.render(mock_engine.render_context(None, ()), &[::mime::TEXT_PLAIN]);
+            let text_plain_result = renderable.render(
+                mock_engine.render_context(None, HashMap::new()),
+                &[::mime::TEXT_PLAIN],
+            );
             assert!(
                 text_plain_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",
@@ -295,8 +303,10 @@ mod tests {
                 index,
             );
 
-            let text_html_result =
-                renderable.render(mock_engine.render_context(None, ()), &[::mime::TEXT_HTML]);
+            let text_html_result = renderable.render(
+                mock_engine.render_context(None, HashMap::new()),
+                &[::mime::TEXT_HTML],
+            );
             assert!(
                 text_html_result.is_ok(),
                 "Rendering item {} with acceptable media type did not succeed as expected: {}",

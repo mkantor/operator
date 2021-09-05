@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use std::collections::HashMap;
+
 use super::content_index::ContentIndexEntries;
 use super::*;
 use bytes::{Bytes, BytesMut};
@@ -21,11 +23,11 @@ impl<'a> MockContentEngine<'a> {
     }
 }
 impl<'a> ContentEngine<()> for MockContentEngine<'a> {
-    fn render_context<QueryParameters: Clone + Serialize>(
+    fn render_context(
         &self,
         route: Option<Route>,
-        query_parameters: QueryParameters,
-    ) -> RenderContext<(), QueryParameters, Self> {
+        query_parameters: HashMap<String, String>,
+    ) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
             data: RenderData {

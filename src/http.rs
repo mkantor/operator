@@ -6,6 +6,7 @@ use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::io;
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, RwLock};
@@ -132,8 +133,8 @@ where
         .expect("RwLock for ContentEngine has been poisoned");
 
     let query_string = request.query_string();
-    let query_parameters = match web::Query::<serde_json::Value>::from_query(query_string) {
-        Ok(query_parameters) => query_parameters,
+    let query_parameters = match web::Query::<HashMap<String, String>>::from_query(query_string) {
+        Ok(query_parameters) => query_parameters.to_owned(),
         Err(error) => {
             log::warn!(
                 "Responding with {} for {}. Malformed query string `{}`: {}",
@@ -146,7 +147,7 @@ where
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
                 route,
-                serde_json::Value::Null,
+                HashMap::new(),
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
             );
@@ -172,7 +173,7 @@ where
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
                     route,
-                    query_parameters.clone(),
+                    query_parameters,
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
                 );
@@ -241,7 +242,7 @@ where
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
                 route,
-                query_parameters.clone(),
+                query_parameters,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -257,7 +258,7 @@ where
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
                 route,
-                query_parameters.clone(),
+                query_parameters,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -272,7 +273,7 @@ where
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
                 route,
-                query_parameters.clone(),
+                query_parameters,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -280,17 +281,16 @@ where
     }
 }
 
-fn error_response<Engine, QueryParameters>(
+fn error_response<Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
     request_route: Route,
-    query_parameters: QueryParameters,
+    query_parameters: HashMap<String, String>,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
 ) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
-    QueryParameters: Clone + Serialize,
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
         log::error!(
