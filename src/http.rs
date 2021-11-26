@@ -429,7 +429,7 @@ mod tests {
     use actix_web::test::TestRequest;
     use bytes::{Bytes, BytesMut};
     use std::path::Path;
-    use test_env_log::test;
+    use test_log::test;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ServerInfo>;
 

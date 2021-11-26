@@ -252,7 +252,7 @@ mod tests {
     use std::io::Write;
     use std::str;
     use tempfile::tempfile;
-    use test_env_log::test;
+    use test_log::test;
 
     fn test_render_data() -> RenderData<ServerInfo> {
         RenderData {

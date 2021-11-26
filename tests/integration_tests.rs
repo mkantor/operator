@@ -11,7 +11,7 @@ use std::env;
 use std::io::Write;
 use std::process::Stdio;
 use std::str;
-use test_env_log::test;
+use test_log::test;
 
 #[actix_rt::test]
 async fn samples_match_snapshots() {

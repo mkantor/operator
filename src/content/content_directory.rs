@@ -257,7 +257,7 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
     use std::fs;
-    use test_env_log::test;
+    use test_log::test;
 
     #[test]
     fn directory_can_be_created_from_valid_root() {
