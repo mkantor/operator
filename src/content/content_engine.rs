@@ -428,7 +428,7 @@ mod tests {
     use crate::test_lib::*;
     use ::mime;
     use maplit::hashmap;
-    use test_env_log::test;
+    use test_log::test;
 
     type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
 

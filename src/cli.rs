@@ -228,7 +228,7 @@ mod tests {
     use super::*;
     use crate::test_lib::*;
     use std::str;
-    use test_env_log::test;
+    use test_log::test;
 
     #[test]
     fn valid_templates_can_be_evaluated() {
