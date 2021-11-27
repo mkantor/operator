@@ -163,7 +163,36 @@ where
             })
             .collect::<HashMap<String, String>>();
 
-        let context = content_engine.render_context(optional_request_route, query_parameters);
+        let request_headers = current_render_data
+            .get(REQUEST_DATA_PROPERTY_NAME)
+            .and_then(|request_data| request_data.get(REQUEST_HEADERS_PROPERTY_NAME))
+            .ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the request headers could not be found \
+                    in the handlebars context. The context JSON must contain a property at `{}.{}` \
+                    whose value is a valid media type essence string. The current context is `{}`.",
+                    REQUEST_DATA_PROPERTY_NAME,
+                    REQUEST_HEADERS_PROPERTY_NAME,
+                    handlebars_context.data(),
+                ))
+            })?.as_object().ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "The `get` helper call failed because the request headers in the handlebars context \
+                    was not a map. The current context is `{}`.",
+                    handlebars_context.data(),
+                ))
+            })?
+            .into_iter()
+            .flat_map(|(key, value)| {
+                value.as_str().map(|value| (key.clone(), String::from(value)))
+            })
+            .collect::<HashMap<String, String>>();
+
+        let context = content_engine.render_context(
+            optional_request_route,
+            query_parameters,
+            request_headers,
+        );
 
         let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {

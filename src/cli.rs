@@ -3,6 +3,7 @@ use crate::http::QueryString;
 use crate::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
+use std::collections::HashMap;
 use std::io;
 use std::net::ToSocketAddrs;
 use thiserror::Error;
@@ -128,7 +129,11 @@ pub fn eval<I: io::Read, O: io::Write>(
 
     let query_parameters = query_string.unwrap_or_default();
 
-    let render_context = content_engine.render_context(None, query_parameters.into());
+    // Request headers cannot be specified on the CLI (yet).
+    let request_headers = HashMap::new();
+
+    let render_context =
+        content_engine.render_context(None, query_parameters.into(), request_headers);
     let media = content_item.render(render_context, &[mime::STAR_STAR])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {
@@ -166,8 +171,14 @@ pub fn get<O: io::Write>(
 
     let query_parameters = query_string.unwrap_or_default();
 
-    let render_context =
-        content_engine.render_context(Some(route.clone()), query_parameters.into());
+    // Request headers cannot be specified on the CLI (yet).
+    let request_headers = HashMap::new();
+
+    let render_context = content_engine.render_context(
+        Some(route.clone()),
+        query_parameters.into(),
+        request_headers,
+    );
     let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
     executor::block_on(media.content.try_for_each(|bytes| {

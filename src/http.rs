@@ -2,7 +2,7 @@ use crate::content::*;
 use crate::*;
 use actix_rt::System;
 use actix_web::error::QueryPayloadError;
-use actix_web::http::header::{self, Header};
+use actix_web::http::header::{self, Header, HeaderMap};
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
@@ -183,6 +183,28 @@ where
                 &*content_engine,
                 route,
                 HashMap::new(),
+                HashMap::new(),
+                &app_data.error_handler_route,
+                vec![&mime::TEXT_PLAIN],
+            );
+        }
+    };
+
+    let request_headers = match simplify_http_headers(request.headers()) {
+        Ok(simplified_request_headers) => simplified_request_headers,
+        Err(error) => {
+            log::warn!(
+                "Responding with {} for {}. Failed to handle request headers: {}",
+                http::StatusCode::BAD_REQUEST,
+                route,
+                error
+            );
+            return error_response(
+                http::StatusCode::BAD_REQUEST,
+                &*content_engine,
+                route,
+                query_parameters,
+                HashMap::new(),
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
             );
@@ -209,6 +231,7 @@ where
                     &*content_engine,
                     route,
                     query_parameters,
+                    request_headers,
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
                 );
@@ -217,8 +240,11 @@ where
     };
 
     let render_result = content_engine.get(&route).map(|content| {
-        let render_context =
-            content_engine.render_context(Some(route.clone()), query_parameters.clone());
+        let render_context = content_engine.render_context(
+            Some(route.clone()),
+            query_parameters.clone(),
+            request_headers.clone(),
+        );
         content.render(render_context, acceptable_media_ranges.clone())
     });
 
@@ -278,6 +304,7 @@ where
                 &*content_engine,
                 route,
                 query_parameters,
+                request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -294,6 +321,7 @@ where
                 &*content_engine,
                 route,
                 query_parameters,
+                request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -309,6 +337,7 @@ where
                 &*content_engine,
                 route,
                 query_parameters,
+                request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
             )
@@ -321,6 +350,7 @@ fn error_response<Engine>(
     content_engine: &Engine,
     request_route: Route,
     query_parameters: HashMap<String, String>,
+    request_headers: HashMap<String, String>,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
 ) -> HttpResponse
@@ -346,7 +376,7 @@ where
         .and_then(|route| {
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .render_context(Some(request_route), query_parameters)
+                    .render_context(Some(request_route), query_parameters, request_headers)
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
@@ -420,14 +450,38 @@ fn acceptable_media_ranges_from_accept_header<'a>(
     }
 }
 
+fn simplify_http_headers(
+    header_map: &HeaderMap,
+) -> Result<HashMap<String, String>, header::ToStrError> {
+    let mut simplified_headers = HashMap::new();
+    for key in header_map.keys() {
+        let mut combined_value = None;
+        for value in header_map.get_all(key) {
+            // This doesn't quite follow the HTTP spec (see the last paragraph
+            // of <https://datatracker.ietf.org/doc/html/rfc7230#section-3.2.4>
+            // for example).
+            let utf8_value = value.to_str()?;
+            combined_value = match combined_value {
+                None => Some(utf8_value.to_string()),
+                Some(previous_value) => Some(format!("{},{}", previous_value, utf8_value)),
+            }
+        }
+        if let Some(value) = combined_value {
+            simplified_headers.insert(key.to_string(), value);
+        }
+    }
+    Ok(simplified_headers)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_lib::*;
     use actix_web::body::{Body, ResponseBody};
-    use actix_web::http::StatusCode;
+    use actix_web::http::{HeaderName, HeaderValue, StatusCode};
     use actix_web::test::TestRequest;
     use bytes::{Bytes, BytesMut};
+    use maplit::hashmap;
     use std::path::Path;
     use test_log::test;
 
@@ -463,6 +517,119 @@ mod tests {
         })
         .await
         .map(BytesMut::freeze)
+    }
+
+    #[test]
+    fn empty_headers_are_handled() {
+        let simplified_headers =
+            simplify_http_headers(&HeaderMap::new()).expect("HTTP headers could not be converted");
+        assert_eq!(simplified_headers, hashmap![]);
+    }
+
+    #[test]
+    fn typical_headers_are_handled() {
+        let mut headers = HeaderMap::new();
+
+        headers.append(
+            HeaderName::from_static("user-agent"),
+            HeaderValue::from_static("Operator tests"),
+        );
+        headers.append(
+            HeaderName::from_static("accept"),
+            HeaderValue::from_static("text/html,*/*;q=0.8"),
+        );
+        headers.append(
+            HeaderName::from_static("accept-language"),
+            HeaderValue::from_static("en-US,en;q=0.5"),
+        );
+        headers.append(
+            HeaderName::from_static("accept-encoding"),
+            HeaderValue::from_static("gzip, deflate, br"),
+        );
+        headers.append(
+            HeaderName::from_static("upgrade-insecure-requests"),
+            HeaderValue::from_static("1"),
+        );
+        headers.append(
+            HeaderName::from_static("connection"),
+            HeaderValue::from_static("keep-alive"),
+        );
+        headers.append(
+            HeaderName::from_static("cookie"),
+            HeaderValue::from_static("foo=bar; blah=stuff"),
+        );
+
+        let simplified_headers =
+            simplify_http_headers(&headers).expect("HTTP headers could not be converted");
+        assert_eq!(
+            simplified_headers,
+            hashmap![
+                String::from("user-agent") => String::from("Operator tests"),
+                String::from("accept") => String::from("text/html,*/*;q=0.8"),
+                String::from("accept-language") => String::from("en-US,en;q=0.5"),
+                String::from("accept-encoding") => String::from("gzip, deflate, br"),
+                String::from("upgrade-insecure-requests") => String::from("1"),
+                String::from("connection") => String::from("keep-alive"),
+                String::from("cookie") => String::from("foo=bar; blah=stuff"),
+            ]
+        );
+    }
+
+    // TODO: Enable this test after upgrading to actix-web v4. See
+    // <https://github.com/actix/actix-web/issues/2466>.
+    #[ignore]
+    #[test]
+    fn duplicate_headers_are_handled() {
+        let mut headers = HeaderMap::new();
+
+        headers.append(
+            HeaderName::from_static("user-agent"),
+            HeaderValue::from_static("Operator tests"),
+        );
+        headers.append(
+            HeaderName::from_static("accept"),
+            HeaderValue::from_static("text/html,image/*"),
+        );
+        headers.append(
+            HeaderName::from_static("accept-language"),
+            HeaderValue::from_static("en-US,en;q=0.5"),
+        );
+        headers.append(
+            HeaderName::from_static("accept"),
+            HeaderValue::from_static("*/*;q=0.8"),
+        );
+        headers.append(
+            HeaderName::from_static("accept-language"),
+            HeaderValue::from_static("de"),
+        );
+        headers.append(
+            HeaderName::from_static("accept-language"),
+            HeaderValue::from_static("de-CH"),
+        );
+        headers.append(
+            HeaderName::from_static("x-arbitrary-header-1"),
+            HeaderValue::from_static("a,b,c"),
+        );
+        headers.append(
+            HeaderName::from_static("x-arbitrary-header-1"),
+            HeaderValue::from_static("d,e,f"),
+        );
+        headers.append(
+            HeaderName::from_static("x-arbitrary-header-1"),
+            HeaderValue::from_static("g,h,i"),
+        );
+
+        let simplified_headers =
+            simplify_http_headers(&headers).expect("HTTP headers could not be converted");
+        assert_eq!(
+            simplified_headers,
+            hashmap![
+                String::from("user-agent") => String::from("Operator tests"),
+                String::from("accept-language") => String::from("en-US,en;q=0.5,de,de-CH"),
+                String::from("x-arbitrary-header-1") => String::from("a,b,c,d,e,f,g,h,i"),
+                String::from("accept") => String::from("text/html,image/*,*/*;q=0.8"),
+            ]
+        );
     }
 
     #[actix_rt::test]
@@ -1003,7 +1170,7 @@ mod tests {
             "Response status was not 404"
         );
         assert_eq!(
-            response_body, "404 /not/a/real/path/so/this/should/404",
+            response_body, "404 /not/a/real/path/so/this/should/404\nquery parameters:\nrequest headers:\n  accept: text/plain",
             "Response body was incorrect"
         );
     }
@@ -1059,6 +1226,71 @@ mod tests {
             .await
             .expect("There was an error in the content stream");
 
-        assert_eq!(&response_body, "404 /this-route-will-404\nhello: world");
+        assert_eq!(
+            &response_body,
+            "404 /this-route-will-404\nquery parameters:\n  hello: world\nrequest headers:"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn request_headers_are_handled() {
+        let request = test_request(&sample_path("executables"), None, None)
+            .uri("/render-data")
+            .header("a", "hello")
+            .header("b", "2")
+            .header("c", "")
+            .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
+            .expect("Could not parse JSON");
+
+        assert_eq!(&response_json["request"]["request-headers"]["a"], "hello");
+        assert_eq!(&response_json["request"]["request-headers"]["b"], "2");
+        assert_eq!(&response_json["request"]["request-headers"]["c"], "");
+    }
+
+    #[actix_rt::test]
+    async fn request_headers_are_forwarded_to_getted_content() {
+        let request = test_request(&sample_path("executables"), None, None)
+            .uri("/get-render-data")
+            .header("hello", "world")
+            .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
+            .expect("Could not parse JSON");
+
+        assert_eq!(
+            &response_json["request"]["request-headers"]["hello"],
+            "world"
+        );
+    }
+
+    #[actix_rt::test]
+    async fn request_headers_are_forwarded_to_error_handler() {
+        let request = test_request(
+            &sample_path("error-handling"),
+            None,
+            Some("/error-code-and-request-info"),
+        )
+        .uri("/this-route-will-404")
+        .header("hello", "world")
+        .to_http_request();
+        let mut response = get::<TestContentEngine>(request).await;
+        let response_body = collect_response_body(response.take_body())
+            .await
+            .expect("There was an error in the content stream");
+
+        assert_eq!(
+            &response_body,
+            "404 /this-route-will-404\nquery parameters:\nrequest headers:\n  hello: world"
+        );
     }
 }

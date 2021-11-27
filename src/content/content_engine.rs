@@ -58,6 +58,7 @@ where
         &self,
         request_route: Option<Route>,
         query_parameters: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
     ) -> RenderContext<ServerInfo, Self>;
 
     fn new_template(
@@ -378,6 +379,7 @@ where
         &self,
         route: Option<Route>,
         query_parameters: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
     ) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
@@ -389,6 +391,7 @@ where
                 request: RequestData {
                     route,
                     query_parameters,
+                    request_headers,
                 },
             },
         }
@@ -472,7 +475,7 @@ mod tests {
                 .expect("Template could not be parsed");
             let rendered = renderable
                 .render(
-                    content_engine.render_context(None, HashMap::new()),
+                    content_engine.render_context(None, HashMap::new(), HashMap::new()),
                     &[mime::TEXT_HTML],
                 )
                 .expect(&format!("Template rendering failed for `{}`", template));
@@ -531,7 +534,7 @@ mod tests {
             .expect("Template could not be parsed");
         let rendered = renderable
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_HTML],
             )
             .expect(&format!("Template rendering failed for `{}`", template));
@@ -562,7 +565,7 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_HTML],
             )
             .expect(&format!(
@@ -630,7 +633,7 @@ mod tests {
             .expect("Template could not be parsed");
         let rendered = renderable
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_HTML],
             )
             .expect(&format!("Template rendering failed for `{}`", template));
@@ -669,7 +672,7 @@ mod tests {
                 )
                 .expect("Template could not be parsed");
             let result = renderable.render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_HTML],
             );
             assert!(
@@ -698,7 +701,7 @@ mod tests {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
                     let result = renderable.render(
-                        content_engine.render_context(None, HashMap::new()),
+                        content_engine.render_context(None, HashMap::new(), HashMap::new()),
                         &[mime::TEXT_HTML],
                     );
                     assert!(
@@ -728,7 +731,7 @@ mod tests {
             )
             .expect("Template could not be created");
         let result = template.render(
-            content_engine.render_context(None, HashMap::new()),
+            content_engine.render_context(None, HashMap::new(), HashMap::new()),
             &[mime::TEXT_PLAIN],
         );
 
@@ -756,7 +759,7 @@ mod tests {
                 None => panic!("No content was found at '{}'", route),
                 Some(renderable) => {
                     let result = renderable.render(
-                        content_engine.render_context(None, HashMap::new()),
+                        content_engine.render_context(None, HashMap::new(), HashMap::new()),
                         &[target_media_type],
                     );
                     assert!(
@@ -789,7 +792,7 @@ mod tests {
                         )
                         .expect("Test template was invalid")
                         .render(
-                            content_engine.render_context(None, HashMap::new()),
+                            content_engine.render_context(None, HashMap::new(), HashMap::new()),
                             &[mime::TEXT_PLAIN],
                         )
                         .expect("Failed to render unregistered template"),
@@ -802,7 +805,7 @@ mod tests {
                         .get(&route("/echo-target-media-type"))
                         .expect("Test template does not exist")
                         .render(
-                            content_engine.render_context(None, HashMap::new()),
+                            content_engine.render_context(None, HashMap::new(), HashMap::new()),
                             &[mime::TEXT_HTML],
                         )
                         .expect("Failed to render registered template"),
@@ -835,7 +838,7 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_PLAIN],
             )
             .expect(&format!("Rendering failed for content at '{}'", route));
@@ -866,7 +869,7 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_PLAIN],
             )
             .expect(&format!("Rendering failed for content at '{}'", route1));
@@ -889,7 +892,7 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_PLAIN],
             )
             .expect(&format!("Rendering failed for content at '{}'", route2));
@@ -918,7 +921,7 @@ mod tests {
             .expect("Content could not be found");
 
         let result1 = content.render(
-            content_engine.render_context(None, HashMap::new()),
+            content_engine.render_context(None, HashMap::new(), HashMap::new()),
             &[mime::TEXT_PLAIN], // Not text/html!
         );
         assert!(
@@ -928,7 +931,7 @@ mod tests {
         );
 
         let result2 = content.render(
-            content_engine.render_context(None, HashMap::new()),
+            content_engine.render_context(None, HashMap::new(), HashMap::new()),
             &[mime::TEXT_HTML],
         );
         assert!(
@@ -952,7 +955,7 @@ mod tests {
 
         let media = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::APPLICATION_OCTET_STREAM],
             )
             .expect(&format!(
@@ -985,7 +988,7 @@ mod tests {
             .expect("Content could not be found");
         let rendered = content
             .render(
-                content_engine.render_context(None, HashMap::new()),
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
                 &[mime::TEXT_PLAIN],
             )
             .expect(&format!("Rendering failed for content at '{}'", route));
@@ -1060,7 +1063,50 @@ mod tests {
             .expect("Template could not be parsed");
         let rendered = renderable
             .render(
-                content_engine.render_context(None, query_parameters),
+                content_engine.render_context(None, query_parameters, HashMap::new()),
+                &[mime::TEXT_PLAIN],
+            )
+            .expect(&format!("Template rendering failed for `{}`", template));
+        let actual_output = media_to_string(rendered);
+
+        assert!(
+            expected_outputs.contains(&actual_output),
+            "Template rendering for `{}` did not produce expected output (any of {:?}), got \"{}\"",
+            template,
+            expected_outputs,
+            actual_output,
+        );
+    }
+
+    #[test]
+    fn templates_receive_request_headers() {
+        let shared_content_engine = TestContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            (),
+        )
+        .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        let template = "{{#each request.request-headers}}{{@key}}: {{this}}\n{{/each}}";
+
+        let request_headers = hashmap![
+            String::from("hello") => String::from("world"),
+            String::from("goodbye") => String::from("moon"),
+        ];
+        let expected_outputs = [
+            String::from("hello: world\ngoodbye: moon\n"),
+            String::from("goodbye: moon\nhello: world\n"),
+        ];
+
+        let renderable = content_engine
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+            )
+            .expect("Template could not be parsed");
+        let rendered = renderable
+            .render(
+                content_engine.render_context(None, HashMap::new(), request_headers),
                 &[mime::TEXT_PLAIN],
             )
             .expect(&format!("Template rendering failed for `{}`", template));

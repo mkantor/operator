@@ -27,6 +27,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
         &self,
         route: Option<Route>,
         query_parameters: HashMap<String, String>,
+        request_headers: HashMap<String, String>,
     ) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
@@ -38,6 +39,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
                 request: RequestData {
                     route,
                     query_parameters,
+                    request_headers,
                 },
             },
         }

@@ -1,2 +1,6 @@
-{{error-code}} {{request.route}}{{#each request.query-parameters}}
-{{@key}}: {{this}}{{/each}}
+{{error-code}} {{request.route}}
+query parameters:{{#each request.query-parameters}}
+  {{@key}}: {{this}}{{/each}}
+{{!-- don't emit headers in snapshot tests (for parity with get command) --}}
+request headers:{{~#unless request.request-headers.is-operator-snapshot-test}}{{#each request.request-headers}}
+  {{@key}}: {{this}}{{/each}}{{/unless~}}

@@ -176,8 +176,10 @@ mod tests {
     fn rendering_with_empty_acceptable_media_ranges_should_fail() {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
-            let render_result =
-                renderable.render(mock_engine.render_context(None, HashMap::new()), &[]);
+            let render_result = renderable.render(
+                mock_engine.render_context(None, hashmap![], hashmap![]),
+                &[],
+            );
             assert!(
                 render_result.is_err(),
                 "Rendering item {} with an empty list of acceptable media types did not fail as expected",
@@ -191,7 +193,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::IMAGE_GIF, ::mime::APPLICATION_PDF, ::mime::TEXT_CSS],
             );
             assert!(
@@ -207,7 +209,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::IMAGE_STAR],
             );
             assert!(
@@ -223,7 +225,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::IMAGE_GIF, ::mime::TEXT_PLAIN, ::mime::TEXT_CSS],
             );
             assert!(
@@ -246,7 +248,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::STAR_STAR],
             );
             assert!(
@@ -263,7 +265,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let render_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::TEXT_STAR],
             );
             assert!(
@@ -288,7 +290,7 @@ mod tests {
         let (mock_engine, renderables) = fixtures();
         for (index, renderable) in renderables.iter().enumerate() {
             let text_plain_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::TEXT_PLAIN],
             );
             assert!(
@@ -304,7 +306,7 @@ mod tests {
             );
 
             let text_html_result = renderable.render(
-                mock_engine.render_context(None, HashMap::new()),
+                mock_engine.render_context(None, hashmap![], hashmap![]),
                 &[::mime::TEXT_HTML],
             );
             assert!(
