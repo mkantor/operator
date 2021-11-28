@@ -145,7 +145,7 @@ where
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the query parameters could not be found \
                     in the handlebars context. The context JSON must contain a property at `{}.{}` \
-                    whose value is a valid media type essence string. The current context is `{}`.",
+                    whose value is a map. The current context is `{}`.",
                     REQUEST_DATA_PROPERTY_NAME,
                     QUERY_PARAMETERS_PROPERTY_NAME,
                     handlebars_context.data(),
@@ -170,7 +170,7 @@ where
                 handlebars::RenderError::new(format!(
                     "The `get` helper call failed because the request headers could not be found \
                     in the handlebars context. The context JSON must contain a property at `{}.{}` \
-                    whose value is a valid media type essence string. The current context is `{}`.",
+                    whose value is a map. The current context is `{}`.",
                     REQUEST_DATA_PROPERTY_NAME,
                     REQUEST_HEADERS_PROPERTY_NAME,
                     handlebars_context.data(),
