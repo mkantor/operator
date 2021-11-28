@@ -116,6 +116,7 @@ const TARGET_MEDIA_TYPE_PROPERTY_NAME: &str = "target-media-type";
 const REQUEST_DATA_PROPERTY_NAME: &str = "request";
 const ROUTE_PROPERTY_NAME: &str = "route";
 const QUERY_PARAMETERS_PROPERTY_NAME: &str = "query-parameters";
+const REQUEST_HEADERS_PROPERTY_NAME: &str = "request-headers";
 
 /// Render data that comes from requests.
 #[derive(Clone, Serialize)]
@@ -126,6 +127,9 @@ pub struct RequestData {
 
     /// A parsed version of the request URI's query string.
     pub query_parameters: HashMap<String, String>,
+
+    /// Headers that were sent in the request.
+    pub request_headers: HashMap<String, String>,
 }
 
 /// Data passed to handlebars templates and executables.

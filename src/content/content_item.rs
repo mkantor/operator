@@ -263,6 +263,7 @@ mod tests {
             request: RequestData {
                 route: None,
                 query_parameters: HashMap::new(),
+                request_headers: HashMap::new(),
             },
         }
     }
@@ -315,7 +316,9 @@ mod tests {
         .expect("Test template was invalid");
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
-            content_engine.render_context(None, HashMap::new()).data,
+            content_engine
+                .render_context(None, HashMap::new(), HashMap::new())
+                .data,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));
@@ -336,7 +339,7 @@ mod tests {
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
             content_engine
-                .render_context(Some(route("/test")), HashMap::new())
+                .render_context(Some(route("/test")), HashMap::new(), HashMap::new())
                 .data,
         );
 

@@ -323,6 +323,7 @@ async fn render_via_http_request(
     let request = HttpClient::new()
         .get(format!("http://{}{}", server_address, route))
         .header("Accept", accept)
+        .header("Is-Operator-Snapshot-Test", "true")
         .timeout(time::Duration::from_secs(15));
 
     match request.send().await {
