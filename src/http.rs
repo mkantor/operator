@@ -20,13 +20,8 @@ pub struct InvalidQueryStringError {
     source: QueryPayloadError,
 }
 
+#[derive(Default)]
 pub struct QueryString(HashMap<String, String>);
-
-impl Default for QueryString {
-    fn default() -> Self {
-        QueryString(HashMap::new())
-    }
-}
 
 impl From<QueryString> for HashMap<String, String> {
     fn from(query_string: QueryString) -> HashMap<String, String> {
