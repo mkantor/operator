@@ -1,0 +1,5 @@
+{{!--
+    templates included with `get` should be able to access block content via
+    {{> @partial-block }}, just like handlebars partials
+--}}
+{{~#get "/uses-block"}}this is block content{{/get~}}

@@ -91,6 +91,10 @@ where
         let query_parameters = get_query_parameters(current_render_data, handlebars_context)?;
         let request_headers = get_request_headers(current_render_data, handlebars_context)?;
 
+        if let Some(block_template) = helper.template() {
+            render_context.push_partial_block(block_template);
+        }
+
         let context = content_engine
             .render_context(optional_request_route, query_parameters, request_headers)
             .with_handlebars_render_context(render_context.clone());
