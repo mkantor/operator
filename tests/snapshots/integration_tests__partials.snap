@@ -5,8 +5,8 @@ input_file: samples/partials
 
 ---
 a.html.hbs: "a\n"
-ab.html.hbs: "a\nb\n\n"
-abc.html.hbs: "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n"
+ab.html.hbs: "a\nb\n"
+abc.html.hbs: "a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n"
 b.html: "b\n"
 blocks.html.hbs: "this is the block, hopefully: \"this is block content\""
 subdirectory.html.hbs: "subdirectory entries:\n/subdirectory/c\n"
