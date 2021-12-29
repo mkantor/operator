@@ -45,6 +45,9 @@ pub enum RenderingFailedError {
         #[from]
         source: io::Error,
     },
+
+    #[error("{} This should never happen: {}", bug_message!(), .0)]
+    Bug(String),
 }
 
 /// A static file from the content directory (such as an image or a text file).
@@ -88,6 +91,7 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo>,
+        handlebars_render_context: Option<handlebars::RenderContext>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
@@ -96,7 +100,23 @@ impl RegisteredTemplate {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
         };
-        let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
+        let rendered_content = match handlebars_render_context {
+            None => handlebars_registry.render(&self.name_in_registry, &render_data)?,
+            Some(mut context) => handlebars_registry
+                .get_template(&self.name_in_registry)
+                .ok_or_else(|| {
+                    RenderingFailedError::Bug(format!(
+                        "Template '{}' was not found in the registry",
+                        &self.name_in_registry
+                    ))
+                })?
+                .renders(
+                    handlebars_registry,
+                    &handlebars::Context::wraps(render_data)?,
+                    &mut context,
+                )?,
+        };
+
         Ok(Media::new(
             self.rendered_media_type.clone(),
             InMemoryBody(rendered_content.bytes().collect()),
@@ -247,7 +267,7 @@ mod tests {
     use crate::test_lib::*;
     use crate::ServerInfo;
     use ::mime;
-    use std::collections::HashMap;
+    use maplit::hashmap;
     use std::fs;
     use std::io::Write;
     use std::str;
@@ -262,8 +282,8 @@ mod tests {
             error_code: None,
             request: RequestData {
                 route: None,
-                query_parameters: HashMap::new(),
-                request_headers: HashMap::new(),
+                query_parameters: hashmap![],
+                request_headers: hashmap![],
             },
         }
     }
@@ -317,7 +337,7 @@ mod tests {
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
             content_engine
-                .render_context(None, HashMap::new(), HashMap::new())
+                .render_context(None, hashmap![], hashmap![])
                 .data,
         );
 
@@ -339,12 +359,42 @@ mod tests {
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
             content_engine
-                .render_context(Some(route("/test")), HashMap::new(), HashMap::new())
+                .render_context(Some(route("/test")), hashmap![], hashmap![])
                 .data,
+            None,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));
         assert_eq!(template_output, "it works!");
+    }
+
+    #[test]
+    fn registered_template_can_be_rendered_with_custom_handlebars_context() {
+        let mut content_engine = MockContentEngine::new();
+        content_engine
+            .register_template("test", "{{ ping }}")
+            .expect("Could not register test template");
+
+        let template = RegisteredTemplate::new(
+            "test",
+            MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+        );
+
+        let replaced_render_data = handlebars::Context::wraps(hashmap!["ping" => "pong"])
+            .expect("Could not create fake render data");
+        let mut handlebars_render_context = handlebars::RenderContext::new(None);
+        handlebars_render_context.set_context(replaced_render_data);
+
+        let rendered = template.render_to_native_media_type(
+            content_engine.handlebars_registry(),
+            content_engine
+                .render_context(Some(route("/test")), hashmap![], hashmap![])
+                .data,
+            Some(handlebars_render_context),
+        );
+
+        let template_output = media_to_string(rendered.expect("Rendering failed"));
+        assert_eq!(template_output, "pong");
     }
 
     #[test]

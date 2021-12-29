@@ -38,7 +38,7 @@ where
         helper: &handlebars::Helper<'registry, 'context>,
         _: &'registry Handlebars<'registry>,
         handlebars_context: &'context handlebars::Context,
-        _: &mut handlebars::RenderContext<'registry, 'context>,
+        render_context: &mut handlebars::RenderContext<'registry, 'context>,
         output: &mut dyn handlebars::Output,
     ) -> handlebars::HelperResult {
         let content_engine = self
@@ -91,11 +91,9 @@ where
         let query_parameters = get_query_parameters(current_render_data, handlebars_context)?;
         let request_headers = get_request_headers(current_render_data, handlebars_context)?;
 
-        let context = content_engine.render_context(
-            optional_request_route,
-            query_parameters,
-            request_headers,
-        );
+        let context = content_engine
+            .render_context(optional_request_route, query_parameters, request_headers)
+            .with_handlebars_render_context(render_context.clone());
 
         let rendered = content_item
             .render(context, &[target_media_type.into_media_range()]).map_err(|render_error| {

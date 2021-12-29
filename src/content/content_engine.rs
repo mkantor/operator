@@ -383,6 +383,7 @@ where
     ) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
+            handlebars_render_context: None,
             data: RenderData {
                 server_info: self.server_info.clone(),
                 index: self.index.clone(),
