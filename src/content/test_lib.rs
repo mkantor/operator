@@ -31,6 +31,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
     ) -> RenderContext<(), Self> {
         RenderContext {
             content_engine: self,
+            handlebars_render_context: None,
             data: RenderData {
                 server_info: (),
                 index: ContentIndex::Directory(ContentIndexEntries::new()),
