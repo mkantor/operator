@@ -685,6 +685,40 @@ mod tests {
     }
 
     #[test]
+    fn get_helper_accepts_hash_parameters() {
+        let directory = ContentDirectory::from_root(&sample_path("partials")).unwrap();
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        let template = "output: {{get \"/echo-param-x\" x=\"hello this is x\"}}";
+        let expected_output = "output: hello this is x";
+
+        let renderable = content_engine
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
+            .expect("Template could not be parsed");
+        let rendered = renderable
+            .render(
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
+                &[mime::TEXT_HTML],
+            )
+            .expect(&format!("Template rendering failed for `{}`", template));
+        let actual_output = media_to_string(rendered);
+
+        assert_eq!(
+            actual_output,
+            expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template,
+            expected_output,
+            actual_output,
+        );
+    }
+
+    #[test]
     fn registered_content_cannot_be_rendered_with_unacceptable_target_media_type() {
         let content_directory_path = &sample_path("media-types");
         let directory = ContentDirectory::from_root(content_directory_path).unwrap();

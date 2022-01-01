@@ -5,6 +5,8 @@ use futures::stream::TryStreamExt;
 use handlebars::{self, Handlebars};
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::mem;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 pub struct GetHelper<ServerInfo, Engine>
@@ -70,6 +72,30 @@ where
                     path_and_json, error,
                 ))
             })?;
+
+        let mut hash_params = helper
+            .hash()
+            .iter()
+            .map(|(key, value)| (*key, value.value()))
+            .collect::<HashMap<&str, &serde_json::Value>>();
+
+        if let Some(ref mut modified_context) = handlebars_render_context.context() {
+            // merge hash params atop the existing context
+            let modified_context_data_as_json =
+                mem::take(Rc::make_mut(modified_context).data_mut());
+            if let serde_json::Value::Object(mut modified_context_data_as_json_map) =
+                modified_context_data_as_json
+            {
+                for (key, value) in hash_params.iter_mut() {
+                    modified_context_data_as_json_map.insert(key.to_string(), value.clone());
+                }
+                handlebars_render_context.set_context(handlebars::Context::wraps(
+                    serde_json::Value::Object(modified_context_data_as_json_map),
+                )?);
+            }
+        } else if !hash_params.is_empty() {
+            handlebars_render_context.set_context(handlebars::Context::wraps(hash_params)?);
+        }
 
         let content_item = content_engine.get_internal(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
