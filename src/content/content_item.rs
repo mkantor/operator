@@ -3,6 +3,7 @@ use body::{FileBody, InMemoryBody, ProcessBody};
 use handlebars::{self, Handlebars, Renderable as _};
 use std::fs;
 use std::io;
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
@@ -226,13 +227,36 @@ impl Executable {
     pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         render_data: RenderData<ServerInfo>,
+        additional_data: Option<serde_json::Value>,
     ) -> Result<Media<ProcessBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
     {
-        let render_data = RenderData {
+        let base_render_data = RenderData {
             target_media_type: Some(self.output_media_type.clone()),
             ..render_data
+        };
+
+        let render_data_environment_variable_value = match additional_data {
+            None => serde_json::ser::to_string(&base_render_data)?,
+            Some(serde_json::Value::Object(mut additional_data_as_json_map)) => {
+                // merge additional data atop base render data
+                let base_render_data_as_json = serde_json::value::to_value(base_render_data)?;
+                if let serde_json::Value::Object(mut base_render_data_as_json_map) =
+                    base_render_data_as_json
+                {
+                    for (key, value) in additional_data_as_json_map.iter_mut() {
+                        base_render_data_as_json_map.insert(key.to_string(), mem::take(value));
+                    }
+                    serde_json::Value::Object(base_render_data_as_json_map).to_string()
+                } else {
+                    return Err(RenderingFailedError::Bug(format!(
+                        "Render data did not serialize to a JSON object, instead got `{}`.",
+                        base_render_data_as_json
+                    )));
+                }
+            }
+            Some(non_object_additional_data) => non_object_additional_data.to_string(),
         };
 
         let mut command = Command::new(self.program.clone());
@@ -243,7 +267,7 @@ impl Executable {
             .stderr(Stdio::piped())
             .env(
                 "OPERATOR_RENDER_DATA",
-                serde_json::ser::to_string(&render_data)?,
+                render_data_environment_variable_value,
             )
             .spawn()
             .map_err(|io_error| RenderingFailedError::ExecutableError {
@@ -408,7 +432,7 @@ mod tests {
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
         let output = executable
-            .render_to_native_media_type(test_render_data())
+            .render_to_native_media_type(test_render_data(), None)
             .expect("Executable failed but it should have succeeded");
 
         assert_eq!(
@@ -425,7 +449,7 @@ mod tests {
             working_directory,
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
-        let result = executable.render_to_native_media_type(test_render_data());
+        let result = executable.render_to_native_media_type(test_render_data(), None);
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"
@@ -446,7 +470,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type(test_render_data())
+                .render_to_native_media_type(test_render_data(), None)
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
@@ -471,7 +495,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type(test_render_data())
+                .render_to_native_media_type(test_render_data(), None)
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
