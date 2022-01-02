@@ -652,9 +652,11 @@ mod tests {
 
     #[test]
     fn get_helper_requires_a_route_argument() {
-        let directory = ContentDirectory::from_root(&sample_path("partials")).unwrap();
-        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
-            .expect("Content engine could not be created");
+        let shared_content_engine = TestContentEngine::from_content_directory(
+            arbitrary_content_directory_with_valid_content(),
+            (),
+        )
+        .expect("Content engine could not be created");
         let content_engine = shared_content_engine.read().unwrap();
 
         let templates = [
