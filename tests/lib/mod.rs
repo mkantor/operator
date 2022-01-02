@@ -269,18 +269,18 @@ async fn render_multiple_ways_for_snapshots(
                                 sample_name,
                                 accept,
                                 get_command_output.status,
-                                if get_command_output.stdout.len() > 64 {
+                                if get_command_output.stdout.len() > 1024 {
                                     format!("{} bytes", get_command_output.stdout.len())
                                 } else {
                                     String::from(format!("{:?}", Bytes::from(get_command_output.stdout)).trim_end())
                                 },
-                                if get_command_output.stderr.len() > 64 {
+                                if get_command_output.stderr.len() > 1024 {
                                     format!("{} bytes", get_command_output.stderr.len())
                                 } else {
                                     String::from(format!("{:?}", Bytes::from(get_command_output.stderr)).trim_end())
                                 },
                                 http_response_status,
-                                if http_response_body.len() > 64 {
+                                if http_response_body.len() > 1024 {
                                     format!("{} bytes", http_response_body.len())
                                 } else {
                                     format!("{:?}", http_response_body)
