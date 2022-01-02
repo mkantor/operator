@@ -383,6 +383,7 @@ where
     ) -> RenderContext<ServerInfo, Self> {
         RenderContext {
             content_engine: self,
+            handlebars_render_context: None,
             data: RenderData {
                 server_info: self.server_info.clone(),
                 index: self.index.clone(),
@@ -524,7 +525,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+            "this is partial: a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let renderable = content_engine
             .new_template(
@@ -558,7 +559,7 @@ mod tests {
         let content_engine = shared_content_engine.read().unwrap();
 
         let route = route("/abc");
-        let expected_output = "a\nb\n\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+        let expected_output = "a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
 
         let content = content_engine
             .get(&route)
@@ -681,6 +682,40 @@ mod tests {
                 template,
             );
         }
+    }
+
+    #[test]
+    fn get_helper_accepts_hash_parameters() {
+        let directory = ContentDirectory::from_root(&sample_path("partials")).unwrap();
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        let template = "output: {{get \"/echo-param-x\" x=\"hello this is x\"}}";
+        let expected_output = "output: hello this is x";
+
+        let renderable = content_engine
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
+            .expect("Template could not be parsed");
+        let rendered = renderable
+            .render(
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
+                &[mime::TEXT_HTML],
+            )
+            .expect(&format!("Template rendering failed for `{}`", template));
+        let actual_output = media_to_string(rendered);
+
+        assert_eq!(
+            actual_output,
+            expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template,
+            expected_output,
+            actual_output,
+        );
     }
 
     #[test]

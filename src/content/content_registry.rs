@@ -62,10 +62,20 @@ impl Render for ContentRepresentations {
                             .render_to_native_media_type(
                                 context.content_engine.handlebars_registry(),
                                 context.data.clone(),
+                                context.handlebars_render_context.clone(),
                             )
                             .map(box_media),
                         RegisteredContent::Executable(renderable) => renderable
-                            .render_to_native_media_type(context.data.clone())
+                            .render_to_native_media_type(
+                                context.data.clone(),
+                                context.handlebars_render_context.as_ref().and_then(
+                                    |handlebars_render_context| {
+                                        handlebars_render_context
+                                            .context()
+                                            .map(|context| context.data().clone())
+                                    },
+                                ),
+                            )
                             .map(box_media),
                     };
 

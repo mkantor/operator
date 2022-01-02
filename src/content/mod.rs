@@ -168,6 +168,7 @@ where
 {
     content_engine: &'engine Engine,
     data: RenderData<ServerInfo>,
+    handlebars_render_context: Option<handlebars::RenderContext<'engine, 'engine>>,
 }
 
 impl<'engine, ServerInfo, Engine> RenderContext<'engine, ServerInfo, Engine>
@@ -181,6 +182,16 @@ where
                 error_code: Some(error_code),
                 ..self.data
             },
+            ..self
+        }
+    }
+
+    pub fn with_handlebars_render_context(
+        self,
+        handlebars_render_context: handlebars::RenderContext<'engine, 'engine>,
+    ) -> Self {
+        RenderContext {
+            handlebars_render_context: Some(handlebars_render_context),
             ..self
         }
     }

@@ -3,6 +3,7 @@ use body::{FileBody, InMemoryBody, ProcessBody};
 use handlebars::{self, Handlebars, Renderable as _};
 use std::fs;
 use std::io;
+use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
@@ -45,6 +46,9 @@ pub enum RenderingFailedError {
         #[from]
         source: io::Error,
     },
+
+    #[error("{} This should never happen: {}", bug_message!(), .0)]
+    Bug(String),
 }
 
 /// A static file from the content directory (such as an image or a text file).
@@ -88,6 +92,7 @@ impl RegisteredTemplate {
         &self,
         handlebars_registry: &Handlebars,
         render_data: RenderData<ServerInfo>,
+        handlebars_render_context: Option<handlebars::RenderContext>,
     ) -> Result<Media<InMemoryBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
@@ -96,7 +101,23 @@ impl RegisteredTemplate {
             target_media_type: Some(self.rendered_media_type.clone()),
             ..render_data
         };
-        let rendered_content = handlebars_registry.render(&self.name_in_registry, &render_data)?;
+        let rendered_content = match handlebars_render_context {
+            None => handlebars_registry.render(&self.name_in_registry, &render_data)?,
+            Some(mut handlebars_render_context) => handlebars_registry
+                .get_template(&self.name_in_registry)
+                .ok_or_else(|| {
+                    RenderingFailedError::Bug(format!(
+                        "Template '{}' was not found in the registry",
+                        &self.name_in_registry
+                    ))
+                })?
+                .renders(
+                    handlebars_registry,
+                    &handlebars::Context::wraps(&render_data)?,
+                    &mut handlebars_render_context,
+                )?,
+        };
+
         Ok(Media::new(
             self.rendered_media_type.clone(),
             InMemoryBody(rendered_content.bytes().collect()),
@@ -206,13 +227,36 @@ impl Executable {
     pub(super) fn render_to_native_media_type<ServerInfo>(
         &self,
         render_data: RenderData<ServerInfo>,
+        additional_data: Option<serde_json::Value>,
     ) -> Result<Media<ProcessBody>, RenderingFailedError>
     where
         ServerInfo: Clone + Serialize,
     {
-        let render_data = RenderData {
+        let base_render_data = RenderData {
             target_media_type: Some(self.output_media_type.clone()),
             ..render_data
+        };
+
+        let render_data_environment_variable_value = match additional_data {
+            None => serde_json::ser::to_string(&base_render_data)?,
+            Some(serde_json::Value::Object(mut additional_data_as_json_map)) => {
+                // merge additional data atop base render data
+                let base_render_data_as_json = serde_json::value::to_value(base_render_data)?;
+                if let serde_json::Value::Object(mut base_render_data_as_json_map) =
+                    base_render_data_as_json
+                {
+                    for (key, value) in additional_data_as_json_map.iter_mut() {
+                        base_render_data_as_json_map.insert(key.to_string(), mem::take(value));
+                    }
+                    serde_json::Value::Object(base_render_data_as_json_map).to_string()
+                } else {
+                    return Err(RenderingFailedError::Bug(format!(
+                        "Render data did not serialize to a JSON object, instead got `{}`.",
+                        base_render_data_as_json
+                    )));
+                }
+            }
+            Some(non_object_additional_data) => non_object_additional_data.to_string(),
         };
 
         let mut command = Command::new(self.program.clone());
@@ -223,7 +267,7 @@ impl Executable {
             .stderr(Stdio::piped())
             .env(
                 "OPERATOR_RENDER_DATA",
-                serde_json::ser::to_string(&render_data)?,
+                render_data_environment_variable_value,
             )
             .spawn()
             .map_err(|io_error| RenderingFailedError::ExecutableError {
@@ -247,7 +291,7 @@ mod tests {
     use crate::test_lib::*;
     use crate::ServerInfo;
     use ::mime;
-    use std::collections::HashMap;
+    use maplit::hashmap;
     use std::fs;
     use std::io::Write;
     use std::str;
@@ -262,8 +306,8 @@ mod tests {
             error_code: None,
             request: RequestData {
                 route: None,
-                query_parameters: HashMap::new(),
-                request_headers: HashMap::new(),
+                query_parameters: hashmap![],
+                request_headers: hashmap![],
             },
         }
     }
@@ -317,7 +361,7 @@ mod tests {
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
             content_engine
-                .render_context(None, HashMap::new(), HashMap::new())
+                .render_context(None, hashmap![], hashmap![])
                 .data,
         );
 
@@ -339,12 +383,42 @@ mod tests {
         let rendered = template.render_to_native_media_type(
             content_engine.handlebars_registry(),
             content_engine
-                .render_context(Some(route("/test")), HashMap::new(), HashMap::new())
+                .render_context(Some(route("/test")), hashmap![], hashmap![])
                 .data,
+            None,
         );
 
         let template_output = media_to_string(rendered.expect("Rendering failed"));
         assert_eq!(template_output, "it works!");
+    }
+
+    #[test]
+    fn registered_template_can_be_rendered_with_custom_handlebars_context() {
+        let mut content_engine = MockContentEngine::new();
+        content_engine
+            .register_template("test", "{{ ping }}")
+            .expect("Could not register test template");
+
+        let template = RegisteredTemplate::new(
+            "test",
+            MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
+        );
+
+        let replaced_render_data = handlebars::Context::wraps(hashmap!["ping" => "pong"])
+            .expect("Could not create fake render data");
+        let mut handlebars_render_context = handlebars::RenderContext::new(None);
+        handlebars_render_context.set_context(replaced_render_data);
+
+        let rendered = template.render_to_native_media_type(
+            content_engine.handlebars_registry(),
+            content_engine
+                .render_context(Some(route("/test")), hashmap![], hashmap![])
+                .data,
+            Some(handlebars_render_context),
+        );
+
+        let template_output = media_to_string(rendered.expect("Rendering failed"));
+        assert_eq!(template_output, "pong");
     }
 
     #[test]
@@ -358,7 +432,7 @@ mod tests {
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
         let output = executable
-            .render_to_native_media_type(test_render_data())
+            .render_to_native_media_type(test_render_data(), None)
             .expect("Executable failed but it should have succeeded");
 
         assert_eq!(
@@ -375,7 +449,7 @@ mod tests {
             working_directory,
             MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
         );
-        let result = executable.render_to_native_media_type(test_render_data());
+        let result = executable.render_to_native_media_type(test_render_data(), None);
         assert!(
             result.is_err(),
             "Executable succeeded but it should have failed"
@@ -396,7 +470,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type(test_render_data())
+                .render_to_native_media_type(test_render_data(), None)
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
@@ -421,7 +495,7 @@ mod tests {
                 MediaType::from_media_range(mime::TEXT_PLAIN).unwrap(),
             );
             let output = executable
-                .render_to_native_media_type(test_render_data())
+                .render_to_native_media_type(test_render_data(), None)
                 .expect("Executable failed but it should have succeeded");
 
             match block_on_content(output) {
