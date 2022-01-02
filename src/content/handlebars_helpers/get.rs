@@ -48,7 +48,7 @@ where
             .read()
             .expect("RwLock for ContentEngine has been poisoned");
 
-        let path_and_json = helper
+        let param_0 = helper
             .param(0)
             .ok_or_else(|| {
                 handlebars::RenderError::new(
@@ -56,20 +56,20 @@ where
                 )
             })?
             .value();
-        let route = path_and_json
+        let route = param_0
             .as_str()
             .ok_or_else(|| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper's first argument must be a string (the route of the content \
                     item to get), but it was `{}`.",
-                    path_and_json,
+                    param_0,
                 ))
             })?
             .parse::<Route>()
             .map_err(|error| {
                 handlebars::RenderError::new(format!(
                     "The `get` helper's first argument (`{}`) must be a valid route: {}",
-                    path_and_json, error,
+                    param_0, error,
                 ))
             })?;
 
