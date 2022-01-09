@@ -12,6 +12,8 @@ abc.html.hbs: "a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n"
 abcd-get.html.hbs: "a\nb\nc\nd"
 abcd.html.hbs: "a\nb\nc\nd"
 b.html: "b\n"
+custom-context-get.html.hbs: "/: [object]\nerror-code: \nquery-parameters: [object]\nrequest: [object]\nrequest-headers: [object]\nroute: /custom-context-get\nserver-info: [object]\ntarget-media-type: text/html\n\n"
+custom-context.html.hbs: "query-parameters: [object]\nrequest-headers: [object]\nroute: /custom-context\n"
 echo-param-x.html.hbs: "Unable to render content.\n\nCaused by:\n    0: Rendering failed for handlebars template: Error rendering \"echo-param-x.html.hbs\" line 1, col 1: Variable \"x\" not found in strict mode.\n    1: Error rendering \"echo-param-x.html.hbs\" line 1, col 1: Variable \"x\" not found in strict mode.\n"
 echo-target-media-type.html.hbs: text/html
 hash-param.html.hbs: "these should be the same:\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n"

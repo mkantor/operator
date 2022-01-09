@@ -434,7 +434,7 @@ mod tests {
     use maplit::hashmap;
     use test_log::test;
 
-    type TestContentEngine<'a> = FilesystemBasedContentEngine<'a, ()>;
+    type TestContentEngine<'a, ServerInfo = ()> = FilesystemBasedContentEngine<'a, ServerInfo>;
 
     // FIXME: It's not ideal to rely on specific sample directories in these
     // tests. It would be better to mock out contents in each of the tests.
@@ -608,7 +608,8 @@ mod tests {
                 .unwrap()
                 .first()
                 .unwrap();
-        let content_engine_handlebars_extension = TestContentEngine::HANDLEBARS_FILE_EXTENSION;
+        let content_engine_handlebars_extension =
+            <TestContentEngine<'static, ()>>::HANDLEBARS_FILE_EXTENSION;
 
         assert_eq!(
             mime_guess_handlebars_extension,
@@ -717,6 +718,75 @@ mod tests {
             template,
             expected_output,
             actual_output,
+        );
+    }
+
+    #[test]
+    fn get_helper_accepts_custom_context() {
+        let directory = ContentDirectory::from_root(&sample_path("partials")).unwrap();
+        let shared_content_engine = TestContentEngine::from_content_directory(
+            directory,
+            hashmap![
+                "key1" => "value1",
+                "key2" => "value2",
+                "key3" => "value3",
+            ],
+        )
+        .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        let template = "output:\n\n{{get \"/_iterate-context\" server-info}}";
+        let expected_output = "output:\n\n/: [object]\nerror-code: \nkey1: value1\nkey2: value2\nkey3: value3\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n";
+
+        let renderable = content_engine
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
+            .expect("Template could not be parsed");
+        let rendered = renderable
+            .render(
+                content_engine.render_context(None, HashMap::new(), HashMap::new()),
+                &[mime::TEXT_HTML],
+            )
+            .expect(&format!("Template rendering failed for `{}`", template));
+        let actual_output = media_to_string(rendered);
+
+        assert_eq!(
+            actual_output,
+            expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template,
+            expected_output,
+            actual_output,
+        );
+    }
+
+    #[test]
+    fn get_helper_errors_with_non_object_context() {
+        let directory = ContentDirectory::from_root(&sample_path("partials")).unwrap();
+        let shared_content_engine = TestContentEngine::from_content_directory(directory, ())
+            .expect("Content engine could not be created");
+        let content_engine = shared_content_engine.read().unwrap();
+
+        let template = "{{get \"/a\" \"not an object\"}}";
+
+        let renderable = content_engine
+            .new_template(
+                template,
+                MediaType::from_media_range(mime::TEXT_HTML).unwrap(),
+            )
+            .expect("Template could not be parsed");
+        let result = renderable.render(
+            content_engine.render_context(None, HashMap::new(), HashMap::new()),
+            &[mime::TEXT_HTML],
+        );
+
+        assert!(
+            result.is_err(),
+            "Content was successfully rendered for `{}`, but this should have failed \
+            because it provided a non-object custom context to `get`",
+            template,
         );
     }
 

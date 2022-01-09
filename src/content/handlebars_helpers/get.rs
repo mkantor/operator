@@ -48,6 +48,7 @@ where
             .read()
             .expect("RwLock for ContentEngine has been poisoned");
 
+        // The first param is the route of the content to include.
         let param_0 = helper
             .param(0)
             .ok_or_else(|| {
@@ -73,11 +74,39 @@ where
                 ))
             })?;
 
-        let custom_context = helper
-            .hash()
-            .iter()
-            .map(|(key, value)| (*key, value.value()))
-            .collect::<BTreeMap<&str, &serde_json::Value>>();
+        // The second param is an (optional) custom context for the included
+        // content.
+        // https://handlebarsjs.com/guide/partials.html#partial-contexts
+        let param_1 = helper.param(1).map(|path_and_json| path_and_json.value());
+        let param_1_as_object = match param_1.map(|value| {
+            value.as_object().ok_or_else(|| {
+                handlebars::RenderError::new(format!(
+                    "Custom context provided to the `get` helper must be an object, but it was `{}`.",
+                    value,
+                ))
+            })
+        }) {
+            Some(Ok(object)) => Some(object),
+            Some(Err(error)) => { return Err(error) },
+            None => None,
+        };
+
+        let custom_context = param_1_as_object
+            .map(|map| {
+                map.iter()
+                    .map(|(key, value)| (key.as_str(), value))
+                    .collect::<BTreeMap<&str, &serde_json::Value>>()
+            })
+            .unwrap_or_else(|| {
+                // Hash params set custom render data for the included content,
+                // but only if a custom context was not provided directly.
+                // https://handlebarsjs.com/guide/partials.html#partial-parameters
+                helper
+                    .hash()
+                    .iter()
+                    .map(|(key, value)| (*key, value.value()))
+                    .collect::<BTreeMap<&str, &serde_json::Value>>()
+            });
 
         let content_item = content_engine.get_internal(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
