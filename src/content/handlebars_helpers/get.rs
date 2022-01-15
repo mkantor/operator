@@ -3,7 +3,7 @@ use crate::content::*;
 use futures::executor;
 use futures::stream::TryStreamExt;
 use handlebars::{self, Handlebars};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 use std::mem;
 use std::rc::Rc;
@@ -73,29 +73,11 @@ where
                 ))
             })?;
 
-        let mut hash_params = helper
+        let custom_context = helper
             .hash()
             .iter()
             .map(|(key, value)| (*key, value.value()))
-            .collect::<HashMap<&str, &serde_json::Value>>();
-
-        if let Some(ref mut modified_context) = handlebars_render_context.context() {
-            // merge hash params atop the existing context
-            let modified_context_data_as_json =
-                mem::take(Rc::make_mut(modified_context).data_mut());
-            if let serde_json::Value::Object(mut modified_context_data_as_json_map) =
-                modified_context_data_as_json
-            {
-                for (key, value) in hash_params.iter_mut() {
-                    modified_context_data_as_json_map.insert(key.to_string(), value.clone());
-                }
-                handlebars_render_context.set_context(handlebars::Context::wraps(
-                    serde_json::Value::Object(modified_context_data_as_json_map),
-                )?);
-            }
-        } else if !hash_params.is_empty() {
-            handlebars_render_context.set_context(handlebars::Context::wraps(hash_params)?);
-        }
+            .collect::<BTreeMap<&str, &serde_json::Value>>();
 
         let content_item = content_engine.get_internal(&route).ok_or_else(|| {
             handlebars::RenderError::new(format!(
@@ -110,6 +92,35 @@ where
                 handlebars_context.data(),
             ))
         })?;
+
+        let mut modified_context_data_as_json_map = match handlebars_render_context.context() {
+            Some(ref mut modified_context) => {
+                let modified_context_data_as_json =
+                    mem::take(Rc::make_mut(modified_context).data_mut());
+                match modified_context_data_as_json {
+                    serde_json::Value::Object(modified_context_data_as_json_map) => modified_context_data_as_json_map,
+                    _ => {
+                        return Err(handlebars::RenderError::new(format!(
+                            "The `get` helper call failed because the pre-existing handlebars render context was \
+                            not an object (it was `{}`).",
+                            modified_context_data_as_json
+                        )))
+                    }
+                }
+            }
+            None => serde_json::Map::default(),
+        };
+
+        // Merge render data and custom context atop the existing RenderContext data.
+        for (key, value) in current_render_data {
+            modified_context_data_as_json_map.insert(key.to_string(), value.clone());
+        }
+        for (key, value) in custom_context {
+            modified_context_data_as_json_map.insert(key.to_string(), value.clone());
+        }
+        handlebars_render_context.set_context(handlebars::Context::wraps(
+            serde_json::Value::Object(modified_context_data_as_json_map),
+        )?);
 
         let target_media_type = get_target_media_type(current_render_data)?;
         let optional_request_route = get_optional_request_route(current_render_data)?;

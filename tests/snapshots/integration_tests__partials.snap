@@ -5,6 +5,7 @@ expression: contents
 input_file: samples/partials
 
 ---
+_iterate-context.html.hbs: "Content not found at route '/_iterate-context'.\n"
 a.html.hbs: "a\n"
 ab.html.hbs: "a\nb\n"
 abc.html.hbs: "a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n"
@@ -13,6 +14,7 @@ abcd.html.hbs: "a\nb\nc\nd"
 b.html: "b\n"
 echo-param-x.html.hbs: "Unable to render content.\n\nCaused by:\n    0: Rendering failed for handlebars template: Error rendering \"echo-param-x.html.hbs\" line 1, col 1: Variable \"x\" not found in strict mode.\n    1: Error rendering \"echo-param-x.html.hbs\" line 1, col 1: Variable \"x\" not found in strict mode.\n"
 echo-target-media-type.html.hbs: text/html
+hash-param.html.hbs: "these should be the same:\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n"
 subdirectory.html.hbs: "subdirectory entries:\n/subdirectory/c\n"
 subdirectory/c.html.hbs: "c\n"
 x-get.html.hbs: "x set via get helper\n"
