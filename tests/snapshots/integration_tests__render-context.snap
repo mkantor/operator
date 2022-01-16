@@ -10,6 +10,6 @@ query-string.txt.hbs: ""
 request-route-wrapper.txt.hbs: "route from this file: /request-route-wrapper\nroute from file included via partial: /request-route-wrapper\nroute from file included via get helper: /request-route-wrapper"
 request-route.txt.hbs: /request-route
 routes.txt.hbs: "a: /a\nquery-string: /query-string\nrequest-route: /request-route\nrequest-route-wrapper: /request-route-wrapper\nroutes: /routes\nserver-info: /server-info\nwith-empty-context: /with-empty-context\n"
-server-info.txt.hbs: "operator-path: $PROJECT_DIRECTORY/target/$PROFILE/operator\nsocket-address: $SOCKET_ADDRESS\nversion: 0.4.0\n"
+server-info.txt.hbs: "operator-path: $PROJECT_DIRECTORY/target/$PROFILE/operator\nsocket-address: $SOCKET_ADDRESS\nversion: 0.5.0\n"
 with-empty-context.html.hbs: "this with normal context: [object]\nthis with funky context: true\ncalling get for static content with funky context: a\n\n"
 
