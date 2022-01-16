@@ -147,9 +147,9 @@ where
         for (key, value) in custom_context {
             modified_context_data_as_json_map.insert(key.to_string(), value.clone());
         }
-        handlebars_render_context.set_context(handlebars::Context::wraps(
+        handlebars_render_context.set_context(handlebars::Context::from(
             serde_json::Value::Object(modified_context_data_as_json_map),
-        )?);
+        ));
 
         let target_media_type = get_target_media_type(current_render_data)?;
         let optional_request_route = get_optional_request_route(current_render_data)?;
