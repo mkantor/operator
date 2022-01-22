@@ -176,7 +176,7 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                route,
+                Some(route),
                 HashMap::new(),
                 HashMap::new(),
                 &app_data.error_handler_route,
@@ -197,7 +197,7 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                route,
+                Some(route),
                 query_parameters,
                 HashMap::new(),
                 &app_data.error_handler_route,
@@ -224,7 +224,7 @@ where
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
-                    route,
+                    Some(route),
                     query_parameters,
                     request_headers,
                     &app_data.error_handler_route,
@@ -297,7 +297,7 @@ where
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
-                route,
+                Some(route),
                 query_parameters,
                 request_headers,
                 &app_data.error_handler_route,
@@ -314,7 +314,7 @@ where
             error_response(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
-                route,
+                Some(route),
                 query_parameters,
                 request_headers,
                 &app_data.error_handler_route,
@@ -330,7 +330,7 @@ where
             error_response(
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
-                route,
+                Some(route),
                 query_parameters,
                 request_headers,
                 &app_data.error_handler_route,
@@ -343,7 +343,7 @@ where
 fn error_response<Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
-    request_route: Route,
+    request_route: Option<Route>,
     query_parameters: HashMap<String, String>,
     request_headers: HashMap<String, String>,
     error_handler_route: &Option<Route>,
@@ -371,7 +371,7 @@ where
         .and_then(|route| {
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .render_context(Some(request_route), query_parameters, request_headers)
+                    .render_context(request_route, query_parameters, request_headers)
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
