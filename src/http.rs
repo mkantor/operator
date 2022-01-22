@@ -125,6 +125,11 @@ where
             .unwrap_or_default()
     );
 
+    let content_engine = app_data
+        .shared_content_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
+
     let (route, media_range_from_url) = {
         let media_range_from_url = MimeGuess::from_path(path).first();
         let path_without_extension = if media_range_from_url.is_some() {
@@ -137,10 +142,23 @@ where
         };
 
         match path_without_extension.parse::<Route>() {
-            Err(error) => panic!(
-                bug_message!("This should never happen: HTTP request path could not be parsed into a Route: {}"),
-                error,
-            ),
+            Err(error) => {
+                log::warn!(
+                    "Responding with {}. HTTP request path `{}` could not be parsed into a Route: {}",
+                    http::StatusCode::BAD_REQUEST,
+                    path,
+                    error
+                );
+                return error_response(
+                    http::StatusCode::BAD_REQUEST,
+                    &*content_engine,
+                    None,
+                    HashMap::new(),
+                    HashMap::new(),
+                    &app_data.error_handler_route,
+                    vec![&mime::TEXT_PLAIN],
+                );
+            }
             Ok(request_route) => {
                 if request_route.as_ref() == "/" {
                     // Default to the index route if one was specified.
@@ -156,11 +174,6 @@ where
             }
         }
     };
-
-    let content_engine = app_data
-        .shared_content_engine
-        .read()
-        .expect("RwLock for ContentEngine has been poisoned");
 
     let query_string = request.query_string();
     let query_parameters = match query_string.parse::<QueryString>() {
@@ -1287,5 +1300,15 @@ mod tests {
             &response_body,
             "404 /this-route-will-404\nquery parameters:\nrequest headers:\n  hello: world"
         );
+    }
+
+    #[actix_rt::test]
+    async fn malformed_request_paths_are_handled_gracefully() {
+        let request = test_request(&sample_path("empty"), None, None)
+            .uri("garbage")
+            .to_http_request();
+        let response = get::<TestContentEngine>(request).await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }
