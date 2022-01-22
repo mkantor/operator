@@ -98,32 +98,13 @@ async fn get<Engine>(request: HttpRequest) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
+    log_request(&request);
+
     let app_data = request
         .app_data::<AppData<Engine>>()
         .expect("App data was not of the expected type!");
 
     let path = request.uri().path();
-
-    log::info!(
-        // e.g. "Handling request GET /styles.css HTTP/1.1 with Accept: text/css,*/*;q=0.1"
-        "Handling request {} {} {}{}",
-        request.method(),
-        request.uri(),
-        match request.version() {
-            http::Version::HTTP_09 => "HTTP/0.9",
-            http::Version::HTTP_10 => "HTTP/1.0",
-            http::Version::HTTP_11 => "HTTP/1.1",
-            http::Version::HTTP_2 => "HTTP/2.0",
-            http::Version::HTTP_3 => "HTTP/3.0",
-            _ => "HTTP",
-        },
-        request
-            .headers()
-            .get(header::ACCEPT)
-            .and_then(|value| value.to_str().ok())
-            .map(|value| format!(" with Accept: {}", value))
-            .unwrap_or_default()
-    );
 
     let content_engine = app_data
         .shared_content_engine
@@ -351,6 +332,29 @@ where
             )
         }
     }
+}
+
+fn log_request(request: &HttpRequest) {
+    log::info!(
+        // e.g. "Handling request GET /styles.css HTTP/1.1 with Accept: text/css,*/*;q=0.1"
+        "Handling request {} {} {}{}",
+        request.method(),
+        request.uri(),
+        match request.version() {
+            http::Version::HTTP_09 => "HTTP/0.9",
+            http::Version::HTTP_10 => "HTTP/1.0",
+            http::Version::HTTP_11 => "HTTP/1.1",
+            http::Version::HTTP_2 => "HTTP/2.0",
+            http::Version::HTTP_3 => "HTTP/3.0",
+            _ => "HTTP",
+        },
+        request
+            .headers()
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| format!(" with Accept: {}", value))
+            .unwrap_or_default()
+    );
 }
 
 fn error_response<Engine>(
