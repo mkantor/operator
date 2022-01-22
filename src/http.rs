@@ -67,7 +67,7 @@ where
                     index_route: index_route.clone(),
                     error_handler_route: error_handler_route.clone(),
                 })
-                .default_service(web::get().to(get::<Engine>))
+                .route("/{path:.*}", web::get().to(get::<Engine>))
         })
         .keep_alive(None)
         .bind(socket_address)?
