@@ -14,6 +14,13 @@ use std::net::ToSocketAddrs;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
+// TODO: Currently GET and OPTIONS are allowed for all paths, but if Operator
+// supports other methods (see https://github.com/mkantor/operator/issues/13)
+// then this may need to become dynamic per-route (and `ContentEngine` will be
+// its source of truth).
+/// This can be used as a value for the `Allow` response header.
+const ALLOWED_REQUEST_METHODS: &str = "GET, OPTIONS";
+
 #[derive(Error, Debug)]
 #[error("Invalid query string '{}'", .query_string)]
 pub struct InvalidQueryStringError {
@@ -86,6 +93,7 @@ where
 {
     match *request.method() {
         http::Method::GET => get::<Engine>(request).await,
+        http::Method::OPTIONS => options::<Engine>(request).await,
         _ => unsupported_request_method::<Engine>(request).await,
     }
 }
@@ -331,6 +339,22 @@ where
     }
 }
 
+async fn options<Engine>(request: HttpRequest) -> HttpResponse
+where
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+{
+    log_request(&request);
+
+    log::info!("Responding with {}", http::StatusCode::NO_CONTENT);
+
+    let mut response_builder = HttpResponse::build(http::StatusCode::NO_CONTENT);
+    response_builder.header(
+        http::header::ALLOW,
+        HeaderValue::from_static(ALLOWED_REQUEST_METHODS),
+    );
+    response_builder.finish()
+}
+
 async fn unsupported_request_method<Engine>(request: HttpRequest) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
@@ -347,11 +371,10 @@ where
         .expect("RwLock for ContentEngine has been poisoned");
 
     let mut response_headers = HeaderMap::with_capacity(1);
-    response_headers.insert(http::header::ALLOW, HeaderValue::from_static("GET"));
-    // TODO: Currently only GET requests are allowed, but if Operator supports
-    // other HTTP methods (see https://github.com/mkantor/operator/issues/13)
-    // then the `Allow` header should contain the allowed methods for the
-    // specific request path.
+    response_headers.insert(
+        http::header::ALLOW,
+        HeaderValue::from_static(ALLOWED_REQUEST_METHODS),
+    );
 
     error_response(
         http::StatusCode::METHOD_NOT_ALLOWED,

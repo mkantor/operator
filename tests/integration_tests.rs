@@ -1,7 +1,7 @@
 mod lib;
 
 use actix_web::client::Client as HttpClient;
-use actix_web::http::{Method, StatusCode};
+use actix_web::http::{uri, Method, StatusCode};
 use lib::*;
 use operator::content::ContentDirectory;
 use operator::test_lib::*;
@@ -184,7 +184,6 @@ async fn unsupported_request_methods_are_errors() {
         Method::CONNECT,
         Method::DELETE,
         Method::HEAD,
-        Method::OPTIONS,
         Method::PATCH,
         Method::POST,
         Method::PUT,
@@ -203,8 +202,39 @@ async fn unsupported_request_methods_are_errors() {
 
         assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
         assert_eq!(
-            response_allow, "GET",
-            "Response did not have an Allow header indicating GET is the only supported method",
+            response_allow, "GET, OPTIONS",
+            "Response did not have an Allow header indicating the supported methods",
+        );
+    }
+}
+
+#[actix_rt::test]
+async fn options_requests_work() {
+    let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
+    let server = RunningServer::start(&content_directory).expect("Server failed to start");
+
+    for paths in ["*", "/hello", "/this/route/does/not/exist"] {
+        // URI meeds to be created in this funky fashion to be able to make an
+        // `OPTIONS *` request.
+        let mut uri_parts = uri::Parts::default();
+        uri_parts.scheme = Some(uri::Scheme::HTTP);
+        uri_parts.authority = Some(
+            uri::Authority::try_from(server.address().to_string().as_str())
+                .expect("Could not create authority from server address"),
+        );
+        uri_parts.path_and_query = Some(uri::PathAndQuery::from_static(paths));
+        let request = HttpClient::new().options(uri_parts);
+
+        let response = request.send().await.expect("Unable to send HTTP request");
+        let response_allow = response
+            .headers()
+            .get("Allow")
+            .expect("Response was missing Allow header");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            response_allow, "GET, OPTIONS",
+            "Response did not have an Allow header indicating the supported methods",
         );
     }
 }
