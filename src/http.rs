@@ -3,6 +3,7 @@ use crate::*;
 use actix_rt::System;
 use actix_web::error::QueryPayloadError;
 use actix_web::http::header::{self, Header, HeaderMap};
+use actix_web::http::HeaderValue;
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
@@ -139,6 +140,7 @@ where
                     HashMap::new(),
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
+                    HeaderMap::new(),
                 );
             }
             Ok(request_route) => {
@@ -176,6 +178,7 @@ where
                 HashMap::new(),
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
+                HeaderMap::new(),
             );
         }
     };
@@ -197,6 +200,7 @@ where
                 HashMap::new(),
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
+                HeaderMap::new(),
             );
         }
     };
@@ -224,6 +228,7 @@ where
                     request_headers,
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
+                    HeaderMap::new(),
                 );
             }
         },
@@ -297,6 +302,7 @@ where
                 request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
         Some(Err(error)) => {
@@ -314,6 +320,7 @@ where
                 request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
         None => {
@@ -330,6 +337,7 @@ where
                 request_headers,
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
     }
@@ -350,7 +358,13 @@ where
         .read()
         .expect("RwLock for ContentEngine has been poisoned");
 
-    // TODO: Set `Allow` header indicating GET is the only supported method.
+    let mut response_headers = HeaderMap::with_capacity(1);
+    response_headers.insert(http::header::ALLOW, HeaderValue::from_static("GET"));
+    // TODO: Currently only GET requests are allowed, but if Operator supports
+    // other HTTP methods (see https://github.com/mkantor/operator/issues/13)
+    // then the `Allow` header should contain the allowed methods for the
+    // specific request path.
+
     error_response(
         http::StatusCode::METHOD_NOT_ALLOWED,
         &*content_engine,
@@ -359,6 +373,7 @@ where
         HashMap::new(),
         &app_data.error_handler_route,
         vec![&mime::TEXT_PLAIN],
+        response_headers,
     )
 }
 
@@ -393,6 +408,7 @@ fn error_response<Engine>(
     request_headers: HashMap<String, String>,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
+    response_headers: HeaderMap,
 ) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
@@ -410,6 +426,9 @@ where
     };
 
     let mut response_builder = HttpResponse::build(error_code);
+    for (header_name, header_value) in response_headers.iter() {
+        response_builder.header(header_name, header_value.clone());
+    }
 
     error_handler_route
         .as_ref()

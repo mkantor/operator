@@ -196,7 +196,15 @@ async fn unsupported_request_methods_are_errors() {
         );
 
         let response = request.send().await.expect("Unable to send HTTP request");
+        let response_allow = response
+            .headers()
+            .get("Allow")
+            .expect("Response was missing Allow header");
 
         assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(
+            response_allow, "GET",
+            "Response did not have an Allow header indicating GET is the only supported method",
+        );
     }
 }
