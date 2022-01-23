@@ -1,7 +1,7 @@
 mod lib;
 
 use actix_web::client::Client as HttpClient;
-use actix_web::http::StatusCode;
+use actix_web::http::{Method, StatusCode};
 use lib::*;
 use operator::content::ContentDirectory;
 use operator::test_lib::*;
@@ -173,4 +173,30 @@ async fn serve_subcommand_succeeds() {
         response_body, expected_response_body,
         "Response body was incorrect"
     );
+}
+
+#[actix_rt::test]
+async fn unsupported_request_methods_are_errors() {
+    let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
+    let server = RunningServer::start(&content_directory).expect("Server failed to start");
+
+    for unsupported_method in [
+        Method::CONNECT,
+        Method::DELETE,
+        Method::HEAD,
+        Method::OPTIONS,
+        Method::PATCH,
+        Method::POST,
+        Method::PUT,
+        Method::TRACE,
+    ] {
+        let request = HttpClient::new().request(
+            unsupported_method,
+            format!("http://{}/hello", server.address()),
+        );
+
+        let response = request.send().await.expect("Unable to send HTTP request");
+
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
 }

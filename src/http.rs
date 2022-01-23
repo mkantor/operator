@@ -68,6 +68,7 @@ where
                     error_handler_route: error_handler_route.clone(),
                 })
                 .route("/{path:.*}", web::get().to(get::<Engine>))
+                .default_service(web::route().to(unsupported_request_method::<Engine>))
         })
         .keep_alive(None)
         .bind(socket_address)?
@@ -332,6 +333,33 @@ where
             )
         }
     }
+}
+
+async fn unsupported_request_method<Engine>(request: HttpRequest) -> HttpResponse
+where
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+{
+    log_request(&request);
+
+    let app_data = request
+        .app_data::<AppData<Engine>>()
+        .expect("App data was not of the expected type!");
+
+    let content_engine = app_data
+        .shared_content_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
+
+    // TODO: Set `Allow` header indicating GET is the only supported method.
+    error_response(
+        http::StatusCode::METHOD_NOT_ALLOWED,
+        &*content_engine,
+        None,
+        HashMap::new(),
+        HashMap::new(),
+        &app_data.error_handler_route,
+        vec![&mime::TEXT_PLAIN],
+    )
 }
 
 fn log_request(request: &HttpRequest) {
