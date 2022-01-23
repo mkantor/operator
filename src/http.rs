@@ -68,8 +68,7 @@ where
                     index_route: index_route.clone(),
                     error_handler_route: error_handler_route.clone(),
                 })
-                .route("/{path:.*}", web::get().to(get::<Engine>))
-                .default_service(web::route().to(unsupported_request_method::<Engine>))
+                .default_service(web::to(dispatch::<Engine>))
         })
         .keep_alive(None)
         .bind(socket_address)?
@@ -79,6 +78,16 @@ where
 
     log::info!("HTTP server has terminated");
     result
+}
+
+async fn dispatch<Engine>(request: HttpRequest) -> HttpResponse
+where
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+{
+    match *request.method() {
+        http::Method::GET => get::<Engine>(request).await,
+        _ => unsupported_request_method::<Engine>(request).await,
+    }
 }
 
 /// Use the URL path, app data, and accept header to render some content for
