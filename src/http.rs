@@ -135,9 +135,11 @@ where
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
-                    None,
-                    HashMap::new(),
-                    HashMap::new(),
+                    RequestData {
+                        route: None,
+                        query_parameters: HashMap::new(),
+                        request_headers: HashMap::new(),
+                    },
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
                     HeaderMap::new(),
@@ -173,9 +175,11 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                Some(route),
-                HashMap::new(),
-                HashMap::new(),
+                RequestData {
+                    route: Some(route),
+                    query_parameters: HashMap::new(),
+                    request_headers: HashMap::new(),
+                },
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
                 HeaderMap::new(),
@@ -195,9 +199,11 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                HashMap::new(),
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers: HashMap::new(),
+                },
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
                 HeaderMap::new(),
@@ -223,9 +229,11 @@ where
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
-                    Some(route),
-                    query_parameters,
-                    request_headers,
+                    RequestData {
+                        route: Some(route),
+                        query_parameters,
+                        request_headers,
+                    },
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
                     HeaderMap::new(),
@@ -297,9 +305,11 @@ where
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
                 HeaderMap::new(),
@@ -315,9 +325,11 @@ where
             error_response(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
                 HeaderMap::new(),
@@ -332,9 +344,11 @@ where
             error_response(
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
                 HeaderMap::new(),
@@ -368,9 +382,11 @@ where
     error_response(
         http::StatusCode::METHOD_NOT_ALLOWED,
         &*content_engine,
-        None,
-        HashMap::new(),
-        HashMap::new(),
+        RequestData {
+            route: None,
+            query_parameters: HashMap::new(),
+            request_headers: HashMap::new(),
+        },
         &app_data.error_handler_route,
         vec![&mime::TEXT_PLAIN],
         response_headers,
@@ -403,9 +419,7 @@ fn log_request(request: &HttpRequest) {
 fn error_response<Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
-    request_route: Option<Route>,
-    query_parameters: HashMap<String, String>,
-    request_headers: HashMap<String, String>,
+    request_data: RequestData,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
     response_headers: HeaderMap,
@@ -435,7 +449,11 @@ where
         .and_then(|route| {
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .render_context(request_route, query_parameters, request_headers)
+                    .render_context(
+                        request_data.route,
+                        request_data.query_parameters,
+                        request_data.request_headers,
+                    )
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
