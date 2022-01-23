@@ -135,14 +135,12 @@ where
 
         match path_without_extension.parse::<Route>() {
             Err(error) => {
-                log::warn!(
-                    "Responding with {}. HTTP request path `{}` could not be parsed into a Route: {}",
-                    http::StatusCode::BAD_REQUEST,
-                    path,
-                    error
-                );
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
+                    format!(
+                        "HTTP request path `{}` could not be parsed into a Route: {}",
+                        path, error
+                    ),
                     &*content_engine,
                     RequestData {
                         route: None,
@@ -174,15 +172,9 @@ where
     let query_parameters = match query_string.parse::<QueryString>() {
         Ok(query_parameters) => query_parameters.into(),
         Err(error) => {
-            log::warn!(
-                "Responding with {} for {}. Malformed query string `{}`: {}",
-                http::StatusCode::BAD_REQUEST,
-                route,
-                query_string,
-                error
-            );
             return error_response(
                 http::StatusCode::BAD_REQUEST,
+                format!("Malformed query string `{}`: {}", query_string, error),
                 &*content_engine,
                 RequestData {
                     route: Some(route),
@@ -199,14 +191,9 @@ where
     let request_headers = match simplify_http_headers(request.headers()) {
         Ok(simplified_request_headers) => simplified_request_headers,
         Err(error) => {
-            log::warn!(
-                "Responding with {} for {}. Failed to handle request headers: {}",
-                http::StatusCode::BAD_REQUEST,
-                route,
-                error
-            );
             return error_response(
                 http::StatusCode::BAD_REQUEST,
+                format!("Failed to handle request headers: {}", error),
                 &*content_engine,
                 RequestData {
                     route: Some(route),
@@ -228,15 +215,13 @@ where
         None => match parsed_accept_header_value {
             Ok(ref mut accept_value) => acceptable_media_ranges_from_accept_header(accept_value),
             Err(error) => {
-                log::warn!(
-                    "Responding with {} for {}. Malformed Accept header value `{:?}`: {}",
-                    http::StatusCode::BAD_REQUEST,
-                    route,
-                    request.headers().get(header::ACCEPT),
-                    error
-                );
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
+                    format!(
+                        "Malformed Accept header value `{:?}`: {}",
+                        request.headers().get(header::ACCEPT),
+                        error
+                    ),
                     &*content_engine,
                     RequestData {
                         route: Some(route),
@@ -304,65 +289,45 @@ where
                         }),
                 )
         }
-        Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => {
-            log::warn!(
-                "Responding with {} for {}. Cannot provide an acceptable response: {}",
-                http::StatusCode::NOT_ACCEPTABLE,
-                route,
-                error,
-            );
-            error_response(
-                http::StatusCode::NOT_ACCEPTABLE,
-                &*content_engine,
-                RequestData {
-                    route: Some(route),
-                    query_parameters,
-                    request_headers,
-                },
-                &app_data.error_handler_route,
-                acceptable_media_ranges,
-                HeaderMap::new(),
-            )
-        }
-        Some(Err(error)) => {
-            log::warn!(
-                "Responding with {} for {}. Failed to render content: {}",
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                route,
-                error,
-            );
-            error_response(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                &*content_engine,
-                RequestData {
-                    route: Some(route),
-                    query_parameters,
-                    request_headers,
-                },
-                &app_data.error_handler_route,
-                acceptable_media_ranges,
-                HeaderMap::new(),
-            )
-        }
-        None => {
-            log::warn!(
-                "Responding with {} for {}. No content found.",
-                http::StatusCode::NOT_FOUND,
-                route,
-            );
-            error_response(
-                http::StatusCode::NOT_FOUND,
-                &*content_engine,
-                RequestData {
-                    route: Some(route),
-                    query_parameters,
-                    request_headers,
-                },
-                &app_data.error_handler_route,
-                acceptable_media_ranges,
-                HeaderMap::new(),
-            )
-        }
+        Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => error_response(
+            http::StatusCode::NOT_ACCEPTABLE,
+            format!("Cannot provide an acceptable response: {}", error),
+            &*content_engine,
+            RequestData {
+                route: Some(route),
+                query_parameters,
+                request_headers,
+            },
+            &app_data.error_handler_route,
+            acceptable_media_ranges,
+            HeaderMap::new(),
+        ),
+        Some(Err(error)) => error_response(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to render content: {}", error),
+            &*content_engine,
+            RequestData {
+                route: Some(route),
+                query_parameters,
+                request_headers,
+            },
+            &app_data.error_handler_route,
+            acceptable_media_ranges,
+            HeaderMap::new(),
+        ),
+        None => error_response(
+            http::StatusCode::NOT_FOUND,
+            "No content found at route",
+            &*content_engine,
+            RequestData {
+                route: Some(route),
+                query_parameters,
+                request_headers,
+            },
+            &app_data.error_handler_route,
+            acceptable_media_ranges,
+            HeaderMap::new(),
+        ),
     }
 }
 
@@ -390,6 +355,7 @@ where
 
     error_response(
         http::StatusCode::METHOD_NOT_ALLOWED,
+        format!("The {} request method is not supported", request.method()),
         &*content_engine,
         RequestData {
             route: None,
@@ -425,8 +391,9 @@ fn log_request(request: &HttpRequest) {
     );
 }
 
-fn error_response<Engine>(
+fn error_response<Details, Engine>(
     status_code: http::StatusCode,
+    details: Details,
     content_engine: &Engine,
     request_data: RequestData,
     error_handler_route: &Option<Route>,
@@ -434,6 +401,7 @@ fn error_response<Engine>(
     response_headers: HeaderMap,
 ) -> HttpResponse
 where
+    Details: AsRef<str>,
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     let error_code = if !status_code.is_client_error() && !status_code.is_server_error() {
@@ -459,13 +427,13 @@ where
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
                     .render_context(
-                        request_data.route,
+                        request_data.route.clone(),
                         request_data.query_parameters,
                         request_data.request_headers,
                     )
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
-                    Ok(rendered_content) => Some(rendered_content),
+                    Ok(rendered_content) => Some((route, rendered_content)),
                     Err(rendering_error) => {
                         log::error!(
                             "Error occurred while rendering error handler: {}",
@@ -477,10 +445,30 @@ where
             })
         })
         .map(
-            |Media {
-                 media_type,
-                 content,
-             }| {
+            |(
+                error_handler_route,
+                Media {
+                    media_type,
+                    content,
+                },
+            )| {
+                match request_data.route.clone() {
+                    Some(request_route) => log::warn!(
+                        "Responding with {} for {}, body from {} as {}: {}",
+                        status_code,
+                        request_route,
+                        error_handler_route,
+                        media_type,
+                        details.as_ref()
+                    ),
+                    None => log::warn!(
+                        "Responding with {}, body from {} as {}: {}",
+                        status_code,
+                        error_handler_route,
+                        media_type,
+                        details.as_ref()
+                    ),
+                };
                 response_builder
                     .content_type(media_type.to_string())
                     .streaming(content.map_err(|error| {
@@ -492,8 +480,25 @@ where
             },
         )
         .unwrap_or_else(|| {
-            // Default error response if the error handler itself failed.
-            response_builder.content_type("text/plain").body(
+            // Send a default error response if the error handler failed or was
+            // not specified.
+            let media_type = "text/plain";
+            match request_data.route {
+                Some(request_route) => log::warn!(
+                    "Responding with {} for {}, body as {}: {}",
+                    status_code,
+                    request_route,
+                    media_type,
+                    details.as_ref()
+                ),
+                None => log::warn!(
+                    "Responding with {}, body as {}: {}",
+                    status_code,
+                    media_type,
+                    details.as_ref()
+                ),
+            };
+            response_builder.content_type(media_type).body(
                 error_code
                     .canonical_reason()
                     .unwrap_or("Something Went Wrong"),
