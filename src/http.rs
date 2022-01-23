@@ -3,6 +3,7 @@ use crate::*;
 use actix_rt::System;
 use actix_web::error::QueryPayloadError;
 use actix_web::http::header::{self, Header, HeaderMap};
+use actix_web::http::HeaderValue;
 use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
@@ -67,7 +68,8 @@ where
                     index_route: index_route.clone(),
                     error_handler_route: error_handler_route.clone(),
                 })
-                .default_service(web::get().to(get::<Engine>))
+                .route("/{path:.*}", web::get().to(get::<Engine>))
+                .default_service(web::route().to(unsupported_request_method::<Engine>))
         })
         .keep_alive(None)
         .bind(socket_address)?
@@ -98,32 +100,13 @@ async fn get<Engine>(request: HttpRequest) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
+    log_request(&request);
+
     let app_data = request
         .app_data::<AppData<Engine>>()
         .expect("App data was not of the expected type!");
 
     let path = request.uri().path();
-
-    log::info!(
-        // e.g. "Handling request GET /styles.css HTTP/1.1 with Accept: text/css,*/*;q=0.1"
-        "Handling request {} {} {}{}",
-        request.method(),
-        request.uri(),
-        match request.version() {
-            http::Version::HTTP_09 => "HTTP/0.9",
-            http::Version::HTTP_10 => "HTTP/1.0",
-            http::Version::HTTP_11 => "HTTP/1.1",
-            http::Version::HTTP_2 => "HTTP/2.0",
-            http::Version::HTTP_3 => "HTTP/3.0",
-            _ => "HTTP",
-        },
-        request
-            .headers()
-            .get(header::ACCEPT)
-            .and_then(|value| value.to_str().ok())
-            .map(|value| format!(" with Accept: {}", value))
-            .unwrap_or_default()
-    );
 
     let content_engine = app_data
         .shared_content_engine
@@ -152,11 +135,14 @@ where
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
-                    None,
-                    HashMap::new(),
-                    HashMap::new(),
+                    RequestData {
+                        route: None,
+                        query_parameters: HashMap::new(),
+                        request_headers: HashMap::new(),
+                    },
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
+                    HeaderMap::new(),
                 );
             }
             Ok(request_route) => {
@@ -189,11 +175,14 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                Some(route),
-                HashMap::new(),
-                HashMap::new(),
+                RequestData {
+                    route: Some(route),
+                    query_parameters: HashMap::new(),
+                    request_headers: HashMap::new(),
+                },
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
+                HeaderMap::new(),
             );
         }
     };
@@ -210,11 +199,14 @@ where
             return error_response(
                 http::StatusCode::BAD_REQUEST,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                HashMap::new(),
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers: HashMap::new(),
+                },
                 &app_data.error_handler_route,
                 vec![&mime::TEXT_PLAIN],
+                HeaderMap::new(),
             );
         }
     };
@@ -237,11 +229,14 @@ where
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
                     &*content_engine,
-                    Some(route),
-                    query_parameters,
-                    request_headers,
+                    RequestData {
+                        route: Some(route),
+                        query_parameters,
+                        request_headers,
+                    },
                     &app_data.error_handler_route,
                     vec![&mime::TEXT_PLAIN],
+                    HeaderMap::new(),
                 );
             }
         },
@@ -310,11 +305,14 @@ where
             error_response(
                 http::StatusCode::NOT_ACCEPTABLE,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
         Some(Err(error)) => {
@@ -327,11 +325,14 @@ where
             error_response(
                 http::StatusCode::INTERNAL_SERVER_ERROR,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
         None => {
@@ -343,24 +344,85 @@ where
             error_response(
                 http::StatusCode::NOT_FOUND,
                 &*content_engine,
-                Some(route),
-                query_parameters,
-                request_headers,
+                RequestData {
+                    route: Some(route),
+                    query_parameters,
+                    request_headers,
+                },
                 &app_data.error_handler_route,
                 acceptable_media_ranges,
+                HeaderMap::new(),
             )
         }
     }
 }
 
+async fn unsupported_request_method<Engine>(request: HttpRequest) -> HttpResponse
+where
+    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
+{
+    log_request(&request);
+
+    let app_data = request
+        .app_data::<AppData<Engine>>()
+        .expect("App data was not of the expected type!");
+
+    let content_engine = app_data
+        .shared_content_engine
+        .read()
+        .expect("RwLock for ContentEngine has been poisoned");
+
+    let mut response_headers = HeaderMap::with_capacity(1);
+    response_headers.insert(http::header::ALLOW, HeaderValue::from_static("GET"));
+    // TODO: Currently only GET requests are allowed, but if Operator supports
+    // other HTTP methods (see https://github.com/mkantor/operator/issues/13)
+    // then the `Allow` header should contain the allowed methods for the
+    // specific request path.
+
+    error_response(
+        http::StatusCode::METHOD_NOT_ALLOWED,
+        &*content_engine,
+        RequestData {
+            route: None,
+            query_parameters: HashMap::new(),
+            request_headers: HashMap::new(),
+        },
+        &app_data.error_handler_route,
+        vec![&mime::TEXT_PLAIN],
+        response_headers,
+    )
+}
+
+fn log_request(request: &HttpRequest) {
+    log::info!(
+        // e.g. "Handling request GET /styles.css HTTP/1.1 with Accept: text/css,*/*;q=0.1"
+        "Handling request {} {} {}{}",
+        request.method(),
+        request.uri(),
+        match request.version() {
+            http::Version::HTTP_09 => "HTTP/0.9",
+            http::Version::HTTP_10 => "HTTP/1.0",
+            http::Version::HTTP_11 => "HTTP/1.1",
+            http::Version::HTTP_2 => "HTTP/2.0",
+            http::Version::HTTP_3 => "HTTP/3.0",
+            _ => "HTTP",
+        },
+        request
+            .headers()
+            .get(header::ACCEPT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| format!(" with Accept: {}", value))
+            .unwrap_or_default()
+    );
+}
+
 fn error_response<Engine>(
     status_code: http::StatusCode,
     content_engine: &Engine,
-    request_route: Option<Route>,
-    query_parameters: HashMap<String, String>,
-    request_headers: HashMap<String, String>,
+    request_data: RequestData,
     error_handler_route: &Option<Route>,
     acceptable_media_ranges: Vec<&MediaRange>,
+    response_headers: HeaderMap,
 ) -> HttpResponse
 where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
@@ -378,13 +440,20 @@ where
     };
 
     let mut response_builder = HttpResponse::build(error_code);
+    for (header_name, header_value) in response_headers.iter() {
+        response_builder.header(header_name, header_value.clone());
+    }
 
     error_handler_route
         .as_ref()
         .and_then(|route| {
             content_engine.get(route).and_then(|content| {
                 let error_context = content_engine
-                    .render_context(request_route, query_parameters, request_headers)
+                    .render_context(
+                        request_data.route,
+                        request_data.query_parameters,
+                        request_data.request_headers,
+                    )
                     .into_error_context(status_code.as_u16());
                 match content.render(error_context, acceptable_media_ranges) {
                     Ok(rendered_content) => Some(rendered_content),
