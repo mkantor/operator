@@ -114,7 +114,7 @@ impl RegisteredTemplate {
                 .renders(
                     handlebars_registry,
                     &handlebars::Context::wraps(&render_data)?,
-                    &mut handlebars_render_context,
+                    &mut { handlebars_render_context },
                 )?,
         };
 
