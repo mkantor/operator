@@ -72,7 +72,7 @@ impl RunningServer {
         // Give the server a chance to start up.
         // TODO: It would be better to poll by retrying a few times if the
         // connection is refused.
-        thread::sleep(time::Duration::from_secs(1));
+        thread::sleep(time::Duration::from_secs(2));
 
         // The server may have failed to start if the content directory was
         // invalid.
