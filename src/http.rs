@@ -93,7 +93,7 @@ where
 {
     match *request.method() {
         http::Method::GET => get::<Engine>(request).await,
-        http::Method::OPTIONS => options::<Engine>(request).await,
+        http::Method::OPTIONS => options(request).await,
         _ => unsupported_request_method::<Engine>(request).await,
     }
 }
@@ -339,10 +339,7 @@ where
     }
 }
 
-async fn options<Engine>(request: HttpRequest) -> HttpResponse
-where
-    Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
-{
+async fn options(request: HttpRequest) -> HttpResponse {
     log_request(&request);
 
     log::info!("Responding with {}", http::StatusCode::NO_CONTENT);

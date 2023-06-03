@@ -188,7 +188,7 @@ impl Render for UnregisteredTemplate {
                 return self
                     .render_to_native_media_type(
                         context.content_engine.handlebars_registry(),
-                        context.data.clone(),
+                        context.data,
                     )
                     .map_err(RenderError::RenderingFailed);
             }
