@@ -135,7 +135,8 @@ impl UnregisteredTemplate {
         handlebars_source: S,
         rendered_media_type: MediaType,
     ) -> Result<Self, TemplateError> {
-        let template = handlebars::Template::compile(handlebars_source.as_ref())?;
+        let template =
+            handlebars::Template::compile(handlebars_source.as_ref()).map_err(Box::new)?;
         Ok(UnregisteredTemplate {
             template,
             rendered_media_type,
