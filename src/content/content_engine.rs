@@ -21,7 +21,7 @@ use thiserror::Error;
 )]
 pub struct TemplateError {
     #[from]
-    source: handlebars::TemplateError,
+    source: Box<handlebars::TemplateError>,
 }
 
 /// Indicates that there was a problem loading content from the filesystem.
@@ -263,6 +263,7 @@ where
                 }
                 handlebars_registry
                     .register_template_file(&template_name, content.absolute_path)
+                    .map_err(Box::new)
                     .map_err(TemplateError::from)
                     .map_err(ContentLoadingError::TemplateRegistrationError)?;
 

@@ -1,3 +1,4 @@
+#[path = "lib/mod.rs"]
 mod lib;
 
 use actix_web::client::Client as HttpClient;
