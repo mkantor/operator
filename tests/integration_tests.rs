@@ -22,8 +22,7 @@ async fn samples_match_snapshots() {
         let log_prefix_regex = {
             let datetime_pattern = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d+[-+]\d{2}:\d{2}";
             let log_level_pattern = r"ERROR|WARN|INFO|DEBUG|TRACE";
-            let log_prefix_pattern =
-                format!("^({}) - ({}) - ", datetime_pattern, log_level_pattern);
+            let log_prefix_pattern = format!("^({}) - ({}) ", datetime_pattern, log_level_pattern);
             Regex::new(&log_prefix_pattern).unwrap()
         };
 

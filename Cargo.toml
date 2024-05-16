@@ -5,17 +5,8 @@ authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
 description = "A web server for static and dynamic content"
 repository = "https://github.com/mkantor/operator"
 homepage = "https://operator.mattkantor.com"
-categories = [
-    "web-programming::http-server",
-    "command-line-utilities",
-]
-keywords = [
-    "web",
-    "server",
-    "http",
-    "templating",
-    "handlebars",
-]
+categories = ["web-programming::http-server", "command-line-utilities"]
+keywords = ["web", "server", "http", "templating", "handlebars"]
 readme = "README.md"
 license = "GPL-3.0"
 edition = "2021"
@@ -32,29 +23,29 @@ include = [
 [dependencies]
 actix-rt = "1.1.1"
 actix-web = "3.3.3"
-anyhow = "1.0.71"
+anyhow = "1.0.83"
 bytes = "0.5.6"
-futures = "0.3.28"
-handlebars = "4.3.7"
-log = "0.4.18"
+futures = "0.3.30"
+handlebars = "4.5.0"
+log = "0.4.21"
 mime = "0.3.17"
 mime_guess = "2.0.4"
-serde = { version = "1.0.163", features = ["derive"] }
-serde_json = "1.0.96"
-stderrlog = "0.5.4"
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+stderrlog = "0.6.0"
 structopt = "0.3.26"
-thiserror = "1.0.40"
-walkdir = "2.3.3"
+thiserror = "1.0.60"
+walkdir = "2.5.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
-env_logger = "0.10.0"
-insta = { version = "1.29.0", features = ["yaml"] }
+env_logger = "0.11.3"
+insta = { version = "1.39.0", features = ["yaml"] }
 lazy_static = "1.4.0"
 maplit = "1.0.2"
-regex = "1.8.3"
-tempfile = "3.5.0"
-test-log = "0.2.11"
+regex = "1.10.4"
+tempfile = "3.10.1"
+test-log = "0.2.16"
 
 [[bench]]
 name = "load_test"

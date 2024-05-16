@@ -23,7 +23,7 @@ impl ContentRegistry {
     }
 
     pub fn entry_or_insert_default(&mut self, key: Route) -> &mut ContentRepresentations {
-        self.0.entry(key).or_insert_with(HashMap::default)
+        self.0.entry(key).or_default()
     }
 }
 
