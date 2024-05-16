@@ -331,7 +331,10 @@ mod tests {
     #[test]
     fn static_content_can_be_arbitrary_bytes() {
         let non_utf8_bytes = &[0xfe, 0xfe, 0xff, 0xff];
-        assert!(str::from_utf8(non_utf8_bytes).is_err());
+
+        #[allow(invalid_from_utf8)]
+        let expected_utf8_err = str::from_utf8(non_utf8_bytes);
+        assert!(expected_utf8_err.is_err());
 
         let mut file = tempfile().expect("Failed to create temporary file");
         file.write_all(non_utf8_bytes)
