@@ -11,10 +11,7 @@ use thiserror::Error;
 /// Indicates that there was an error during rendering.
 #[derive(Error, Debug)]
 pub enum RenderingFailedError {
-    #[error(
-        "Rendering failed for handlebars template: {}",
-        .source
-    )]
+    #[error(transparent)]
     TemplateRenderError {
         #[from]
         source: handlebars::RenderError,

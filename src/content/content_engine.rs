@@ -17,7 +17,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[error(
   "Failed to register handlebars template{}.",
-  .source.template_name.as_ref().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
+  .source.name().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
 )]
 pub struct TemplateError {
     #[from]
