@@ -29,4 +29,5 @@ jobs:
             ~/.cargo/git
             target/release
           key: release-${{ runner.os }}-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: rustup target add ${{ matrix.target }}
       - run: cargo build --release --target ${{ matrix.target }}
