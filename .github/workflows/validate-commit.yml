@@ -10,60 +10,59 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os:
-        - ubuntu-latest
-        - macos-latest
+          - ubuntu-latest
+          - macos-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/debug
-        key: test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
-    - run: cargo test
-    # There is a bug with BSD tar on macOS where the first 8MB of the file are
-    # sometimes all NUL bytes. See https://github.com/actions/cache/issues/403
-    # and https://github.com/rust-lang/cargo/issues/8603 for some more
-    # information. An alternative solution here is to install GNU tar, but
-    # flushing the disk cache seems to work, too.
-    - run: sudo purge
-      if: startsWith(matrix.os, 'macos-')
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: test-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: cargo test
+      # There is a bug with BSD tar on macOS where the first 8MB of the file are
+      # sometimes all NUL bytes. See https://github.com/actions/cache/issues/403
+      # and https://github.com/rust-lang/cargo/issues/8603 for some more
+      # information. An alternative solution here is to install GNU tar, but
+      # flushing the disk cache seems to work, too.
+      - run: sudo purge
+        if: startsWith(matrix.os, 'macos-')
 
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/debug
-        key: lint-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
-    - run: cargo clippy -- -D warnings
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/debug
+          key: lint-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: cargo clippy -- -D warnings
 
   format:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - run: cargo fmt --all -- --check
+      - uses: actions/checkout@v2
+      - run: cargo fmt --all -- --check
 
   benchmark:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/release
-        key: benchmark-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
-    - run: cargo bench
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: benchmark-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: cargo bench
