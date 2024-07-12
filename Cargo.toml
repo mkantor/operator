@@ -1,6 +1,6 @@
 [package]
 name = "operator"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Matt Kantor <the.matt.kantor@gmail.com>"]
 description = "A web server for static and dynamic content"
 repository = "https://github.com/mkantor/operator"
