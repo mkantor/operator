@@ -90,6 +90,10 @@ jobs:
 
   publish-crate:
     needs:
+      # While there's no direct dependency between `publish-crate` and
+      # `publish-binary`, if something goes wrong during the binary builds then
+      # the crate should not be published.
+      - publish-binary
       - verify-version
       - test
     runs-on: ubuntu-latest
