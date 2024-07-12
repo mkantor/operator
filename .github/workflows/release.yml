@@ -9,17 +9,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-
   verify-version:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - run: |
-        tag="${GITHUB_REF#refs/tags/}"
-        package_version="$(cargo read-manifest | jq --raw-output .version)"
-        echo "Git tag name: ${tag}"
-        echo "Cargo.toml version: ${package_version}"
-        test "$tag" == "$package_version"
+      - uses: actions/checkout@v2
+      - run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          package_version="$(cargo read-manifest | jq --raw-output .version)"
+          echo "Git tag name: ${tag}"
+          echo "Cargo.toml version: ${package_version}"
+          test "$tag" == "$package_version"
 
   # Run the tests and create a fresh cache before releasing. Make sure that the
   # same code that was tested is what gets released.
@@ -28,18 +27,18 @@ jobs:
     strategy:
       matrix:
         os:
-        - ubuntu-latest
-        - macos-latest
+          - ubuntu-latest
+          - macos-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/release
-        key: release-${{ runner.os }}-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
-    - run: cargo test --release
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: release-${{ runner.os }}-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: cargo test --release
 
   publish-binary:
     needs:
@@ -49,8 +48,8 @@ jobs:
     strategy:
       matrix:
         os:
-        - ubuntu-latest
-        - macos-latest
+          - ubuntu-latest
+          - macos-latest
         include:
           - os: macos-latest
             artifact_prefix: macos-x86-64
@@ -59,34 +58,34 @@ jobs:
             artifact_prefix: linux-x86-64
             target: x86_64-unknown-linux-gnu
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target/release
-        key: release-${{ runner.os }}-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
-    - run: rustup target add ${{ matrix.target }}
-    - run: cargo build --release --target ${{ matrix.target }}
-    - name: package binary
-      shell: bash
-      run: |
-        cd target/${{ matrix.target }}/release
-        strip ${{ github.event.repository.name }}
-        tar czvf \
-          ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
-          ${{ github.event.repository.name }}
-        shasum -a 256 ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
-          > ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
-    - name: publish release to github
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz
-          target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/release
+          key: release-${{ runner.os }}-${{ github.job }}-${{ secrets.CI_CACHE_VERSION }}
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: package binary
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          strip ${{ github.event.repository.name }}
+          tar czvf \
+            ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
+            ${{ github.event.repository.name }}
+          shasum -a 256 ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz \
+            > ${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
+      - name: publish release to github
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.tar.gz
+            target/${{ matrix.target }}/release/${{ github.event.repository.name }}-${{ matrix.artifact_prefix }}.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-crate:
     needs:
