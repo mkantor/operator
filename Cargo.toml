@@ -25,6 +25,7 @@ actix-rt = "1.1.1"
 actix-web = "3.3.3"
 anyhow = "1.0.86"
 bytes = "0.5.6"
+clap = { version = "4.5.9", features = ["derive"] }
 futures = "0.3.30"
 handlebars = "5.1.2"
 log = "0.4.22"
@@ -33,7 +34,6 @@ mime_guess = "2.0.5"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 stderrlog = "0.6.0"
-structopt = "0.3.26"
 thiserror = "1.0.62"
 walkdir = "2.5.0"
 

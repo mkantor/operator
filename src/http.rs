@@ -28,7 +28,7 @@ pub struct InvalidQueryStringError {
     source: QueryPayloadError,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct QueryString(HashMap<String, String>);
 
 impl From<QueryString> for HashMap<String, String> {
