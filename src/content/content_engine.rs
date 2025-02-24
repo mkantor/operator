@@ -526,7 +526,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+            "this is partial: a\nb\n c\n\n subdirectory entries:\n /subdirectory/c\n";
 
         let renderable = content_engine
             .new_template(
