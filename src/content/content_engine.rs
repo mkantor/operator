@@ -87,7 +87,7 @@ where
     handlebars_registry: Handlebars<'engine>,
 }
 
-impl<'engine, ServerInfo> FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: 'static + Clone + Serialize + Send + Sync,
 {
@@ -371,8 +371,7 @@ where
     }
 }
 
-impl<'engine, ServerInfo> ContentEngine<ServerInfo>
-    for FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> ContentEngine<ServerInfo> for FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: Clone + Serialize,
 {
@@ -416,8 +415,7 @@ where
     }
 }
 
-impl<'engine, ServerInfo> InternalContentEngine
-    for FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> InternalContentEngine for FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: Clone + Serialize,
 {
