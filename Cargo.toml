@@ -23,29 +23,29 @@ include = [
 [dependencies]
 actix-rt = "1.1.1"
 actix-web = "3.3.3"
-anyhow = "1.0.86"
+anyhow = "1.0.96"
 bytes = "0.5.6"
-clap = { version = "4.5.9", features = ["derive"] }
-futures = "0.3.30"
+clap = { version = "4.5.31", features = ["derive"] }
+futures = "0.3.31"
 handlebars = "6.3.1"
-log = "0.4.22"
+log = "0.4.26"
 mime = "0.3.17"
 mime_guess = "2.0.5"
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.120"
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.139"
 stderrlog = "0.6.0"
-thiserror = "1.0.62"
+thiserror = "2.0.11"
 walkdir = "2.5.0"
 
 [dev-dependencies]
 criterion = "0.5.1"
-env_logger = "0.11.3"
-insta = { version = "1.39.0", features = ["yaml"] }
+env_logger = "0.11.6"
+insta = { version = "1.42.1", features = ["yaml"] }
 lazy_static = "1.5.0"
 maplit = "1.0.2"
-regex = "1.10.5"
-tempfile = "3.10.1"
-test-log = "0.2.16"
+regex = "1.11.1"
+tempfile = "3.17.1"
+test-log = "0.2.17"
 
 [[bench]]
 name = "load_test"
