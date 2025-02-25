@@ -87,7 +87,7 @@ where
     handlebars_registry: Handlebars<'engine>,
 }
 
-impl<'engine, ServerInfo> FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: 'static + Clone + Serialize + Send + Sync,
 {
@@ -371,8 +371,7 @@ where
     }
 }
 
-impl<'engine, ServerInfo> ContentEngine<ServerInfo>
-    for FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> ContentEngine<ServerInfo> for FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: Clone + Serialize,
 {
@@ -416,8 +415,7 @@ where
     }
 }
 
-impl<'engine, ServerInfo> InternalContentEngine
-    for FilesystemBasedContentEngine<'engine, ServerInfo>
+impl<ServerInfo> InternalContentEngine for FilesystemBasedContentEngine<'_, ServerInfo>
 where
     ServerInfo: Clone + Serialize,
 {
@@ -526,7 +524,7 @@ mod tests {
 
         let template = "this is partial: {{> abc.html.hbs}}";
         let expected_output =
-            "this is partial: a\nb\nc\n\nsubdirectory entries:\n/subdirectory/c\n";
+            "this is partial: a\nb\n c\n\n subdirectory entries:\n /subdirectory/c\n";
 
         let renderable = content_engine
             .new_template(

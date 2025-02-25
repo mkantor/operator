@@ -1,4 +1,9 @@
 these should be the same:
+{{!--
+  As of handlebars-rust 6.3.1 these are *not* the same! The first one using
+  partial syntax does not include the hash parameter in the context. See
+  <https://github.com/sunng87/handlebars-rust/issues/643>.
+--}}
 
 {{>_iterate-context.html.hbs hello="world"}}
 
