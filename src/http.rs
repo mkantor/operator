@@ -297,7 +297,7 @@ where
                         }),
                 )
         }
-        Some(Err(error @ RenderError::CannotProvideAcceptableMediaType { .. })) => error_response(
+        Some(Err(error @ RenderError::CannotProvideAcceptableMediaType)) => error_response(
             http::StatusCode::NOT_ACCEPTABLE,
             format!("Cannot provide an acceptable response: {}", error),
             &*content_engine,
