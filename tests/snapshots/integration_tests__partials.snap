@@ -15,7 +15,7 @@ custom-context-get.html.hbs: "/: [object]\nerror-code: \nquery-parameters: [obje
 custom-context.html.hbs: "query-parameters: [object]\nrequest-headers: [object]\nroute: /custom-context\n"
 echo-param-x.html.hbs: "Unable to render content.\n\nCaused by:\n    0: Error rendering \"echo-param-x.html.hbs\" line 1, col 1: Failed to access variable in strict mode Some(\"x\")\n    1: Failed to access variable in strict mode Some(\"x\")\n"
 echo-target-media-type.html.hbs: text/html
-hash-param.html.hbs: "these should be the same:\n\n/: [object]\nerror-code: \nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n"
+hash-param.html.hbs: "these should be the same:\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n\n/: [object]\nerror-code: \nhello: world\nrequest: [object]\nserver-info: [object]\ntarget-media-type: text/html\n"
 subdirectory.html.hbs: "subdirectory entries:\n/subdirectory/c\n"
 subdirectory/c.html.hbs: "c\n"
 x-get.html.hbs: "x set via get helper\n"
