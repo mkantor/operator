@@ -1,3 +1,3 @@
 #!/bin/sh
 
-ls
+ls | sort -f
