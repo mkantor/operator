@@ -72,10 +72,10 @@ pub enum StreamError {
     #[error(
         "Process exited with {}{}",
         match .exit_code {
-            Some(code) => format!("code {}", code),
+            Some(code) => format!("code {code}"),
             None => String::from("unknown code"),
         },
-        .stderr_contents.as_ref().map(|message| format!(": {}", message)).unwrap_or_default(),
+        .stderr_contents.as_ref().map(|message| format!(": {message}")).unwrap_or_default(),
     )]
     ExecutableExitedWithNonzero {
         pid: u32,

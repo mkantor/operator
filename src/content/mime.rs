@@ -44,7 +44,7 @@ impl FromStr for MediaType {
     type Err = MediaTypeFromStrError;
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mime = Mime::from_str(input)
-            .map_err(|error| MediaTypeFromStrError(format!("Malformed media type: {}", error)))?;
+            .map_err(|error| MediaTypeFromStrError(format!("Malformed media type: {error}")))?;
         MediaType::from_media_range(mime).ok_or_else(|| {
             MediaTypeFromStrError(String::from(
                 "Input is a valid media range, but not a specific media type",

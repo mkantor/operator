@@ -17,7 +17,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[error(
   "Failed to register handlebars template{}.",
-  .source.name().map(|known_name| format!(" '{}'", known_name)).unwrap_or_default(),
+  .source.name().map(|known_name| format!(" '{known_name}'")).unwrap_or_default(),
 )]
 pub struct TemplateError {
     #[from]
@@ -257,8 +257,7 @@ where
                 let template_name = content.relative_path;
                 if handlebars_registry.has_template(&template_name) {
                     return Err(ContentLoadingError::Bug(format!(
-                        "More than one handlebars template has the name '{}'.",
-                        template_name,
+                        "More than one handlebars template has the name '{template_name}'.",
                     )));
                 }
                 handlebars_registry
@@ -313,8 +312,7 @@ where
                     // (not a directory). If it's the filesystem root then
                     // it is a directory.
                     ContentLoadingError::Bug(format!(
-                        "Failed to get a parent directory for the executable at '{}'.",
-                        absolute_path,
+                        "Failed to get a parent directory for the executable at '{absolute_path}'.",
                     ))
                 })?;
 
