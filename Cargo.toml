@@ -9,7 +9,7 @@ categories = ["web-programming::http-server", "command-line-utilities"]
 keywords = ["web", "server", "http", "templating", "handlebars"]
 readme = "README.md"
 license = "GPL-3.0"
-edition = "2021"
+edition = "2024"
 include = [
     "src/**/*",
     "Cargo.toml",
