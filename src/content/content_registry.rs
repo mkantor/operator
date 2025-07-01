@@ -91,7 +91,7 @@ impl Render for ContentRepresentations {
                                 )))
                             } else {
                                 Ok(rendered)
-                            }
+                            };
                         }
                         Err(error) => {
                             log::warn!("Rendering failure: {error}");

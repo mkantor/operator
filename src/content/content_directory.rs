@@ -122,7 +122,7 @@ impl ContentFile {
                 return Err(ContentFileError(format!(
                     "Non-unicode directory root (path is similar to '{}')",
                     content_directory_root.display(),
-                )))
+                )));
             }
         };
 

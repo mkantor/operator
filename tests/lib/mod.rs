@@ -3,12 +3,12 @@ use actix_web::error::PayloadError;
 use actix_web::http::StatusCode;
 use actix_web::test::unused_addr;
 use bytes::{Bytes, BytesMut};
-use futures::{future, Stream, TryStreamExt};
+use futures::{Stream, TryStreamExt, future};
 use mime_guess::MimeGuess;
 use operator::content::{ContentDirectory, Route};
 use operator::test_lib::*;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::ffi::OsStr;
 use std::hash::Hasher;
@@ -272,12 +272,18 @@ async fn render_multiple_ways_for_snapshots(
                                 if get_command_output.stdout.len() > 1024 {
                                     format!("{} bytes", get_command_output.stdout.len())
                                 } else {
-                                    String::from(format!("{:?}", Bytes::from(get_command_output.stdout)).trim_end())
+                                    String::from(
+                                        format!("{:?}", Bytes::from(get_command_output.stdout))
+                                            .trim_end(),
+                                    )
                                 },
                                 if get_command_output.stderr.len() > 1024 {
                                     format!("{} bytes", get_command_output.stderr.len())
                                 } else {
-                                    String::from(format!("{:?}", Bytes::from(get_command_output.stderr)).trim_end())
+                                    String::from(
+                                        format!("{:?}", Bytes::from(get_command_output.stderr))
+                                            .trim_end(),
+                                    )
                                 },
                                 http_response_status,
                                 if http_response_body.len() > 1024 {

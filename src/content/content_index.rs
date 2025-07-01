@@ -82,7 +82,7 @@ impl ContentIndexEntries {
                                 failed_route: route.clone(),
                                 message: format!(
                                     "There is already a resource at '{conficting_route}', but that needs to be a directory to accommodate the new route.",
-                                )
+                                ),
                             });
                         }
                     };

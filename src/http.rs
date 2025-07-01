@@ -2,9 +2,9 @@ use crate::content::*;
 use crate::*;
 use actix_rt::System;
 use actix_web::error::QueryPayloadError;
-use actix_web::http::header::{self, Header, HeaderMap};
 use actix_web::http::HeaderValue;
-use actix_web::{http, web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::http::header::{self, Header, HeaderMap};
+use actix_web::{App, HttpRequest, HttpResponse, HttpServer, http, web};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
 use std::cmp::Ordering;
@@ -1266,7 +1266,8 @@ mod tests {
             "Response status was not 404"
         );
         assert_eq!(
-            response_body, "404 /not/a/real/path/so/this/should/404\nquery parameters:\nrequest headers:\n  accept: text/plain",
+            response_body,
+            "404 /not/a/real/path/so/this/should/404\nquery parameters:\nrequest headers:\n  accept: text/plain",
             "Response body was incorrect"
         );
     }

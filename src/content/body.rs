@@ -5,8 +5,8 @@
 use super::StreamError;
 use crate::bug_message;
 use bytes::Bytes;
-use futures::future::{Future, FutureExt, LocalBoxFuture};
 use futures::Stream;
+use futures::future::{Future, FutureExt, LocalBoxFuture};
 use std::cmp;
 use std::fs::File;
 use std::io::ErrorKind::Interrupted;

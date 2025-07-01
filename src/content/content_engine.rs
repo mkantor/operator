@@ -7,8 +7,8 @@ use super::*;
 use crate::bug_message;
 use handlebars::{self, Handlebars};
 use mime_guess::MimeGuess;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
@@ -149,13 +149,13 @@ where
                     return Err(ContentLoadingError::ContentFileNameError(format!(
                         "Content file name '{}' has too many extensions.",
                         entry.relative_path
-                    )))
+                    )));
                 }
                 [] => {
                     return Err(ContentLoadingError::ContentFileNameError(format!(
                         "Content file names must have extensions, but '{}' does not.",
                         entry.relative_path
-                    )))
+                    )));
                 }
             }
         }
@@ -222,14 +222,12 @@ where
             // have the executable bit set. They are evaluated when rendered.
             [first_extension, Self::HANDLEBARS_FILE_EXTENSION] => {
                 if content.is_executable {
-                    return Err(ContentLoadingError::ContentFileNameError(
-                        format!(
-                            "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), \
+                    return Err(ContentLoadingError::ContentFileNameError(format!(
+                        "The content file '{}' appears to be a handlebars file (because it ends in '.{}'), \
                             but it is also executable. It must be one or the other.",
-                            content.relative_path,
-                            Self::HANDLEBARS_FILE_EXTENSION,
-                        ),
-                    ));
+                        content.relative_path,
+                        Self::HANDLEBARS_FILE_EXTENSION,
+                    )));
                 }
 
                 let mime = MimeGuess::from_ext(first_extension)
@@ -480,12 +478,9 @@ mod tests {
             let actual_output = media_to_string(rendered);
 
             assert_eq!(
-                actual_output,
-                expected_output,
+                actual_output, expected_output,
                 "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-                template,
-                expected_output,
-                actual_output,
+                template, expected_output, actual_output,
             );
         }
     }
@@ -539,12 +534,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-            template,
-            expected_output,
-            actual_output,
+            template, expected_output, actual_output,
         );
     }
 
@@ -573,12 +565,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            expected_output,
-            actual_output,
+            route, expected_output, actual_output,
         );
     }
 
@@ -639,12 +628,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-            template,
-            expected_output,
-            actual_output,
+            template, expected_output, actual_output,
         );
     }
 
@@ -709,12 +695,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-            template,
-            expected_output,
-            actual_output,
+            template, expected_output, actual_output,
         );
     }
 
@@ -750,12 +733,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-            template,
-            expected_output,
-            actual_output,
+            template, expected_output, actual_output,
         );
     }
 
@@ -949,12 +929,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            expected_output,
-            actual_output,
+            route, expected_output, actual_output,
         );
     }
 
@@ -980,12 +957,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output1,
+            actual_output, expected_output1,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route1,
-            expected_output1,
-            actual_output,
+            route1, expected_output1, actual_output,
         );
 
         let route2 = route("/subdirectory/pwd");
@@ -1003,12 +977,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output2,
+            actual_output, expected_output2,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route2,
-            expected_output2,
-            actual_output,
+            route2, expected_output2, actual_output,
         );
     }
 
@@ -1099,12 +1070,9 @@ mod tests {
         let actual_output = media_to_string(rendered);
 
         assert_eq!(
-            actual_output,
-            expected_output,
+            actual_output, expected_output,
             "Rendering content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            expected_output,
-            actual_output,
+            route, expected_output, actual_output,
         );
     }
 
