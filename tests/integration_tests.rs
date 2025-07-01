@@ -2,7 +2,7 @@
 mod lib;
 
 use actix_web::client::Client as HttpClient;
-use actix_web::http::{uri, Method, StatusCode};
+use actix_web::http::{Method, StatusCode, uri};
 use lib::*;
 use operator::content::ContentDirectory;
 use operator::test_lib::*;

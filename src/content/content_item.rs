@@ -284,9 +284,9 @@ impl Executable {
 mod tests {
     use super::super::test_lib::*;
     use super::*;
+    use crate::ServerInfo;
     use crate::content::content_index::ContentIndexEntries;
     use crate::test_lib::*;
-    use crate::ServerInfo;
     use ::mime;
     use maplit::hashmap;
     use std::fs;

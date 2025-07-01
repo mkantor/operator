@@ -257,12 +257,9 @@ mod tests {
             );
             let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
             assert_eq!(
-                output_as_str,
-                expected_output,
+                output_as_str, expected_output,
                 "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-                template,
-                expected_output,
-                output_as_str
+                template, expected_output, output_as_str
             );
         }
     }
@@ -303,13 +300,10 @@ mod tests {
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
         assert_eq!(
-                output_as_str,
-                expected_output,
-                "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
-                template,
-                expected_output,
-                output_as_str
-            );
+            output_as_str, expected_output,
+            "Template rendering for `{}` did not produce the expected output (\"{}\"), instead got \"{}\"",
+            template, expected_output, output_as_str
+        );
     }
 
     #[test]
@@ -329,12 +323,9 @@ mod tests {
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
         assert_eq!(
-            output_as_str,
-            expected_output,
+            output_as_str, expected_output,
             "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            expected_output,
-            output_as_str
+            route, expected_output, output_as_str
         );
     }
 
@@ -355,12 +346,9 @@ mod tests {
         );
         let output_as_str = str::from_utf8(output.as_slice()).expect("Output was not UTF-8");
         assert_eq!(
-            output_as_str,
-            expected_output,
+            output_as_str, expected_output,
             "Template rendering for content at '{}' did not produce the expected output (\"{}\"), instead got \"{}\"",
-            route,
-            expected_output,
-            output_as_str
+            route, expected_output, output_as_str
         );
     }
 

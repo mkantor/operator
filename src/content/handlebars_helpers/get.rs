@@ -122,12 +122,16 @@ where
                 let modified_context_data_as_json =
                     mem::take(Rc::make_mut(modified_context).data_mut());
                 match modified_context_data_as_json {
-                    serde_json::Value::Object(modified_context_data_as_json_map) => modified_context_data_as_json_map,
+                    serde_json::Value::Object(modified_context_data_as_json_map) => {
+                        modified_context_data_as_json_map
+                    }
                     _ => {
-                        return Err(handlebars::RenderError::from(handlebars::RenderErrorReason::Other(format!(
-                            "The `get \"{route}\"` helper call failed because the pre-existing handlebars render context \
+                        return Err(handlebars::RenderError::from(
+                            handlebars::RenderErrorReason::Other(format!(
+                                "The `get \"{route}\"` helper call failed because the pre-existing handlebars render context \
                             was not an object (it was `{modified_context_data_as_json}`)."
-                        ))))
+                            )),
+                        ));
                     }
                 }
             }
