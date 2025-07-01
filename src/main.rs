@@ -126,7 +126,7 @@ fn main() {
 
     match result {
         Err(error) => {
-            log::error!("{:?}", error);
+            log::error!("{error:?}");
             process::exit(1);
         }
         Ok(_) => {

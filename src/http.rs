@@ -145,10 +145,7 @@ where
             Err(error) => {
                 return error_response(
                     http::StatusCode::BAD_REQUEST,
-                    format!(
-                        "HTTP request path `{}` could not be parsed into a Route: {}",
-                        path, error
-                    ),
+                    format!("HTTP request path `{path}` could not be parsed into a Route: {error}"),
                     &*content_engine,
                     RequestData {
                         route: None,
@@ -182,7 +179,7 @@ where
         Err(error) => {
             return error_response(
                 http::StatusCode::BAD_REQUEST,
-                format!("Malformed query string `{}`: {}", query_string, error),
+                format!("Malformed query string `{query_string}`: {error}"),
                 &*content_engine,
                 RequestData {
                     route: Some(route),
@@ -201,7 +198,7 @@ where
         Err(error) => {
             return error_response(
                 http::StatusCode::BAD_REQUEST,
-                format!("Failed to handle request headers: {}", error),
+                format!("Failed to handle request headers: {error}"),
                 &*content_engine,
                 RequestData {
                     route: Some(route),
@@ -272,8 +269,7 @@ where
                     content
                         .map_err(|error| {
                             log::error!(
-                                "An error occurred while streaming a response body: {}",
-                                error,
+                                "An error occurred while streaming a response body: {error}",
                             );
                         })
                         .inspect_ok(move |bytes| {
@@ -288,10 +284,7 @@ where
                                 );
                             } else {
                                 log::trace!(
-                                    "Streaming data for {} as {}: {:?}",
-                                    loggable_route,
-                                    loggable_media_type,
-                                    bytes
+                                    "Streaming data for {loggable_route} as {loggable_media_type}: {bytes:?}"
                                 );
                             }
                         }),
@@ -299,7 +292,7 @@ where
         }
         Some(Err(error @ RenderError::CannotProvideAcceptableMediaType)) => error_response(
             http::StatusCode::NOT_ACCEPTABLE,
-            format!("Cannot provide an acceptable response: {}", error),
+            format!("Cannot provide an acceptable response: {error}"),
             &*content_engine,
             RequestData {
                 route: Some(route),
@@ -312,7 +305,7 @@ where
         ),
         Some(Err(error)) => error_response(
             http::StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to render content: {}", error),
+            format!("Failed to render content: {error}"),
             &*content_engine,
             RequestData {
                 route: Some(route),
@@ -406,7 +399,7 @@ fn log_request(request: &HttpRequest) {
             .headers()
             .get(header::ACCEPT)
             .and_then(|value| value.to_str().ok())
-            .map(|value| format!(" with Accept: {}", value))
+            .map(|value| format!(" with Accept: {value}"))
             .unwrap_or_default()
     );
 }
@@ -456,8 +449,7 @@ where
                     Ok(rendered_content) => Some((route, rendered_content)),
                     Err(rendering_error) => {
                         log::error!(
-                            "Error occurred while rendering error handler: {}",
-                            rendering_error
+                            "Error occurred while rendering error handler: {rendering_error}"
                         );
                         None
                     }
@@ -492,10 +484,7 @@ where
                 response_builder
                     .content_type(media_type.to_string())
                     .streaming(content.map_err(|error| {
-                        log::error!(
-                            "An error occurred while streaming a response body: {}",
-                            error,
-                        );
+                        log::error!("An error occurred while streaming a response body: {error}",);
                     }))
             },
         )
@@ -545,11 +534,7 @@ fn acceptable_media_ranges_from_accept_header<'a>(
         // given equal preference. ¯\_(ツ)_/¯
         accept_value.sort_by(|a, b| {
             b.partial_cmp(a).unwrap_or_else(|| {
-                log::warn!(
-                    "Accept header items `{}` and `{}` could not be ordered by quality",
-                    a,
-                    b
-                );
+                log::warn!("Accept header items `{a}` and `{b}` could not be ordered by quality");
                 Ordering::Equal
             })
         });
@@ -574,7 +559,7 @@ fn simplify_http_headers(
             let utf8_value = value.to_str()?;
             combined_value = match combined_value {
                 None => Some(utf8_value.to_string()),
-                Some(previous_value) => Some(format!("{},{}", previous_value, utf8_value)),
+                Some(previous_value) => Some(format!("{previous_value},{utf8_value}")),
             }
         }
         if let Some(value) = combined_value {

@@ -21,7 +21,7 @@ fn canonicalize_route(route: &str) -> Result<String, InvalidRouteError> {
 
         let canonicalized_route = canonicalized_components.collect::<Vec<&str>>().join("/");
 
-        Ok(format!("/{}", canonicalized_route))
+        Ok(format!("/{canonicalized_route}"))
     }
 }
 

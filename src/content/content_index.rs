@@ -70,7 +70,7 @@ impl ContentIndexEntries {
                         .0
                         // Non-leaf nodes in the index end with `/` (they
                         // represent directories).
-                        .entry(format!("{}/", path_component))
+                        .entry(format!("{path_component}/"))
                         .or_insert_with(|| ContentIndex::Directory(Self::new()));
 
                     node = match next_node {
@@ -81,8 +81,7 @@ impl ContentIndexEntries {
                             return Err(ContentIndexUpdateError {
                                 failed_route: route.clone(),
                                 message: format!(
-                                    "There is already a resource at '{}', but that needs to be a directory to accommodate the new route.",
-                                    conficting_route,
+                                    "There is already a resource at '{conficting_route}', but that needs to be a directory to accommodate the new route.",
                                 )
                             });
                         }
@@ -93,7 +92,7 @@ impl ContentIndexEntries {
                 match node.0.get(basename) {
                     Some(ContentIndex::Directory(..)) => Err(ContentIndexUpdateError {
                         failed_route: route.clone(),
-                        message: format!("There is already a directory at '{}'.", route),
+                        message: format!("There is already a directory at '{route}'."),
                     }),
                     Some(ContentIndex::Resource(..)) => {
                         // This route already exists, no need to do anything.

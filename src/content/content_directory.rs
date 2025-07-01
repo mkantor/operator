@@ -148,8 +148,7 @@ impl ContentFile {
 
         let file = File::open(&absolute_content_file_path).map_err(|io_error| {
             ContentFileError(format!(
-                "Unable to open file '{}' in '{}' for reading: {}",
-                relative_path, root, io_error
+                "Unable to open file '{relative_path}' in '{root}' for reading: {io_error}"
             ))
         })?;
 
@@ -157,8 +156,7 @@ impl ContentFile {
             .file_name()
             .ok_or_else(|| {
                 ContentFileError(format!(
-                    "Unable to get basename of '{}' in '{}'",
-                    relative_path, root,
+                    "Unable to get basename of '{relative_path}' in '{root}'",
                 ))
             })?
             .to_str()

@@ -62,15 +62,13 @@ where
             .ok_or_else(|| {
                 handlebars::RenderErrorReason::Other(format!(
                     "The `get` helper's first argument must be a string (the route of the content \
-                    item to get), but it was `{}`.",
-                    param_0,
+                    item to get), but it was `{param_0}`.",
                 ))
             })?
             .parse::<Route>()
             .map_err(|error| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "The `get` helper's first argument (`{}`) must be a valid route: {}",
-                    param_0, error,
+                    "The `get` helper's first argument (`{param_0}`) must be a valid route: {error}",
                 ))
             })?;
 
@@ -81,8 +79,7 @@ where
         let param_1_as_object = match param_1.map(|value| {
             value.as_object().ok_or_else(|| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "Custom context provided to `get \"{}\"` must be an object, but it was `{}`.",
-                    route, value,
+                    "Custom context provided to `get \"{route}\"` must be an object, but it was `{value}`.",
                 ))
             })
         }) {
@@ -109,10 +106,7 @@ where
             });
 
         let content_item = content_engine.get_internal(&route).ok_or_else(|| {
-            handlebars::RenderErrorReason::Other(format!(
-                "No content found for `get \"{}\"`.",
-                route
-            ))
+            handlebars::RenderErrorReason::Other(format!("No content found for `get \"{route}\"`."))
         })?;
 
         let current_render_data = handlebars_context.data().as_object().ok_or_else(|| {
@@ -131,10 +125,8 @@ where
                     serde_json::Value::Object(modified_context_data_as_json_map) => modified_context_data_as_json_map,
                     _ => {
                         return Err(handlebars::RenderError::from(handlebars::RenderErrorReason::Other(format!(
-                            "The `get \"{}\"` helper call failed because the pre-existing handlebars render context \
-                            was not an object (it was `{}`).",
-                            route,
-                            modified_context_data_as_json
+                            "The `get \"{route}\"` helper call failed because the pre-existing handlebars render context \
+                            was not an object (it was `{modified_context_data_as_json}`)."
                         ))))
                     }
                 }
@@ -166,8 +158,7 @@ where
             .render(context, &[target_media_type.into_media_range()])
             .map_err(|render_error| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "The `get \"{}\"` helper call failed because {} could not be rendered: {}",
-                    route, route, render_error,
+                    "The `get \"{route}\"` helper call failed because {route} could not be rendered: {render_error}",
                 ))
             })?;
 
@@ -183,11 +174,8 @@ where
         ))
         .map_err(|streaming_error| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because there was an error collecting the rendered content \
-                for {}: {}",
-                route,
-                route,
-                streaming_error,
+                "The `get \"{route}\"` helper call failed because there was an error collecting the rendered content \
+                for {route}: {streaming_error}",
             ))
         })?;
         let rendered_content_as_string = String::from_utf8(bytes)?;
@@ -207,11 +195,9 @@ fn get_target_media_type(
         .and_then(|media_type_essence| media_type_essence.parse::<MediaType>().ok())
         .ok_or_else(|| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because a valid target media type could not be found \
-                in the handlebars context. The context JSON must contain a property at `{}` whose value is \
+                "The `get \"{route}\"` helper call failed because a valid target media type could not be found \
+                in the handlebars context. The context JSON must contain a property at `{TARGET_MEDIA_TYPE_PROPERTY_NAME}` whose value is \
                 a valid media type essence string.",
-                route,
-                TARGET_MEDIA_TYPE_PROPERTY_NAME,
             ))
         })?;
     Ok(target_media_type)
@@ -227,11 +213,9 @@ fn get_optional_request_route(
             .and_then(|request_data| request_data.get(ROUTE_PROPERTY_NAME))
             .ok_or_else(|| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "The `get \"{}\"` helper call failed because the request route could not be found in the \
-                    handlebars context. The context JSON must contain a property at `{}.{}` whose value is a \
-                    string or null.",
-                    route,
-                    REQUEST_DATA_PROPERTY_NAME, ROUTE_PROPERTY_NAME
+                    "The `get \"{route}\"` helper call failed because the request route could not be found in the \
+                    handlebars context. The context JSON must contain a property at `{REQUEST_DATA_PROPERTY_NAME}.{ROUTE_PROPERTY_NAME}` whose value is a \
+                    string or null."
                 ))
             })?;
 
@@ -241,19 +225,15 @@ fn get_optional_request_route(
             let request_route = request_route_value.as_str()
         .ok_or_else(|| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because the request route in the handlebars context was \
-                not a string or null (it was `{}`).",
-                route,
-                request_route_value,
+                "The `get \"{route}\"` helper call failed because the request route in the handlebars context was \
+                not a string or null (it was `{request_route_value}`).",
             ))
         })?
         .parse::<Route>()
         .map_err(|error| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because the request route in the handlebars context was \
-                invalid ({}).",
-                route,
-                error,
+                "The `get \"{route}\"` helper call failed because the request route in the handlebars context was \
+                invalid ({error}).",
             ))
         })?;
             Some(request_route)
@@ -271,19 +251,15 @@ fn get_query_parameters(
         .and_then(|request_data| request_data.get(QUERY_PARAMETERS_PROPERTY_NAME))
         .ok_or_else(|| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because the query parameters could not be found in the \
-                handlebars context. The context JSON must contain a property at `{}.{}` whose value is a map.",
-                route,
-                REQUEST_DATA_PROPERTY_NAME,
-                QUERY_PARAMETERS_PROPERTY_NAME,
+                "The `get \"{route}\"` helper call failed because the query parameters could not be found in the \
+                handlebars context. The context JSON must contain a property at `{REQUEST_DATA_PROPERTY_NAME}.{QUERY_PARAMETERS_PROPERTY_NAME}` whose value is a map.",
             ))
         })?
         .as_object()
         .ok_or_else(|| {
             handlebars::RenderErrorReason::Other(format!(
-                "The `get \"{}\"` helper call failed because the query parameters in the handlebars context \
+                "The `get \"{route}\"` helper call failed because the query parameters in the handlebars context \
                 was not a map.",
-                route,
             ))
         })?
         .into_iter()
@@ -305,18 +281,14 @@ fn get_request_headers(
             .and_then(|request_data| request_data.get(REQUEST_HEADERS_PROPERTY_NAME))
             .ok_or_else(|| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "The `get \"{}\"` helper call failed because the request headers could not be found in \
-                    the handlebars context. The context JSON must contain a property at `{}.{}` whose value \
-                    is a map.",
-                    route,
-                    REQUEST_DATA_PROPERTY_NAME,
-                    REQUEST_HEADERS_PROPERTY_NAME
+                    "The `get \"{route}\"` helper call failed because the request headers could not be found in \
+                    the handlebars context. The context JSON must contain a property at `{REQUEST_DATA_PROPERTY_NAME}.{REQUEST_HEADERS_PROPERTY_NAME}` whose value \
+                    is a map."
                 ))
             })?.as_object().ok_or_else(|| {
                 handlebars::RenderErrorReason::Other(format!(
-                    "The `get \"{}\"` helper call failed because the request headers in the handlebars context \
+                    "The `get \"{route}\"` helper call failed because the request headers in the handlebars context \
                     was not a map.",
-                    route,
                 ))
             })?
             .into_iter()

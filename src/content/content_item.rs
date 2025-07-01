@@ -249,8 +249,7 @@ impl Executable {
                     serde_json::Value::Object(base_render_data_as_json_map).to_string()
                 } else {
                     return Err(RenderingFailedError::Bug(format!(
-                        "Render data did not serialize to a JSON object, instead got `{}`.",
-                        base_render_data_as_json
+                        "Render data did not serialize to a JSON object, instead got `{base_render_data_as_json}`."
                     )));
                 }
             }
@@ -269,7 +268,7 @@ impl Executable {
             )
             .spawn()
             .map_err(|io_error| RenderingFailedError::ExecutableError {
-                message: format!("Unable to execute program: {}", io_error),
+                message: format!("Unable to execute program: {io_error}"),
                 program: self.program.clone(),
                 working_directory: self.working_directory.clone(),
             })?;
