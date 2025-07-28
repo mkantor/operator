@@ -25,7 +25,7 @@ actix-rt = "1.1.1"
 actix-web = "3.3.3"
 anyhow = "1.0.98"
 bytes = "0.5.6"
-clap = { version = "4.5.40", features = ["derive"] }
+clap = { version = "4.5.40", features = ["derive", "wrap_help"] }
 futures = "0.3.31"
 handlebars = "6.3.2"
 log = "0.4.27"
