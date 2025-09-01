@@ -54,12 +54,12 @@ where
     Self: Sized,
     ServerInfo: Clone + Serialize,
 {
-    fn render_context(
-        &self,
+    fn render_context<'a>(
+        &'a self,
         request_route: Option<Route>,
         query_parameters: HashMap<String, String>,
         request_headers: HashMap<String, String>,
-    ) -> RenderContext<ServerInfo, Self>;
+    ) -> RenderContext<'a, ServerInfo, Self>;
 
     fn new_template(
         &self,
@@ -69,7 +69,7 @@ where
 
     fn get(&self, route: &Route) -> Option<&ContentRepresentations>;
 
-    fn handlebars_registry(&self) -> &Handlebars;
+    fn handlebars_registry<'a>(&'a self) -> &'a Handlebars<'a>;
 }
 pub trait InternalContentEngine {
     fn get_internal(&self, route: &Route) -> Option<&ContentRepresentations>;
@@ -371,12 +371,12 @@ impl<ServerInfo> ContentEngine<ServerInfo> for FilesystemBasedContentEngine<'_, 
 where
     ServerInfo: Clone + Serialize,
 {
-    fn render_context(
-        &self,
+    fn render_context<'a>(
+        &'a self,
         route: Option<Route>,
         query_parameters: HashMap<String, String>,
         request_headers: HashMap<String, String>,
-    ) -> RenderContext<ServerInfo, Self> {
+    ) -> RenderContext<'a, ServerInfo, Self> {
         RenderContext {
             content_engine: self,
             handlebars_render_context: None,
@@ -406,7 +406,7 @@ where
         self.content_registry.get(route)
     }
 
-    fn handlebars_registry(&self) -> &Handlebars {
+    fn handlebars_registry<'a>(&'a self) -> &'a Handlebars<'a> {
         &self.handlebars_registry
     }
 }
