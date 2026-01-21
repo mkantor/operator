@@ -8,7 +8,6 @@ use operator::content::ContentDirectory;
 use operator::test_lib::*;
 use regex::Regex;
 use std::collections::BTreeMap;
-use std::env;
 use std::io::Write;
 use std::process::Stdio;
 use std::str;
