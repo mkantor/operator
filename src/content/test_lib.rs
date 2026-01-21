@@ -28,7 +28,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
         route: Option<Route>,
         query_parameters: HashMap<String, String>,
         request_headers: HashMap<String, String>,
-    ) -> RenderContext<(), Self> {
+    ) -> RenderContext<'_, (), Self> {
         RenderContext {
             content_engine: self,
             handlebars_render_context: None,
@@ -55,7 +55,7 @@ impl<'a> ContentEngine<()> for MockContentEngine<'a> {
     fn get(&self, _: &Route) -> Option<&ContentRepresentations> {
         None
     }
-    fn handlebars_registry(&self) -> &Handlebars {
+    fn handlebars_registry(&self) -> &Handlebars<'_> {
         &self.0
     }
 }
