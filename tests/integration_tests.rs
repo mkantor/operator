@@ -1,8 +1,8 @@
 #[path = "lib/mod.rs"]
 mod lib;
 
-use actix_web::client::Client as HttpClient;
-use actix_web::http::{Method, StatusCode, uri};
+use awc::Client as HttpClient;
+use awc::http::{Method, StatusCode, uri};
 use lib::*;
 use operator::content::ContentDirectory;
 use operator::test_lib::*;
@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::str;
 use test_log::test;
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn samples_match_snapshots() {
     for content_directory in sample_content_directories() {
         let content_directory_root = &content_directory.root();
@@ -138,7 +138,7 @@ fn get_subcommand_succeeds() {
     );
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn serve_subcommand_succeeds() {
     let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
     let server = RunningServer::start(&content_directory).expect("Server failed to start");
@@ -147,10 +147,10 @@ async fn serve_subcommand_succeeds() {
 
     let request = HttpClient::new()
         .get(format!("http://{}/hello", server.address()))
-        .header(
+        .insert_header((
             "Accept",
             "application/msword, text/*;q=0.9, image/gif;q=0.1",
-        );
+        ));
 
     let mut response = request.send().await.expect("Unable to send HTTP request");
     let response_body = response.body().await.expect("Unable to get response body");
@@ -174,7 +174,7 @@ async fn serve_subcommand_succeeds() {
     );
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn unsupported_request_methods_are_errors() {
     let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
     let server = RunningServer::start(&content_directory).expect("Server failed to start");
@@ -207,7 +207,7 @@ async fn unsupported_request_methods_are_errors() {
     }
 }
 
-#[actix_rt::test]
+#[actix_web::test]
 async fn options_requests_work() {
     let content_directory = ContentDirectory::from_root(&sample_path("hello-world")).unwrap();
     let server = RunningServer::start(&content_directory).expect("Server failed to start");

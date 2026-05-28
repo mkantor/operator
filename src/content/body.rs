@@ -20,12 +20,14 @@ use std::task::{Context, Poll};
 use actix_web::error::BlockingError;
 use actix_web::web;
 
-type ChunkOperation<'a, T> = LocalBoxFuture<'a, Result<T, BlockingError<StreamError>>>;
+type ChunkResult<T> = Result<Result<T, StreamError>, BlockingError>;
+type ChunkOperation<'a, T> = LocalBoxFuture<'a, ChunkResult<T>>;
 
-fn handle_error(error: BlockingError<StreamError>) -> StreamError {
-    match error {
-        BlockingError::Error(error) => error,
-        BlockingError::Canceled => StreamError::Canceled,
+fn flatten_chunk_result<T>(result: ChunkResult<T>) -> Result<T, StreamError> {
+    match result {
+        Ok(inner) => inner,
+        // The blocking thread pool task was cancelled or its worker panicked.
+        Err(_) => Err(StreamError::Canceled),
     }
 }
 
@@ -73,7 +75,7 @@ impl Stream for FileBody {
 
     fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         if let Some(ref mut future) = self.next {
-            return match Pin::new(future).poll(context) {
+            return match Pin::new(future).poll(context).map(flatten_chunk_result) {
                 Poll::Ready(Ok((file, bytes))) => {
                     self.next.take();
                     self.file = Some(file);
@@ -81,7 +83,7 @@ impl Stream for FileBody {
                     self.counter += bytes.len() as u64;
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Poll::Ready(Err(error)) => Poll::Ready(Some(Err(handle_error(error)))),
+                Poll::Ready(Err(error)) => Poll::Ready(Some(Err(error))),
                 Poll::Pending => Poll::Pending,
             };
         }
@@ -129,15 +131,15 @@ impl Stream for ProcessBody {
 
     fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         if let Some(ref mut future) = self.next {
-            return match Pin::new(future).poll(context) {
+            return match Pin::new(future).poll(context).map(flatten_chunk_result) {
                 Poll::Ready(Ok((process, bytes))) => {
                     self.next.take();
                     self.process = process;
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Poll::Ready(Err(e)) => {
+                Poll::Ready(Err(error)) => {
                     self.process = None; // Give up on the process after hitting an error.
-                    Poll::Ready(Some(Err(handle_error(e))))
+                    Poll::Ready(Some(Err(error)))
                 }
                 Poll::Pending => Poll::Pending,
             };
@@ -150,7 +152,7 @@ impl Stream for ProcessBody {
         };
 
         let pid = process.id();
-        let next = web::block(move || {
+        let next = web::block(move || -> Result<(Option<Child>, Bytes), StreamError> {
             let mut buffer = [0; 32]; // FIXME: 32 bytes is totally arbitrary.
             match process.stdout {
                 None => Err(StreamError::ExecutableOutputCouldNotBeCaptured { pid }),

@@ -181,7 +181,10 @@ pub fn get<O: io::Write>(
     );
     let media = content_item.render(render_context, &[accept.unwrap_or(mime::STAR_STAR)])?;
 
-    executor::block_on(media.content.try_for_each(|bytes| {
+    // FileBody/ProcessBody depend on `actix_web::web::block` which needs a
+    // Tokio runtime. The `serve` command starts one as part of its HTTP server,
+    // but here we need to do so manually.
+    actix_rt::System::new().block_on(media.content.try_for_each(|bytes| {
         let result = output.write_all(&bytes).map_err(StreamError::from);
         async { result }
     }))?;

@@ -1,7 +1,6 @@
-use actix_web::client::{Client as HttpClient, ClientResponse};
-use actix_web::error::PayloadError;
-use actix_web::http::StatusCode;
-use actix_web::test::unused_addr;
+use awc::error::PayloadError;
+use awc::http::StatusCode;
+use awc::{Client as HttpClient, ClientResponse};
 use bytes::{Bytes, BytesMut};
 use futures::{Stream, TryStreamExt, future};
 use mime_guess::MimeGuess;
@@ -12,12 +11,19 @@ use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::ffi::OsStr;
 use std::hash::Hasher;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener};
 use std::path::Path;
 use std::process::{Child, Command, Output, Stdio};
 use std::str;
 use std::thread;
 use std::time;
+
+fn unused_addr() -> SocketAddr {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("Could not bind to find an unused port")
+        .local_addr()
+        .expect("Could not get local_addr from TcpListener")
+}
 
 pub fn operator_command<I, S>(args: I) -> Command
 where
@@ -134,9 +140,13 @@ pub async fn render_everything_for_snapshots(
         }
     };
 
-    let render_operations = content_directory
-        .into_iter()
-        .map(|content_file| async move {
+    // This contains some Rc'd constituents, so cloning it is cheaper than
+    // allocating a new client for every request.
+    let http_client = HttpClient::new();
+
+    let render_operations = content_directory.into_iter().map(|content_file| {
+        let http_client = http_client.clone();
+        async move {
             let empty_string = String::from("");
             let first_filename_extension = content_file.extensions.first().unwrap_or(&empty_string);
 
@@ -146,6 +156,7 @@ pub async fn render_everything_for_snapshots(
                 .unwrap_or(mime::STAR_STAR);
 
             let output = render_multiple_ways_for_snapshots(
+                &http_client,
                 optional_server.map(RunningServer::address),
                 content_directory,
                 &content_file.route,
@@ -166,7 +177,8 @@ pub async fn render_everything_for_snapshots(
             };
 
             (content_file.relative_path.clone(), output_or_error_message)
-        });
+        }
+    });
 
     let content = future::join_all(render_operations)
         .await
@@ -179,6 +191,7 @@ pub async fn render_everything_for_snapshots(
 /// they all produce the same result.
 /// If `server_address` is `None`, no HTTP-based rendering is performed.
 async fn render_multiple_ways_for_snapshots(
+    http_client: &HttpClient,
     server_address: Option<&SocketAddr>,
     content_directory: &ContentDirectory,
     route: &Route,
@@ -195,7 +208,7 @@ async fn render_multiple_ways_for_snapshots(
         }
         Some(server_address) => {
             let (http_response_status, http_response_body_result) =
-                render_via_http_request(server_address, route, accept).await;
+                render_via_http_request(http_client, server_address, route, accept).await;
 
             // This is complicated. One of the reasons is that only certain
             // types of stream errors produce payload errors when using actix
@@ -322,14 +335,15 @@ fn render_via_get_command(
 }
 
 async fn render_via_http_request(
+    http_client: &HttpClient,
     server_address: &SocketAddr,
     route: &Route,
     accept: &str,
 ) -> (StatusCode, Result<Bytes, PayloadError>) {
-    let request = HttpClient::new()
+    let request = http_client
         .get(format!("http://{}{}", server_address, route))
-        .header("Accept", accept)
-        .header("Is-Operator-Snapshot-Test", "true")
+        .insert_header(("Accept", accept))
+        .insert_header(("Is-Operator-Snapshot-Test", "true"))
         .timeout(time::Duration::from_secs(15));
 
     match request.send().await {

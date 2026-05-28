@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use super::content_index::ContentIndexEntries;
 use super::*;
 use bytes::{Bytes, BytesMut};
-use futures::executor;
+use futures::TryStreamExt;
 use handlebars::Handlebars;
 
 pub struct MockContentEngine<'a>(Handlebars<'a>);
@@ -66,12 +66,14 @@ pub fn media_to_string(media: Media<impl ByteStream + Unpin>) -> String {
 }
 
 pub fn block_on_content(media: Media<impl ByteStream + Unpin>) -> Result<Bytes, StreamError> {
-    let mut all_bytes = BytesMut::new();
-    for result in executor::block_on_stream(media.content) {
-        match result {
-            Ok(bytes) => all_bytes.extend_from_slice(&bytes),
-            error => return error,
-        }
-    }
-    Ok(all_bytes.freeze())
+    actix_rt::System::new().block_on(async move {
+        media
+            .content
+            .try_fold(BytesMut::new(), |mut all_bytes, bytes| async move {
+                all_bytes.extend_from_slice(&bytes);
+                Ok(all_bytes)
+            })
+            .await
+            .map(BytesMut::freeze)
+    })
 }
