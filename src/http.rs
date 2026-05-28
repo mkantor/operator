@@ -2,12 +2,11 @@ use crate::content::*;
 use crate::*;
 use actix_rt::System;
 use actix_web::error::QueryPayloadError;
-use actix_web::http::HeaderValue;
-use actix_web::http::header::{self, Header, HeaderMap};
+use actix_web::http::KeepAlive;
+use actix_web::http::header::{self, Header, HeaderMap, HeaderValue};
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer, http, web};
 use futures::TryStreamExt;
 use mime_guess::MimeGuess;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io;
 use std::net::ToSocketAddrs;
@@ -41,7 +40,7 @@ impl FromStr for QueryString {
     type Err = InvalidQueryStringError;
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         web::Query::<HashMap<String, String>>::from_query(input)
-            .map(|query_parameters| QueryString(query_parameters.to_owned()))
+            .map(|query_parameters| QueryString(query_parameters.into_inner()))
             .map_err(|source| InvalidQueryStringError {
                 query_string: String::from(input),
                 source,
@@ -66,7 +65,7 @@ where
     Engine: 'static + ContentEngine<ServerInfo> + Send + Sync,
 {
     log::info!("Initializing HTTP server");
-    let mut system = System::new("server");
+    let system = System::new();
     let result = system.block_on(async move {
         HttpServer::new(move || {
             App::new()
@@ -77,7 +76,10 @@ where
                 })
                 .default_service(web::to(dispatch::<Engine>))
         })
-        .keep_alive(None)
+        .keep_alive(KeepAlive::Disabled)
+        // actix-web's five-second default is too short when many connections
+        // pile up against a few workers (e.g. snapshot tests).
+        .client_request_timeout(std::time::Duration::from_secs(30))
         .bind(socket_address)?
         .run()
         .await
@@ -267,7 +269,7 @@ where
                 .content_type(media_type.to_string())
                 .streaming(
                     content
-                        .map_err(|error| {
+                        .inspect_err(|error| {
                             log::error!(
                                 "An error occurred while streaming a response body: {error}",
                             );
@@ -338,10 +340,10 @@ async fn options(request: HttpRequest) -> HttpResponse {
     log::info!("Responding with {}", http::StatusCode::NO_CONTENT);
 
     let mut response_builder = HttpResponse::build(http::StatusCode::NO_CONTENT);
-    response_builder.header(
+    response_builder.insert_header((
         http::header::ALLOW,
         HeaderValue::from_static(ALLOWED_REQUEST_METHODS),
-    );
+    ));
     response_builder.finish()
 }
 
@@ -431,7 +433,7 @@ where
 
     let mut response_builder = HttpResponse::build(error_code);
     for (header_name, header_value) in response_headers.iter() {
-        response_builder.header(header_name, header_value.clone());
+        response_builder.insert_header((header_name.clone(), header_value.clone()));
     }
 
     error_handler_route
@@ -483,7 +485,7 @@ where
                 };
                 response_builder
                     .content_type(media_type.to_string())
-                    .streaming(content.map_err(|error| {
+                    .streaming(content.inspect_err(|error| {
                         log::error!("An error occurred while streaming a response body: {error}",);
                     }))
             },
@@ -525,19 +527,10 @@ fn acceptable_media_ranges_from_accept_header<'a>(
         // Sort in order of descending quality (so the client's most-preferred
         // representation is first).
         //
-        // Note that QualityItem only implements PartialOrd, not Ord. I thought
-        // that might be because the parser lossily converts decimal strings
-        // into integers (for the `q` parameter), but it turns out the
-        // implementation actually never returns None (as of actix-web v3.0.0).
-        // If that ever changes and there is some scenario where a pair of
-        // items from the accept header can't be ordered then they will be
-        // given equal preference. ¯\_(ツ)_/¯
-        accept_value.sort_by(|a, b| {
-            b.partial_cmp(a).unwrap_or_else(|| {
-                log::warn!("Accept header items `{a}` and `{b}` could not be ordered by quality");
-                Ordering::Equal
-            })
-        });
+        // I feel like QualityItem should implement Ord (it currently only
+        // implements PartialOrd, but Quality has an Ord). If that ever
+        // happens then this could just be `accept_value.sort()`.
+        accept_value.sort_by_key(|b| std::cmp::Reverse(b.quality));
 
         accept_value
             .iter()
@@ -573,10 +566,11 @@ fn simplify_http_headers(
 mod tests {
     use super::*;
     use crate::test_lib::*;
-    use actix_web::body::{Body, ResponseBody};
-    use actix_web::http::{HeaderName, HeaderValue, StatusCode};
+    use actix_web::body::to_bytes;
+    use actix_web::http::StatusCode;
+    use actix_web::http::header::{HeaderName, HeaderValue};
     use actix_web::test::TestRequest;
-    use bytes::{Bytes, BytesMut};
+    use bytes::Bytes;
     use maplit::hashmap;
     use std::path::Path;
     use test_log::test;
@@ -606,13 +600,21 @@ mod tests {
         })
     }
 
-    async fn collect_response_body(body: ResponseBody<Body>) -> Result<Bytes, actix_web::Error> {
-        body.try_fold(BytesMut::new(), |mut accumulator, bytes| {
-            accumulator.extend_from_slice(&bytes);
-            async { Ok(accumulator) }
-        })
-        .await
-        .map(BytesMut::freeze)
+    struct ReadResponse {
+        status: StatusCode,
+        headers: HeaderMap,
+        body: Result<Bytes, Box<dyn std::error::Error>>,
+    }
+
+    async fn read_response(response: HttpResponse) -> ReadResponse {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body = to_bytes(response.into_body()).await;
+        ReadResponse {
+            status,
+            headers,
+            body,
+        }
     }
 
     #[test]
@@ -671,9 +673,6 @@ mod tests {
         );
     }
 
-    // TODO: Enable this test after upgrading to actix-web v4. See
-    // <https://github.com/actix/actix-web/issues/2466>.
-    #[ignore]
     #[test]
     fn duplicate_headers_are_handled() {
         let mut headers = HeaderMap::new();
@@ -728,7 +727,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_may_be_not_found() {
         let request = test_request(&sample_path("empty"), None, None)
             .uri("/nothing/exists/at/this/path")
@@ -738,24 +737,24 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_can_be_retrieved_with_exact_media_type() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header(header::ACCEPT, "text/plain")
+            .insert_header((header::ACCEPT, "text/plain"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -766,24 +765,24 @@ mod tests {
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_can_be_retrieved_with_media_range() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header(header::ACCEPT, "text/*")
+            .insert_header((header::ACCEPT, "text/*"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -794,24 +793,24 @@ mod tests {
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_can_be_retrieved_with_star_star_media_range() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header(header::ACCEPT, "*/*")
+            .insert_header((header::ACCEPT, "*/*"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -822,24 +821,24 @@ mod tests {
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_can_be_retrieved_with_elaborate_accept_header() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header(header::ACCEPT, "audio/aac, text/*;q=0.9, image/gif;q=0.1")
+            .insert_header((header::ACCEPT, "audio/aac, text/*;q=0.9, image/gif;q=0.1"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -850,23 +849,23 @@ mod tests {
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_can_be_retrieved_with_missing_accept_header() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -877,24 +876,24 @@ mod tests {
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn multimedia_content_can_be_retrieved() {
         let request = test_request(&sample_path("multimedia"), None, None)
             .uri("/dramatic-prairie-dog")
-            .header(header::ACCEPT, "video/*")
+            .insert_header((header::ACCEPT, "video/*"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
         let response_content_type = response
-            .headers()
+            .headers
             .get(header::CONTENT_TYPE)
             .expect("Response was missing Content-Type header");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
@@ -910,14 +909,14 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn content_cannot_be_retrieved_if_no_acceptable_media_type() {
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello")
-            .header(
+            .insert_header((
                 header::ACCEPT,
                 "application/msword, font/otf, audio/3gpp2;q=0.1",
-            )
+            ))
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
@@ -929,16 +928,16 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn extension_on_url_takes_precedence_over_accept_header() {
         // Note .txt extension on URL path, but no text/plain (nor any other
         // workable media range) in the accept header.
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.txt")
-            .header(
+            .insert_header((
                 header::ACCEPT,
                 "application/msword, font/otf, audio/3gpp2;q=0.1",
-            )
+            ))
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
@@ -958,14 +957,14 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn if_url_has_extension_accept_header_is_ignored() {
         // URL path extension has the wrong media type, but accept header has
         // the correct one. Should be HTTP 406 because the accept header is not
         // considered when there is an extension.
         let request = test_request(&sample_path("hello-world"), None, None)
             .uri("/hello.doc")
-            .header(header::ACCEPT, "text/plain")
+            .insert_header((header::ACCEPT, "text/plain"))
             .to_http_request();
 
         let response = get::<TestContentEngine>(request).await;
@@ -977,41 +976,41 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn index_route_is_used_for_empty_uri_path() {
         let request = test_request(&sample_path("hello-world"), Some("/hello"), None)
-            .header(header::ACCEPT, "text/plain")
+            .insert_header((header::ACCEPT, "text/plain"))
             .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
         assert_eq!(response_body, "hello world", "Response body was incorrect");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn error_handler_is_given_http_status_code() {
         {
             let request_not_found =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header(header::ACCEPT, "text/plain")
+                    .insert_header((header::ACCEPT, "text/plain"))
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(request_not_found).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response = read_response(get::<TestContentEngine>(request_not_found).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
@@ -1024,17 +1023,18 @@ mod tests {
         {
             let request_not_acceptable_error =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header(header::ACCEPT, "text/plain")
+                    .insert_header((header::ACCEPT, "text/plain"))
                     .uri("/json-file")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(request_not_acceptable_error).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response =
+                read_response(get::<TestContentEngine>(request_not_acceptable_error).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_ACCEPTABLE,
                 "Response status was not 406"
             );
@@ -1045,47 +1045,47 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn stream_errors_are_propagated() {
         let request_internal_server_error =
             test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                .header(header::ACCEPT, "text/plain")
+                .insert_header((header::ACCEPT, "text/plain"))
                 .uri("/trigger-error")
                 .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request_internal_server_error).await;
-        let response_body = collect_response_body(response.take_body()).await;
+        let response =
+            read_response(get::<TestContentEngine>(request_internal_server_error).await).await;
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::OK,
             "Response status was not 200"
         );
 
-        assert_eq!(
-            response_body.unwrap_err().to_string(),
-            actix_web::Error::from(()).to_string()
+        assert!(
+            response.body.is_err(),
+            "Stream error was not propagated through the response body",
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn error_handler_can_be_static_content() {
         let request = test_request(
             &sample_path("error-handling"),
             None,
             Some("/static-error-handler"),
         )
-        .header(header::ACCEPT, "text/plain")
+        .insert_header((header::ACCEPT, "text/plain"))
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::NOT_FOUND,
             "Response status was not 404"
         );
@@ -1095,14 +1095,14 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn error_handler_can_be_executable() {
         let request = test_request(
             &sample_path("error-handling"),
             None,
             Some("/executable-error-handler"),
         )
-        .header(header::ACCEPT, "text/plain")
+        .insert_header((header::ACCEPT, "text/plain"))
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
@@ -1115,26 +1115,26 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn error_handler_is_content_negotiated() {
         {
             let text_plain_request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header(header::ACCEPT, "text/plain")
+                    .insert_header((header::ACCEPT, "text/plain"))
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(text_plain_request).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response = read_response(get::<TestContentEngine>(text_plain_request).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
             let response_content_type = response
-                .headers()
+                .headers
                 .get(header::CONTENT_TYPE)
                 .expect("Response was missing Content-Type header");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
@@ -1151,21 +1151,21 @@ mod tests {
         {
             let text_html_request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header(header::ACCEPT, "text/html")
+                    .insert_header((header::ACCEPT, "text/html"))
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(text_html_request).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response = read_response(get::<TestContentEngine>(text_html_request).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
             let response_content_type = response
-                .headers()
+                .headers
                 .get(header::CONTENT_TYPE)
                 .expect("Response was missing Content-Type header");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
@@ -1180,27 +1180,27 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn use_a_default_error_handler_if_specified_handler_fails() {
         {
             // The error handler itself will trigger a rendering error.
             let request =
                 test_request(&sample_path("error-handling"), None, Some("/trigger-error"))
-                    .header(header::ACCEPT, "text/html")
+                    .insert_header((header::ACCEPT, "text/html"))
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(request).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response = read_response(get::<TestContentEngine>(request).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
             let response_content_type = response
-                .headers()
+                .headers
                 .get(header::CONTENT_TYPE)
                 .expect("Response was missing Content-Type header");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
@@ -1215,21 +1215,21 @@ mod tests {
             // The error handler is fine, but is not an acceptable media type.
             let request =
                 test_request(&sample_path("error-handling"), None, Some("/error-handler"))
-                    .header(header::ACCEPT, "video/mp4")
+                    .insert_header((header::ACCEPT, "video/mp4"))
                     .uri("/not/a/real/path/so/this/should/404")
                     .to_http_request();
 
-            let mut response = get::<TestContentEngine>(request).await;
-            let response_body = collect_response_body(response.take_body())
-                .await
+            let response = read_response(get::<TestContentEngine>(request).await).await;
+            let response_body = response
+                .body
                 .expect("There was an error in the content stream");
             let response_content_type = response
-                .headers()
+                .headers
                 .get(header::CONTENT_TYPE)
                 .expect("Response was missing Content-Type header");
 
             assert_eq!(
-                response.status(),
+                response.status,
                 StatusCode::NOT_FOUND,
                 "Response status was not 404"
             );
@@ -1244,24 +1244,24 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn error_handler_sees_original_request_route() {
         let request = test_request(
             &sample_path("error-handling"),
             None,
             Some("/error-code-and-request-info"),
         )
-        .header(header::ACCEPT, "text/plain")
+        .insert_header((header::ACCEPT, "text/plain"))
         .uri("/not/a/real/path/so/this/should/404")
         .to_http_request();
 
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         assert_eq!(
-            response.status(),
+            response.status,
             StatusCode::NOT_FOUND,
             "Response status was not 404"
         );
@@ -1272,14 +1272,14 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn query_parameters_are_handled() {
         let request = test_request(&sample_path("executables"), None, None)
             .uri("/render-data?a=hello&b=1&b=2&c")
             .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
@@ -1290,14 +1290,14 @@ mod tests {
         assert_eq!(&response_json["request"]["query-parameters"]["c"], "");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn query_parameters_are_forwarded_to_getted_content() {
         let request = test_request(&sample_path("executables"), None, None)
             .uri("/get-render-data?hello=world")
             .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
@@ -1309,7 +1309,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn query_parameters_are_forwarded_to_error_handler() {
         let request = test_request(
             &sample_path("error-handling"),
@@ -1318,9 +1318,9 @@ mod tests {
         )
         .uri("/this-route-will-404?hello=world")
         .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         assert_eq!(
@@ -1329,17 +1329,17 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn request_headers_are_handled() {
         let request = test_request(&sample_path("executables"), None, None)
             .uri("/render-data")
-            .header("a", "hello")
-            .header("b", "2")
-            .header("c", "")
+            .insert_header(("a", "hello"))
+            .insert_header(("b", "2"))
+            .insert_header(("c", ""))
             .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
@@ -1350,15 +1350,15 @@ mod tests {
         assert_eq!(&response_json["request"]["request-headers"]["c"], "");
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn request_headers_are_forwarded_to_getted_content() {
         let request = test_request(&sample_path("executables"), None, None)
             .uri("/get-render-data")
-            .header("hello", "world")
+            .insert_header(("hello", "world"))
             .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         let response_json = serde_json::from_slice::<serde_json::Value>(&response_body)
@@ -1370,7 +1370,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn request_headers_are_forwarded_to_error_handler() {
         let request = test_request(
             &sample_path("error-handling"),
@@ -1378,11 +1378,11 @@ mod tests {
             Some("/error-code-and-request-info"),
         )
         .uri("/this-route-will-404")
-        .header("hello", "world")
+        .insert_header(("hello", "world"))
         .to_http_request();
-        let mut response = get::<TestContentEngine>(request).await;
-        let response_body = collect_response_body(response.take_body())
-            .await
+        let response = read_response(get::<TestContentEngine>(request).await).await;
+        let response_body = response
+            .body
             .expect("There was an error in the content stream");
 
         assert_eq!(
@@ -1391,7 +1391,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[actix_web::test]
     async fn malformed_request_paths_are_handled_gracefully() {
         let request = test_request(&sample_path("empty"), None, None)
             .uri("garbage")

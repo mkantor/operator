@@ -1,8 +1,7 @@
 use actix_rt::SystemRunner;
-use actix_web::client::{Client as HttpClient, ClientResponse};
-use actix_web::error::PayloadError;
-use actix_web::http::StatusCode;
-use actix_web::test::unused_addr;
+use awc::error::PayloadError;
+use awc::http::StatusCode;
+use awc::{Client as HttpClient, ClientResponse};
 use bytes::{Bytes, BytesMut};
 use criterion::{BenchmarkId, Criterion, criterion_main};
 use futures::FutureExt;
@@ -15,11 +14,18 @@ use operator::test_lib::*;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener};
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::thread;
 use std::time;
+
+fn unused_addr() -> SocketAddr {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("Could not bind to find an unused port")
+        .local_addr()
+        .expect("Could not get local_addr from TcpListener")
+}
 
 const CONCURRENT_REQUESTS_PER_ROUTE: u8 = 10;
 
@@ -42,7 +48,7 @@ fn benchmark_all_samples() {
         .noise_threshold(0.1)
         .sample_size(10)
         .configure_from_args();
-    let mut runtime = actix_rt::System::new("load_test");
+    let runtime = actix_rt::System::new();
 
     for (sample_name, content_directory) in BENCHMARKED_SAMPLES.iter() {
         let server = RunningServer::start(&content_directory).expect("Server failed to start");
@@ -50,7 +56,7 @@ fn benchmark_all_samples() {
             BenchmarkId::new("load-test", sample_name),
             &content_directory,
             |bencher, content_directory| {
-                benchmark_load_test(bencher, &mut runtime, content_directory, &server)
+                benchmark_load_test(bencher, &runtime, content_directory, &server)
             },
         );
     }
@@ -58,7 +64,7 @@ fn benchmark_all_samples() {
 
 fn benchmark_load_test(
     bencher: &mut criterion::Bencher,
-    runtime: &mut SystemRunner,
+    runtime: &SystemRunner,
     content_directory: &'static ContentDirectory,
     server: &RunningServer,
 ) {
@@ -66,6 +72,10 @@ fn benchmark_load_test(
 }
 
 async fn load_test(content_directory: &'static ContentDirectory, server_address: SocketAddr) {
+    // This contains some Rc'd constituents, so cloning it is cheaper than
+    // allocating a new client for every request.
+    let http_client = HttpClient::new();
+
     let requests = content_directory.into_iter().flat_map(|content_file| {
         let empty_string = String::from("");
         let first_filename_extension = content_file.extensions.first().unwrap_or(&empty_string);
@@ -79,8 +89,10 @@ async fn load_test(content_directory: &'static ContentDirectory, server_address:
             Vec::with_capacity(CONCURRENT_REQUESTS_PER_ROUTE as usize);
         for _ in 0..CONCURRENT_REQUESTS_PER_ROUTE {
             let target_media_type = target_media_type.clone();
+            let http_client = http_client.clone();
             requests_for_this_route.push(async move {
                 render_via_http_request(
+                    &http_client,
                     &server_address,
                     &content_file.route,
                     &target_media_type.to_string(),
@@ -183,14 +195,15 @@ impl Drop for RunningServer {
 }
 
 async fn render_via_http_request(
+    http_client: &HttpClient,
     server_address: &SocketAddr,
     route: &Route,
     accept: &str,
 ) -> (StatusCode, Result<Bytes, PayloadError>) {
-    let request = HttpClient::new()
+    let request = http_client
         .get(format!("http://{}{}", server_address, route))
-        .header("Accept", accept)
-        .timeout(time::Duration::from_secs(15));
+        .insert_header(("Accept", accept))
+        .timeout(time::Duration::from_secs(30));
 
     match request.send().await {
         Err(send_request_error) => panic!(

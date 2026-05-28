@@ -169,13 +169,22 @@ where
         // Unfortunately handlebars-rust needs a string, so we block the thread
         // until the stream has been exhausted (or produces an error).
         let (size_lower_bound, _) = rendered.content.size_hint();
-        let bytes = executor::block_on(rendered.content.try_fold(
+        let bytes_future = rendered.content.try_fold(
             Vec::with_capacity(size_lower_bound),
             |mut all_bytes, additional_bytes| async {
                 all_bytes.extend(additional_bytes);
                 Ok(all_bytes)
             },
-        ))
+        );
+        // `FileBody`/`ProcessBody` rely on `actix_web::web::block`, which needs
+        // a Tokio runtime. When called from an HTTP handler one is already
+        // active, so `futures::executor::block_on` can drive the future to
+        // completion. From sync contexts (e.g. unit tests, the `eval`/`get`
+        // CLI subcommands) we spin up a fresh runtime to wait for the future.
+        let bytes = match tokio::runtime::Handle::try_current() {
+            Ok(_) => executor::block_on(bytes_future),
+            Err(_) => actix_rt::System::new().block_on(bytes_future),
+        }
         .map_err(|streaming_error| {
             handlebars::RenderErrorReason::Other(format!(
                 "The `get \"{route}\"` helper call failed because there was an error collecting the rendered content \
