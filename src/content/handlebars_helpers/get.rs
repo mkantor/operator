@@ -176,11 +176,10 @@ where
                 Ok(all_bytes)
             },
         );
-        // `FileBody`/`ProcessBody` rely on `actix_web::web::block`, which needs
-        // a Tokio runtime. When called from an HTTP handler one is already
-        // active, so `futures::executor::block_on` can drive the future to
-        // completion. From sync contexts (e.g. unit tests, the `eval`/`get`
-        // CLI subcommands) we spin up a fresh runtime to wait for the future.
+        // `block_on`, needs an active future runtime. When this is called from
+        // an HTTP handler one's already active, but in sync contexts (e.g. unit
+        // tests, the `eval`/`get` CLI subcommands) we spin up a fresh runtime
+        // to wait for the future.
         let bytes = match tokio::runtime::Handle::try_current() {
             Ok(_) => executor::block_on(bytes_future),
             Err(_) => actix_rt::System::new().block_on(bytes_future),
