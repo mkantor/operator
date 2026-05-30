@@ -6,7 +6,7 @@ use super::StreamError;
 use crate::bug_message;
 use bytes::Bytes;
 use futures::Stream;
-use futures::future::{Future, FutureExt, LocalBoxFuture};
+use futures::future::{BoxFuture, Future, FutureExt};
 use std::cmp;
 use std::fs::File;
 use std::io::ErrorKind::Interrupted;
@@ -21,7 +21,7 @@ use actix_web::error::BlockingError;
 use actix_web::web;
 
 type ChunkResult<T> = Result<Result<T, StreamError>, BlockingError>;
-type ChunkOperation<'a, T> = LocalBoxFuture<'a, ChunkResult<T>>;
+type ChunkOperation<'a, T> = BoxFuture<'a, ChunkResult<T>>;
 
 fn flatten_chunk_result<T>(result: ChunkResult<T>) -> Result<T, StreamError> {
     match result {
@@ -106,7 +106,7 @@ impl Stream for FileBody {
                     file.by_ref().take(max_bytes).read_to_end(&mut buffer)?;
                     Ok((file, Bytes::from(buffer)))
                 })
-                .boxed_local(),
+                .boxed(),
             );
             self.poll_next(context)
         }
@@ -200,7 +200,7 @@ impl Stream for ProcessBody {
                 }
             }
         })
-        .boxed_local();
+        .boxed();
 
         self.next = Some(next);
         self.poll_next(context)
