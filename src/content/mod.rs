@@ -29,12 +29,12 @@ pub use content_registry::{ContentRepresentations, RegisteredContent};
 pub use route::Route;
 
 // This is just a trait alias to help make type signatures a bit saner.
-pub trait ByteStream: Stream<Item = Result<Bytes, StreamError>>
+pub trait ByteStream: Stream<Item = Result<Bytes, StreamError>> + Send
 where
     Self: Unpin,
 {
 }
-impl<T> ByteStream for T where T: Stream<Item = Result<Bytes, StreamError>> + Unpin {}
+impl<T> ByteStream for T where T: Stream<Item = Result<Bytes, StreamError>> + Unpin + Send {}
 
 /// A piece of rendered content along with its media type.
 pub struct Media<Content: ByteStream> {
